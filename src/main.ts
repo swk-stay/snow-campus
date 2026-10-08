@@ -17,6 +17,7 @@ import { Monolith } from './render/monolith'
 import { PlayerView } from './render/playerView'
 import { Projectiles, Sparkles, Suction } from './render/effects'
 import { UnitsView } from './render/units'
+import { BuildingLabels } from './render/buildingLabels'
 import { Input } from './input'
 import { Hud } from './hud'
 import { Shop } from './shop'
@@ -94,6 +95,8 @@ state.buildings.forEach((b, i) => {
   buildingViews.set(b.id, view)
   scene.add(view.monolith.group)
 })
+
+const labels = new BuildingLabels(scene, state.buildings)
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1200)
 const rig = new CameraRig(camera)
@@ -191,6 +194,7 @@ if (resumed) hud.toast('続きから再開！', 1500)
 function resize() {
   const { clientWidth: w, clientHeight: h } = app
   renderer.setSize(w, h)
+  labels.setSize(w, h)
   camera.aspect = w / h
   camera.updateProjectionMatrix()
 }
@@ -339,6 +343,7 @@ renderer.setAnimationLoop((now: number) => {
     const stage = b.completed ? 'done' : b === current ? 'current' : 'locked'
     const inZone = stage === 'current' && distanceToBuilding(b, p.x, p.z) <= b.dropRange
     view.monolith.update(time, view.display, Math.max(0, view.colorize), stage, inZone)
+    labels.update(b, stage, view.display, view.monolith.topY, camera)
   }
 
   suction.update(dt, packPos)
@@ -383,6 +388,7 @@ renderer.setAnimationLoop((now: number) => {
   }
 
   renderer.render(scene, camera)
+  labels.render(scene, camera)
 })
 
 // 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890, buy('plow')）

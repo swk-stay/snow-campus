@@ -103,5 +103,29 @@ body.cinematic::before, body.cinematic::after { height: 9vh; }
 body.cinematic #hud, body.cinematic #minimap, body.cinematic #view-bar, body.cinematic #shop-button, body.cinematic #shop { opacity: 0; pointer-events: none; }
 #hud, #minimap, #view-bar, #shop-button { transition: opacity 0.4s; }
 #toast { z-index: 6; }
+#hud, #minimap, #view-bar, #shop-button, #shop { z-index: 2; }
 body.overview #hud, body.overview #shop-button { opacity: 0.3; }
 body.god-view #view-bar, body.god-view #minimap { display: none; }
+
+/* 建物の上の進捗ラベル（CSS2DRenderer） */
+#labels { position: fixed; inset: 0; pointer-events: none; }
+.building-label {
+  display: grid; justify-items: center; gap: 2px; padding: 6px 12px; border-radius: 12px;
+  background: rgba(20, 30, 50, 0.6); color: #fff; font-size: 13px; white-space: nowrap;
+  backdrop-filter: blur(3px); transition: opacity 0.3s;
+}
+.bl-name { font-weight: bold; }
+.bl-value { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: bold; color: #ffd36e; }
+.bl-bar { width: 120px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); overflow: hidden; }
+.bl-fill { height: 100%; width: 0; background: linear-gradient(90deg, #ffd36e, #ff9f43); }
+.building-label[data-stage='current'] { box-shadow: 0 0 0 2px rgba(255, 190, 60, 0.7); }
+.building-label[data-stage='locked'], .building-label[data-stage='done'] { padding: 3px 10px; font-size: 11px; }
+.building-label[data-stage='locked'] .bl-bar, .building-label[data-stage='done'] .bl-bar { display: none; }
+.building-label[data-stage='locked'] .bl-value { color: #b8c0cc; font-size: 11px; }
+.building-label[data-stage='done'] .bl-value { color: #9fe0a0; font-size: 11px; }
+body.cinematic #labels { opacity: 0; transition: opacity 0.4s; }
+@media (max-width: 480px) {
+  .building-label { font-size: 11px; padding: 4px 8px; }
+  .bl-value { font-size: 13px; }
+  .bl-bar { width: 90px; }
+}
