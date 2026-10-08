@@ -1,0 +1,2 @@
+html, body, #app { margin: 0; height: 100%; overflow: hidden; background: #0b0f17; }
+canvas { display: block; touch-action: none; }
