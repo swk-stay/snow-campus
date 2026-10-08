@@ -1,2 +1,35 @@
 html, body, #app { margin: 0; height: 100%; overflow: hidden; background: #0b0f17; }
+body { font-family: system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
 canvas { display: block; touch-action: none; }
+
+#hud {
+  position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px;
+  display: grid; gap: 6px; pointer-events: none;
+  padding: 8px 12px; border-radius: 12px; background: rgba(20, 30, 50, 0.45); color: #fff;
+  font-size: 14px; backdrop-filter: blur(4px);
+}
+.hud-row { display: grid; grid-template-columns: 2.5em 140px 4.5em; align-items: center; gap: 8px; }
+.hud-value { font-variant-numeric: tabular-nums; text-align: right; }
+.bar { height: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.fill { height: 100%; width: 0; border-radius: 5px; transition: width 0.15s; }
+.fill.snow { background: linear-gradient(90deg, #bfe3ff, #ffffff); }
+.fill.build { background: linear-gradient(90deg, #ffd36e, #ff9f43); }
+
+#toast {
+  position: fixed; left: 50%; top: 28%; transform: translate(-50%, -50%) scale(0.9);
+  padding: 14px 24px; border-radius: 16px; background: rgba(255, 255, 255, 0.92); color: #7a4b00;
+  font-size: 22px; font-weight: bold; pointer-events: none; opacity: 0; transition: opacity 0.3s, transform 0.3s;
+  box-shadow: 0 6px 30px rgba(255, 190, 60, 0.6);
+}
+#toast.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+.stick-base {
+  position: fixed; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.12);
+  pointer-events: none; opacity: 0; transition: opacity 0.1s;
+}
+.stick-base.visible { opacity: 1; }
+.stick-knob {
+  position: absolute; left: 32px; top: 32px; width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+}
