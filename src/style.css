@@ -70,4 +70,38 @@ canvas { display: block; touch-action: none; }
 }
 .shop-buy:disabled { background: #dfe3ea; color: #8a92a0; cursor: default; font-size: 11px; }
 
-.lil-gui.root { position: fixed; top: 0; right: 0; z-index: 10; }
+.lil-gui.root { position: fixed; top: auto; bottom: 0; left: 0; right: auto; z-index: 10; max-height: 70vh; }
+
+.shop-reset { display: block; width: calc(100% - 28px); margin: 10px 14px 14px; padding: 8px; border: 1px solid #e3b4b4; border-radius: 10px; background: #fff; color: #b03030; font-size: 12px; cursor: pointer; }
+
+#minimap {
+  position: fixed; top: max(12px, env(safe-area-inset-top)); right: 12px; width: 150px; height: 150px;
+  border-radius: 14px; overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); cursor: pointer; background: #283040;
+}
+#minimap canvas { width: 100%; height: 100%; display: block; }
+.minimap-hint { position: absolute; left: 6px; bottom: 4px; font-size: 10px; font-weight: bold; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+.minimap-hint kbd, #view-bar kbd { font: inherit; font-size: 10px; opacity: 0.75; border: 1px solid rgba(255,255,255,0.5); border-radius: 3px; padding: 0 3px; }
+@media (max-width: 480px) { #minimap { width: 104px; height: 104px; } }
+@media (pointer: coarse) { .minimap-hint kbd, #view-bar kbd { display: none; } }
+
+#view-bar { position: fixed; left: 12px; bottom: max(16px, env(safe-area-inset-bottom)); display: flex; gap: 8px; }
+#view-bar button {
+  padding: 10px 14px; border: none; border-radius: 999px; background: rgba(20, 30, 50, 0.6); color: #fff;
+  font-size: 14px; font-weight: bold; cursor: pointer; backdrop-filter: blur(4px);
+}
+@media (max-width: 480px) { #view-bar [data-map] { display: none; } }
+
+/* 完成演出中：上下に黒帯、操作 UI は隠す */
+body::before, body::after {
+  content: ''; position: fixed; left: 0; right: 0; height: 0; background: #000; z-index: 5;
+  transition: height 0.5s ease; pointer-events: none;
+}
+body::before { top: 0; }
+body::after { bottom: 0; }
+body.cinematic::before, body.cinematic::after { height: 9vh; }
+body.cinematic #hud, body.cinematic #minimap, body.cinematic #view-bar, body.cinematic #shop-button, body.cinematic #shop { opacity: 0; pointer-events: none; }
+#hud, #minimap, #view-bar, #shop-button { transition: opacity 0.4s; }
+#toast { z-index: 6; }
+body.overview #hud, body.overview #shop-button { opacity: 0.3; }
+body.god-view #view-bar, body.god-view #minimap { display: none; }

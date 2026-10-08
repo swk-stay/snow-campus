@@ -163,6 +163,11 @@ export function syncOwnedUnits(s: GameState) {
   s.machines.length = spots
 }
 
+/** いま建てている建物（BUILDINGS の順で最初の未完成）。全部完成していれば null */
+export function currentBuilding(s: GameState): Building | null {
+  return s.buildings.find((b) => !b.completed) ?? null
+}
+
 /** 建物の外周（矩形）からの距離 */
 export function distanceToBuilding(b: Building, x: number, z: number): number {
   const dx = Math.max(Math.abs(x - b.x) - b.width / 2, 0)
@@ -185,8 +190,9 @@ export function stepGame(s: GameState, input: MoveInput, dt: number): GameEvent[
   }
 
   p.throwCooldown = Math.max(0, p.throwCooldown - dt)
-  for (const b of s.buildings) {
-    if (b.completed || distanceToBuilding(b, p.x, p.z) > b.dropRange) continue
+  // 寄付できるのは解放済み（＝いま建てている）建物だけ
+  const b = currentBuilding(s)
+  if (b && distanceToBuilding(b, p.x, p.z) <= b.dropRange) {
     while (p.carried > 0.01 && p.throwCooldown <= 0 && !b.completed) {
       const amount = Math.min(PLAYER.throwChunk, p.carried, b.required - b.deposited)
       p.carried -= amount
@@ -216,7 +222,7 @@ function deposit(s: GameState, b: Building, amount: number, events: GameEvent[],
 
 function stepPlow(s: GameState, plow: Plow, dt: number, events: GameEvent[]) {
   const fx = UPGRADE_EFFECT.plow
-  const target = s.buildings.find((b) => !b.completed)
+  const target = currentBuilding(s)
   // 全部完成していたら仕事がないので止まる
   if (!target) return
 

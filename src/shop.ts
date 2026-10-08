@@ -12,7 +12,7 @@ export class Shop {
   private readonly rows = new Map<UpgradeId, { level: HTMLElement; buy: HTMLButtonElement }>()
   private open = false
 
-  constructor(root: HTMLElement, onBuy: (id: UpgradeId) => void) {
+  constructor(root: HTMLElement, onBuy: (id: UpgradeId) => void, onReset: () => void) {
     this.button = document.createElement('button')
     this.button.id = 'shop-button'
     this.button.innerHTML = 'ショップ <kbd>E</kbd>'
@@ -35,6 +35,14 @@ export class Shop {
       this.rows.set(id, { level: row.querySelector('.shop-level')!, buy })
       this.panel.appendChild(row)
     }
+    // 学園祭で次の人に渡すときなどに使う
+    const reset = document.createElement('button')
+    reset.className = 'shop-reset'
+    reset.textContent = 'セーブを消して最初から'
+    reset.addEventListener('click', () => {
+      if (confirm('セーブデータを消して最初からやり直しますか？')) onReset()
+    })
+    this.panel.appendChild(reset)
     root.appendChild(this.panel)
 
     addEventListener('keydown', (e) => {

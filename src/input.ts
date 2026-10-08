@@ -1,7 +1,7 @@
 import type { MoveInput } from './sim/game'
 
 // キーボード（WASD / 矢印）と、画面のどこでも触ったところに出るフローティング仮想スティック。
-// カメラは常に -Z 方向を向いている前提で、画面の上 = ワールドの -Z に対応させる。
+// move() はスクリーン基準（x: 右, z: 下）で返す。ワールド基準への変換は CameraRig.toWorld が行う。
 
 export class Input {
   private readonly keys = new Set<string>()
@@ -58,6 +58,18 @@ export class Input {
 
   private drawKnob() {
     this.knob.style.transform = `translate(${this.stick.x * this.radius}px, ${this.stick.y * this.radius}px)`
+  }
+
+  /** グランドレベルでのカメラ回転（Z / X キー）。-1..1 */
+  turn(): number {
+    return (this.keys.has('KeyX') ? 1 : 0) - (this.keys.has('KeyZ') ? 1 : 0)
+  }
+
+  /** スティックを離した扱いにする（演出が始まったときなど） */
+  release() {
+    this.pointerId = null
+    this.stick = { x: 0, y: 0 }
+    this.base.classList.remove('visible')
   }
 
   move(): MoveInput {

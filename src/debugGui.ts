@@ -8,6 +8,8 @@ import { maxLevel, refillField, syncOwnedUnits, type GameState } from './sim/gam
 export type DebugHooks = {
   /** 完成済みの建物のカラー化演出をもう一度再生する */
   replayColorize: () => void
+  /** セーブを消してリロード */
+  resetSave: () => void
 }
 
 export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
@@ -56,6 +58,7 @@ export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
     },
     refill: () => refillField(s),
     replay: hooks.replayColorize,
+    reset: hooks.resetSave,
   }
   const act = gui.addFolder('アクション')
   act.add(actions, 'gold').name('ゴールド +1000')
@@ -63,6 +66,7 @@ export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
   act.add(actions, 'maxAll').name('アップグレードを上限まで')
   act.add(actions, 'refill').name('雪原をリセット')
   act.add(actions, 'replay').name('カラー化を再生')
+  act.add(actions, 'reset').name('セーブを消してリロード')
   act.add(s, 'gold').name('所持ゴールド').listen().disable()
   act.add(s, 'tier').name('Tier').listen().disable()
 

@@ -2,21 +2,33 @@ import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { FX, UPGRADES, WORLD, type UpgradeId } from './config'
-import { buyUpgrade, createGame, distanceToBuilding, stats, stepGame, type GameEvent } from './sim/game'
+import {
+  buyUpgrade,
+  createGame,
+  currentBuilding,
+  distanceToBuilding,
+  stats,
+  stepGame,
+  type Building,
+  type GameEvent,
+} from './sim/game'
 import { SnowSurface } from './render/snowSurface'
 import { Monolith } from './render/monolith'
 import { PlayerView } from './render/playerView'
 import { Projectiles, Sparkles, Suction } from './render/effects'
+import { UnitsView } from './render/units'
 import { Input } from './input'
 import { Hud } from './hud'
 import { Shop } from './shop'
-import { UnitsView } from './render/units'
+import { Minimap } from './minimap'
+import { CameraRig, type Shot, type ViewMode } from './camera'
 import { createDebugGui } from './debugGui'
+import { clearStorage, loadFromStorage, saveToStorage } from './save'
+import { playCoin, playFanfare, unlockAudio } from './audio'
 
-// ?view=god で展示用の神視点（自動周回）カメラ
+// ?view=god で展示用の神視点（自動周回）カメラ、?debug で lil-gui の調整パネル
 const params = new URLSearchParams(location.search)
 const isGodView = params.get('view') === 'god'
-// ?debug で lil-gui の調整パネル
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -25,7 +37,8 @@ app.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0xb9cbe0)
-scene.fog = new THREE.Fog(0xb9cbe0, 55, 140)
+const fog = new THREE.Fog(0xb9cbe0, 55, 140)
+scene.fog = fog
 const sunDir = new THREE.Vector3(0.45, 0.8, 0.35).normalize()
 scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.3))
 const sun = new THREE.DirectionalLight(0xffffff, 1.6)
@@ -33,12 +46,13 @@ sun.position.copy(sunDir).multiplyScalar(30)
 scene.add(sun)
 
 const state = createGame()
+const resumed = loadFromStorage(state)
 
 const snow = new SnowSurface(state.field, sunDir)
 scene.add(snow.mesh)
 // 雪原の外側（回収できない背景の雪面）。高さは雪原外周の初期値 0.75 に合わせる
 const outer = new THREE.Mesh(
-  new THREE.RingGeometry(WORLD.size * 0.7, 160, 4, 1, Math.PI / 4),
+  new THREE.RingGeometry(WORLD.size * 0.7, 400, 4, 1, Math.PI / 4),
   // 日向の雪面（SnowSurface の平地）とほぼ同じ色を無ライティングで出す
   new THREE.MeshBasicMaterial({ color: 0xf0f3fa }),
 )
@@ -61,36 +75,118 @@ type BuildingView = {
   inFlight: number
   /** カラー化の進捗。-1 は未開始 */
   colorize: number
+  /** 完成演出を始めたか */
+  celebrated: boolean
+  /** 演出開始からカラー化が始まるまでの待ち（カメラが建物に着くのを待つ） */
+  hold: number
 }
 const buildingViews = new Map<string, BuildingView>()
-for (const b of state.buildings) {
-  const view = { monolith: new Monolith(b, sunDir), display: 0, inFlight: 0, colorize: -1 }
+state.buildings.forEach((b, i) => {
+  // セーブから再開した場合、完成済みの建物は最初からカラーで建っている
+  const view: BuildingView = {
+    monolith: new Monolith(b, i, sunDir),
+    display: b.deposited / b.required,
+    inFlight: 0,
+    colorize: b.completed ? 1 : -1,
+    celebrated: b.completed,
+    hold: 0,
+  }
   buildingViews.set(b.id, view)
   scene.add(view.monolith.group)
+})
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1200)
+const rig = new CameraRig(camera)
+try {
+  rig.mode = (localStorage.getItem('snow-campus-view') as ViewMode | null) ?? 'top'
+} catch {
+  // 視点の記憶は無くても困らない
+}
+const controls = isGodView ? new OrbitControls(camera, renderer.domElement) : null
+if (controls) {
+  camera.position.set(0, 70, 75)
+  controls.target.set(0, 2, 0)
+  controls.autoRotate = true
+  controls.autoRotateSpeed = 0.6
+  controls.enableDamping = true
+  fog.near = 150
+  fog.far = 400
 }
 
 const input = new Input(renderer.domElement, !isGodView)
 const hud = new Hud(document.body)
 // 購入で発生したイベントも、stepGame のイベントと同じ経路で処理する
 const pendingEvents: GameEvent[] = []
-const shop = isGodView ? null : new Shop(document.body, (id) => pendingEvents.push(...buyUpgrade(state, id)))
+let resetting = false
+function resetSave() {
+  resetting = true
+  clearStorage()
+  location.reload()
+}
+const shop = isGodView ? null : new Shop(document.body, (id) => pendingEvents.push(...buyUpgrade(state, id)), resetSave)
+const minimap = new Minimap(document.body, () => toggleOverview())
+unlockAudio()
+
+// 画面左下の視点ボタン
+const viewBar = document.createElement('div')
+viewBar.id = 'view-bar'
+viewBar.innerHTML = `<button data-view></button><button data-map>全体マップ <kbd>M</kbd></button>`
+document.body.appendChild(viewBar)
+const viewButton = viewBar.querySelector<HTMLButtonElement>('[data-view]')!
+viewButton.addEventListener('click', () => toggleView())
+viewBar.querySelector('[data-map]')!.addEventListener('click', () => toggleOverview())
+if (isGodView) document.body.classList.add('god-view')
+
+function refreshViewButton() {
+  viewButton.innerHTML = `${rig.mode === 'top' ? '見下ろし' : 'グランド'} <kbd>V</kbd>`
+  document.body.classList.toggle('overview', rig.overview)
+}
+function toggleView() {
+  rig.toggleMode()
+  try {
+    localStorage.setItem('snow-campus-view', rig.mode)
+  } catch {
+    // 同上
+  }
+  refreshViewButton()
+}
+function toggleOverview() {
+  if (rig.cinematic) return
+  rig.overview = !rig.overview
+  input.release()
+  refreshViewButton()
+}
+refreshViewButton()
+
+addEventListener('keydown', (e) => {
+  if (e.repeat) return
+  if (rig.cinematic && rig.cinematicElapsed > 2.5) rig.skipCinematic()
+  else if (e.code === 'KeyV') toggleView()
+  else if (e.code === 'KeyM') toggleOverview()
+})
+// 俯瞰中は画面タップで戻る。演出は少し見せてからタップでスキップできる
+renderer.domElement.addEventListener('pointerdown', () => {
+  if (rig.overview) toggleOverview()
+  else if (rig.cinematic && rig.cinematicElapsed > 2.5) rig.skipCinematic()
+})
+
 if (params.has('debug')) {
   createDebugGui(state, {
     replayColorize: () => {
       for (const view of buildingViews.values()) if (view.colorize >= 0) view.colorize = 0
     },
+    resetSave,
   })
 }
 
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300)
-const controls = isGodView ? new OrbitControls(camera, renderer.domElement) : null
-if (controls) {
-  camera.position.set(0, 38, 40)
-  controls.target.set(0, 2, -4)
-  controls.autoRotate = true
-  controls.autoRotateSpeed = 0.6
-  controls.enableDamping = true
+// オートセーブ：10秒ごと、タブを離れたとき、購入・完成のとき。神視点（展示用）は保存しない
+function save() {
+  if (!resetting && !isGodView) saveToStorage(state)
 }
+setInterval(save, 10_000)
+addEventListener('pagehide', save)
+document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && save())
+if (resumed) hud.toast('続きから再開！', 1500)
 
 function resize() {
   const { clientWidth: w, clientHeight: h } = app
@@ -101,10 +197,40 @@ function resize() {
 addEventListener('resize', resize)
 resize()
 
+/** 完成演出のカット割り：完成した建物を正面から → 次の建物（なければキャンパス全体） */
+function celebrationShots(b: Building): Shot[] {
+  const portrait = camera.aspect < 1
+  const dist = (Math.max(b.width, b.height) * 1.1 + 5) * (portrait ? 1.7 : 1)
+  const shots: Shot[] = [
+    {
+      pos: new THREE.Vector3(b.x + dist * 0.25, b.height * 0.5 + 2, b.z + b.depth / 2 + dist),
+      look: new THREE.Vector3(b.x, b.height * 0.45, b.z),
+      duration: 1 + FX.colorizeSeconds + 1.8,
+    },
+  ]
+  const next = currentBuilding(state)
+  if (next) {
+    const d = (portrait ? 26 : 16) + next.height
+    shots.push({
+      pos: new THREE.Vector3(next.x + d * 0.3, d * 0.8, next.z + next.depth / 2 + d),
+      look: new THREE.Vector3(next.x, next.height * 0.3, next.z),
+      duration: 2.8,
+      onStart: () => hud.toast(`次は「${next.label}」！ 光の柱が目印`, 2600),
+    })
+  } else {
+    shots.push({
+      pos: new THREE.Vector3(0, 55, 70),
+      look: new THREE.Vector3(0, 4, 0),
+      duration: 4,
+      onStart: () => hud.toast('キャンパスが全部復活した！', 3800),
+    })
+  }
+  return shots
+}
+
 const tmp = new THREE.Vector3()
 const packPos = new THREE.Vector3()
-const lookAt = new THREE.Vector3(state.player.x, 0, state.player.z)
-const lookTarget = new THREE.Vector3()
+const focusPos = new THREE.Vector3()
 let last = performance.now()
 let suckBudget = 0
 
@@ -113,12 +239,14 @@ renderer.setAnimationLoop((now: number) => {
   last = now
   const time = now / 1000
 
-  const move = input.move()
+  if (!isGodView) rig.turn(-input.turn() * dt * 2)
+  const move = rig.inputLocked ? { x: 0, z: 0 } : rig.toWorld(input.move())
   const events = [...pendingEvents.splice(0), ...stepGame(state, move, dt)]
   const p = state.player
   const st = stats(state)
+  const moving = Math.min(1, Math.hypot(move.x, move.z))
 
-  playerView.update(dt, p, state.field, Math.hypot(move.x, move.z) > 0.05)
+  playerView.update(dt, p, state.field, moving > 0.05)
   playerView.packWorldPosition(packPos)
 
   for (const e of events) {
@@ -127,12 +255,14 @@ renderer.setAnimationLoop((now: number) => {
     } else if (e.type === 'upgrade') {
       hud.toast(`${UPGRADES[e.id].label} Lv${e.level}！`, 1200)
       sparkles.burst(packPos, 24, 0xffd36e, 4)
+      playCoin()
+      save()
     } else if (e.type === 'complete') {
       // 完成演出自体は雪玉の着弾と表示の追従を待ってから（下のループ）
+      save()
     } else if (e.type === 'throw') {
       const b = state.buildings.find((b) => b.id === e.buildingId)!
       const view = buildingViews.get(b.id)!
-      view.inFlight += e.amount
       const to = new THREE.Vector3(
         b.x + (Math.random() - 0.5) * b.width * 0.8,
         Math.max(0.3, view.monolith.topY) + 0.2,
@@ -140,6 +270,7 @@ renderer.setAnimationLoop((now: number) => {
       )
       const from = e.from ? units.plowPosition(e.from.plowId, tmp) : packPos
       if (!from) continue
+      view.inFlight += e.amount
       projectiles.launch(from, to, () => {
         view.inFlight = Math.max(0, view.inFlight - e.amount)
         sparkles.burst(to, 5, 0xffffff, 3)
@@ -157,6 +288,7 @@ renderer.setAnimationLoop((now: number) => {
   }
   suckBudget = Math.min(suckBudget, 40)
 
+  const current = currentBuilding(state)
   for (const b of state.buildings) {
     const view = buildingViews.get(b.id)!
     const target = Math.min(1, Math.max(0, (b.deposited - view.inFlight) / b.required))
@@ -179,23 +311,34 @@ renderer.setAnimationLoop((now: number) => {
       }
     }
 
-    if (view.colorize < 0 && b.completed && view.inFlight < 1e-6 && view.display >= 0.999) {
-      view.colorize = 0
-      for (let n = 0; n < 12; n++) {
-        tmp.set(b.x + (Math.random() - 0.5) * b.width, Math.random() * b.height, b.z + b.depth / 2 + 0.3)
-        sparkles.burst(tmp, 8, n % 2 ? 0xffd36e : 0xfff4c2, 5)
+    if (!view.celebrated && b.completed && view.inFlight < 1e-6 && view.display >= 0.999) {
+      // 完成！ カメラを建物へ飛ばして、着いた頃にカラー化を始める
+      view.celebrated = true
+      view.hold = isGodView ? 0 : 1
+      input.release()
+      if (!isGodView) rig.play(celebrationShots(b))
+    } else if (view.celebrated && view.colorize < 0) {
+      view.hold -= dt
+      if (view.hold <= 0) {
+        view.colorize = 0
+        for (let n = 0; n < 14; n++) {
+          tmp.set(b.x + (Math.random() - 0.5) * b.width, Math.random() * b.height, b.z + b.depth / 2 + 0.3)
+          sparkles.burst(tmp, 8, n % 2 ? 0xffd36e : 0xfff4c2, 5)
+        }
+        playFanfare()
+        hud.toast(`てってれ～！ ${b.label} 完成！`, 3000)
       }
-      hud.toast(`${b.label}が復活した！ アップグレード上限アップ`, 3500)
     } else if (view.colorize >= 0 && view.colorize < 1) {
       view.colorize = Math.min(1, view.colorize + dt / FX.colorizeSeconds)
-      if (Math.random() < 0.5) {
+      if (Math.random() < 0.6) {
         tmp.set(b.x + (Math.random() - 0.5) * b.width, view.colorize * b.height, b.z + b.depth / 2 + 0.2)
         sparkles.burst(tmp, 2, 0xffd36e, 2.5)
       }
     }
 
-    const inZone = !b.completed && distanceToBuilding(b, p.x, p.z) <= b.dropRange
-    view.monolith.update(time, view.display, Math.max(0, view.colorize), inZone)
+    const stage = b.completed ? 'done' : b === current ? 'current' : 'locked'
+    const inZone = stage === 'current' && distanceToBuilding(b, p.x, p.z) <= b.dropRange
+    view.monolith.update(time, view.display, Math.max(0, view.colorize), stage, inZone)
   }
 
   suction.update(dt, packPos)
@@ -204,34 +347,39 @@ renderer.setAnimationLoop((now: number) => {
   units.update(dt, time, state.plows, state.machines, (pos) => sparkles.burst(tmp.copy(pos).setY(1), 30, 0xbfe3ff, 5))
   snow.update(time, p.x, p.z, st.collectRadius)
 
-  // HUD の進捗は「次に建てる建物」（全部完成したら最後の建物）
-  const current = state.buildings.find((b) => !b.completed) ?? state.buildings[state.buildings.length - 1]
-  hud.update(dt, p.carried, p.capacity, current.label, buildingViews.get(current.id)!.display, state.gold)
+  // HUD の進捗は「いま建てている建物」（全部完成したら最後の建物）
+  const shown = current ?? state.buildings[state.buildings.length - 1]
+  hud.update(dt, p.carried, p.capacity, shown.label, buildingViews.get(shown.id)!.display, state.gold)
   shop?.update(state)
+  minimap.update(dt, time, state, rig.mode === 'ground' && !rig.overview ? rig.yaw : null)
+  document.body.classList.toggle('cinematic', rig.cinematic)
 
   if (controls) {
     controls.update()
   } else {
-    // 縦持ち（狭い画角）では少し引いて周囲が見えるようにする。
-    // 建物に近づいたら、せり上がる様子が画面に収まるよう引きつつ注視点を建物へ寄せる
+    // 見下ろしで、いま建てている建物に近づいたら引きのアングルにする
     let near = 0
-    let focus: (typeof state.buildings)[number] | null = null
-    for (const b of state.buildings) {
-      const w = Math.min(1, Math.max(0, 1 - (distanceToBuilding(b, p.x, p.z) - b.dropRange) / 8))
-      if (w > near) {
-        near = w
-        focus = b
-      }
+    if (current) {
+      near = Math.min(1, Math.max(0, 1 - (distanceToBuilding(current, p.x, p.z) - current.dropRange) / 8))
+      focusPos.set(current.x, current.height * 0.35, current.z)
     }
-    const portrait = camera.aspect < 1
-    const offset = portrait ? tmp.set(0, 19, 16) : tmp.set(0, 12, 13)
-    offset.multiplyScalar(1 + near * (portrait ? 0.6 : 0.45))
-    const k = 1 - Math.exp(-dt * 4)
-    camera.position.lerp(offset.add(playerView.group.position), k)
-    lookTarget.copy(playerView.group.position)
-    if (focus) lookTarget.lerp(tmp.set(focus.x, focus.height * 0.35, focus.z), near * 0.5)
-    lookAt.lerp(lookTarget, k)
-    camera.lookAt(lookAt.x, lookAt.y + 0.5, lookAt.z - 1)
+    rig.update(dt, {
+      player: playerView.group.position,
+      facing: p.facing,
+      moving,
+      focus: current ? focusPos : null,
+      near,
+      blocked: (q) =>
+        state.buildings.some(
+          (b) =>
+            Math.abs(q.x - b.x) < b.width / 2 + 0.4 &&
+            Math.abs(q.z - b.z) < b.depth / 2 + 0.4 &&
+            q.y < buildingViews.get(b.id)!.monolith.topY + 0.4,
+        ),
+      worldSize: WORLD.size,
+    })
+    fog.near = rig.fog.near
+    fog.far = rig.fog.far
   }
 
   renderer.render(scene, camera)
@@ -239,5 +387,5 @@ renderer.setAnimationLoop((now: number) => {
 
 // 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890, buy('plow')）
 if (import.meta.env.DEV) {
-  Object.assign(window, { game: state, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
+  Object.assign(window, { game: state, rig, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
 }

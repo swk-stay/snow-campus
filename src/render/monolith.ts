@@ -119,16 +119,34 @@ const apronFragment = /* glsl */ `
   }
 `
 
+const beaconVertex = /* glsl */ `
+  varying float vY;
+  void main() {
+    vY = position.y / 60.0;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const beaconFragment = /* glsl */ `
+  uniform float uTime;
+  varying float vY;
+  void main() {
+    float a = (1.0 - vY) * (1.0 - vY) * (0.35 + 0.1 * sin(uTime * 3.0 - vY * 20.0));
+    gl_FragColor = vec4(1.0, 0.72, 0.2, a * 0.9);
+  }
+`
+
 export class Monolith {
   readonly group = new THREE.Group()
   private readonly body: THREE.Mesh
   private readonly ghost: THREE.LineSegments
   private readonly apron: THREE.Mesh
+  private readonly beacon: THREE.Mesh
   private readonly height: number
   private readonly shared
   private readonly apronUniforms
 
-  constructor(b: Building, sunDir: THREE.Vector3) {
+  constructor(b: Building, index: number, sunDir: THREE.Vector3) {
     this.height = b.height
     this.group.position.set(b.x, 0, b.z)
 
@@ -142,8 +160,9 @@ export class Monolith {
     const make = (map: THREE.Texture) =>
       new THREE.ShaderMaterial({ uniforms: { ...this.shared, uMap: { value: map } }, vertexShader, fragmentShader, fog: true })
 
-    const front = [make(createFrontTexture(b.label)), make(createFrontTexture(b.label))]
-    const side = [make(createSideTexture()), make(createSideTexture())]
+    const spec = { label: b.label, width: b.width, depth: b.depth, height: b.height, palette: index }
+    const front = [make(createFrontTexture(spec)), make(createFrontTexture(spec))]
+    const side = [make(createSideTexture(spec)), make(createSideTexture(spec))]
     const roof = make(createRoofTexture())
     loadPhoto(b.photos.front, front)
     loadPhoto(b.photos.side, side)
@@ -182,6 +201,22 @@ export class Monolith {
     this.apron.rotation.x = -Math.PI / 2
     this.apron.position.y = 0.02
     this.group.add(this.apron)
+
+    // 次に建てる建物の目印になる光の柱（グランドレベルでも遠くから見える）
+    const beaconGeo = new THREE.CylinderGeometry(0.9, 1.6, 60, 20, 1, true)
+    beaconGeo.translate(0, 30, 0)
+    this.beacon = new THREE.Mesh(
+      beaconGeo,
+      new THREE.ShaderMaterial({
+        uniforms: { uTime: this.apronUniforms.uTime },
+        vertexShader: beaconVertex,
+        fragmentShader: beaconFragment,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    )
+    this.group.add(this.beacon)
   }
 
   /** 現在見えている屋上の高さ（ワールド y） */
@@ -192,18 +227,20 @@ export class Monolith {
   /**
    * @param progress 建設進捗 0..1（表示用に補間済みのもの）
    * @param colorize カラー化の進捗 0..1
+   * @param stage locked: まだ解放されていない / current: いま建てている / done: 完成
    * @param inZone プレイヤーが寄付ゾーンにいるか
    */
-  update(time: number, progress: number, colorize: number, inZone: boolean) {
+  update(time: number, progress: number, colorize: number, stage: 'locked' | 'current' | 'done', inZone: boolean) {
     this.body.position.y = -(1 - progress) * this.height - 0.05
     this.body.visible = progress > 0.002
     this.shared.uColorize.value = colorize
     this.shared.uTime.value = time
     this.apronUniforms.uTime.value = time
     this.apronUniforms.uActive.value += ((inZone ? 1 : 0) - this.apronUniforms.uActive.value) * 0.15
-    const done = colorize > 0
-    this.ghost.visible = !done
-    this.apron.visible = !done
+    const current = stage === 'current'
+    this.ghost.visible = current
+    this.apron.visible = current
+    this.beacon.visible = current
   }
 }
 

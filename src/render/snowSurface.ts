@@ -108,8 +108,8 @@ export class SnowSurface {
       uPlayer: { value: new THREE.Vector3() },
     }
 
-    // 頂点数はセル数の約4倍。スマホでも問題ない量
-    const geo = new THREE.PlaneGeometry(field.size, field.size, 255, 255)
+    // 頂点はセルと1対1（320×320 で約10万頂点）。スマホでも問題ない量
+    const geo = new THREE.PlaneGeometry(field.size, field.size, field.res - 1, field.res - 1)
     geo.rotateX(-Math.PI / 2)
     this.mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader, fragmentShader, fog: true }))
     this.mesh.frustumCulled = false
