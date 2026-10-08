@@ -143,6 +143,7 @@ type Projectile = {
   t: number
   duration: number
   arc: number
+  scale: number
   onLand: (() => void) | null
 }
 
@@ -160,6 +161,7 @@ export class Projectiles {
       t: 0,
       duration: 1,
       arc: 1,
+      scale: 1,
       onLand: null,
     }))
     this.mesh = makeMesh(
@@ -169,7 +171,8 @@ export class Projectiles {
     )
   }
 
-  launch(from: THREE.Vector3, to: THREE.Vector3, onLand: () => void) {
+  /** scale: 雪玉の見た目の大きさ（量が多いほど大きく） */
+  launch(from: THREE.Vector3, to: THREE.Vector3, onLand: () => void, scale = 1) {
     const p = this.ps[this.cursor]
     this.cursor = (this.cursor + 1) % this.ps.length
     // プール一周で上書きされる場合も、着弾処理（進捗の反映）だけは取りこぼさない
@@ -181,6 +184,7 @@ export class Projectiles {
     p.duration = 0.45 + from.distanceTo(to) * 0.03
     p.arc = 2 + from.distanceTo(to) * 0.15
     p.onLand = onLand
+    p.scale = scale
   }
 
   update(dt: number) {
@@ -197,7 +201,7 @@ export class Projectiles {
       }
       tmpVec.lerpVectors(p.from, p.to, u)
       tmpVec.y += p.arc * 4 * u * (1 - u)
-      tmpScale.setScalar(1)
+      tmpScale.setScalar(p.scale)
       this.mesh.setMatrixAt(i, tmpMatrix.compose(tmpVec, IDENTITY_QUAT, tmpScale))
     })
     this.mesh.instanceMatrix.needsUpdate = true

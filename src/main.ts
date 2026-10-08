@@ -278,7 +278,7 @@ renderer.setAnimationLoop((now: number) => {
       projectiles.launch(from, to, () => {
         view.inFlight = Math.max(0, view.inFlight - e.amount)
         sparkles.burst(to, 5, 0xffffff, 3)
-      })
+      }, Math.min(2, Math.sqrt(e.amount / 4)))
     }
   }
 

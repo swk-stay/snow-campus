@@ -44,7 +44,7 @@ export type Plow = {
 
 export type SnowMachine = { id: number; x: number; z: number }
 
-export type Stats = { collectRadius: number; collectRate: number; capacity: number }
+export type Stats = { collectRadius: number; collectRate: number; capacity: number; throwChunk: number; throwInterval: number }
 
 export type GameState = {
   field: SnowField
@@ -88,7 +88,7 @@ export function createGame(): GameState {
     player: { x: 0, z: 6, facing: Math.PI, carried: 0, capacity: PLAYER.capacity, throwCooldown: 0 },
     buildings,
     gold: 0,
-    upgrades: { shovel: 0, backpack: 0, plow: 0, snowMachine: 0 },
+    upgrades: { shovel: 0, backpack: 0, throwing: 0, plow: 0, snowMachine: 0 },
     tier: 0,
     plows: [],
     machines: [],
@@ -111,11 +111,13 @@ export function refillField(s: GameState) {
 
 /** アップグレード込みのプレイヤー性能。PLAYER（基礎値）は書き換えない */
 export function stats(s: GameState): Stats {
-  const { shovel, backpack } = s.upgrades
+  const { shovel, backpack, throwing } = s.upgrades
   return {
     collectRadius: PLAYER.collectRadius * (1 + UPGRADE_EFFECT.shovelRadiusPerLevel * shovel),
     collectRate: PLAYER.collectRate * (1 + UPGRADE_EFFECT.shovelRatePerLevel * shovel),
     capacity: Math.round(PLAYER.capacity * (1 + UPGRADE_EFFECT.backpackCapacityPerLevel * backpack)),
+    throwChunk: PLAYER.throwChunk * (1 + UPGRADE_EFFECT.throwChunkPerLevel * throwing),
+    throwInterval: PLAYER.throwInterval / (1 + UPGRADE_EFFECT.throwIntervalPerLevel * throwing),
   }
 }
 
@@ -194,10 +196,10 @@ export function stepGame(s: GameState, input: MoveInput, dt: number): GameEvent[
   const b = currentBuilding(s)
   if (b && distanceToBuilding(b, p.x, p.z) <= b.dropRange) {
     while (p.carried > 0.01 && p.throwCooldown <= 0 && !b.completed) {
-      const amount = Math.min(PLAYER.throwChunk, p.carried, b.required - b.deposited)
+      const amount = Math.min(st.throwChunk, p.carried, b.required - b.deposited)
       p.carried -= amount
       if (p.carried < 0.01) p.carried = 0
-      p.throwCooldown += PLAYER.throwInterval
+      p.throwCooldown += st.throwInterval
       deposit(s, b, amount, events)
     }
   }

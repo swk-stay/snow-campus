@@ -59,7 +59,7 @@ export const ECONOMY = {
   goldPerSnow: 1,
 }
 
-export type UpgradeId = 'shovel' | 'backpack' | 'plow' | 'snowMachine'
+export type UpgradeId = 'shovel' | 'backpack' | 'throwing' | 'plow' | 'snowMachine'
 
 export type UpgradeDef = {
   label: string
@@ -74,6 +74,7 @@ export type UpgradeDef = {
 export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
   shovel: { label: 'スコップ', description: '回収半径と速さ アップ', baseCost: 30, growth: 1.5, maxLevel: [3, 5, 7, 9, 11, 13, 15] },
   backpack: { label: 'リュック', description: '持てる雪 +50%', baseCost: 25, growth: 1.45, maxLevel: [3, 5, 7, 9, 11, 13, 15] },
+  throwing: { label: '雪玉投げ', description: '建物へ投げ込む速さ アップ', baseCost: 40, growth: 1.5, maxLevel: [3, 5, 7, 9, 11, 13, 15] },
   plow: { label: '自動除雪機', description: '雪を集めて勝手に寄付', baseCost: 120, growth: 1.8, maxLevel: [1, 2, 3, 4, 5, 6, 8] },
   snowMachine: { label: '降雪機', description: '周りに雪を降らせる', baseCost: 80, growth: 1.6, maxLevel: [2, 3, 4, 5, 6, 7, 8] },
 }
@@ -83,6 +84,9 @@ export const UPGRADE_EFFECT = {
   shovelRadiusPerLevel: 0.2,
   shovelRatePerLevel: 0.25,
   backpackCapacityPerLevel: 0.5,
+  /** 雪玉投げ：1個あたりの量 ×(1 + chunk×Lv)、投げる間隔 ÷(1 + interval×Lv) */
+  throwChunkPerLevel: 0.5,
+  throwIntervalPerLevel: 0.15,
   plow: { speed: 3.2, radius: 1.6, rate: 0.9, capacity: 30, deliverChunk: 10 },
   snowMachine: { radius: 5, rate: 0.12 },
 }

@@ -38,6 +38,8 @@ export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
   up.add(UPGRADE_EFFECT, 'shovelRadiusPerLevel', 0, 1, 0.05).name('スコップ: 半径/Lv')
   up.add(UPGRADE_EFFECT, 'shovelRatePerLevel', 0, 1, 0.05).name('スコップ: 速さ/Lv')
   up.add(UPGRADE_EFFECT, 'backpackCapacityPerLevel', 0, 2, 0.1).name('リュック: 容量/Lv')
+  up.add(UPGRADE_EFFECT, 'throwChunkPerLevel', 0, 2, 0.05).name('雪玉投げ: 量/Lv')
+  up.add(UPGRADE_EFFECT, 'throwIntervalPerLevel', 0, 1, 0.05).name('雪玉投げ: 間隔短縮/Lv')
   up.add(UPGRADE_EFFECT.plow, 'speed', 0.5, 10, 0.1).name('除雪機: 速度')
   up.add(UPGRADE_EFFECT.plow, 'radius', 0.5, 5, 0.1).name('除雪機: 半径')
   up.add(UPGRADE_EFFECT.snowMachine, 'rate', 0, 1, 0.01).name('降雪機: 降雪量')
