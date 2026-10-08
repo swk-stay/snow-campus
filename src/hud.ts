@@ -5,6 +5,9 @@ export class Hud {
   private readonly snowText: HTMLSpanElement
   private readonly buildFill: HTMLDivElement
   private readonly buildText: HTMLSpanElement
+  private readonly buildLabel: HTMLSpanElement
+  private readonly goldText: HTMLSpanElement
+  private shownGold = 0
   private readonly toastEl: HTMLDivElement
   private toastTimer = 0
 
@@ -13,9 +16,12 @@ export class Hud {
     hud.id = 'hud'
     hud.innerHTML = `
       <div class="hud-row"><span class="hud-label">雪</span><div class="bar"><div class="fill snow"></div></div><span class="hud-value" data-snow></span></div>
-      <div class="hud-row"><span class="hud-label">校舎</span><div class="bar"><div class="fill build"></div></div><span class="hud-value" data-build></span></div>
+      <div class="hud-row"><span class="hud-label" data-build-label></span><div class="bar"><div class="fill build"></div></div><span class="hud-value" data-build></span></div>
+      <div class="hud-gold"><span class="coin"></span><span data-gold>0</span> G</div>
     `
     root.appendChild(hud)
+    this.buildLabel = hud.querySelector('[data-build-label]')!
+    this.goldText = hud.querySelector('[data-gold]')!
     this.snowFill = hud.querySelector('.fill.snow')!
     this.snowText = hud.querySelector('[data-snow]')!
     this.buildFill = hud.querySelector('.fill.build')!
@@ -26,7 +32,12 @@ export class Hud {
     root.appendChild(this.toastEl)
   }
 
-  update(carried: number, capacity: number, buildProgress: number) {
+  update(dt: number, carried: number, capacity: number, buildLabel: string, buildProgress: number, gold: number) {
+    // ゴールドはカウントアップ表示
+    this.shownGold += (gold - this.shownGold) * Math.min(1, dt * 8)
+    if (Math.abs(gold - this.shownGold) < 0.5) this.shownGold = gold
+    this.goldText.textContent = `${Math.floor(this.shownGold)}`
+    this.buildLabel.textContent = buildLabel
     this.snowFill.style.width = `${(carried / capacity) * 100}%`
     this.snowText.textContent = `${Math.floor(carried)}/${capacity}`
     this.buildFill.style.width = `${buildProgress * 100}%`

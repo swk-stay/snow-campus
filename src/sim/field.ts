@@ -13,6 +13,8 @@ export class SnowField {
   readonly data: Float32Array
   /** セル量 1.0 が何単位の雪に相当するか */
   readonly unitsPerCell: number
+  /** 雪が積もらないセル（建物の敷地や寄付ゾーン）。fill / add の対象外 */
+  readonly blocked: Uint8Array
   /** 描画側がテクスチャを再アップロードすべきか */
   dirty = true
 
@@ -22,6 +24,7 @@ export class SnowField {
     this.cellSize = size / res
     this.data = new Float32Array(res * res)
     this.unitsPerCell = (this.cellSize * this.cellSize) / UNIT_AREA
+    this.blocked = new Uint8Array(res * res)
   }
 
   cellCenter(i: number): number {
@@ -42,19 +45,23 @@ export class SnowField {
   fill(fn: (x: number, z: number) => number) {
     for (let j = 0; j < this.res; j++) {
       for (let i = 0; i < this.res; i++) {
-        this.data[j * this.res + i] = Math.min(1, Math.max(0, fn(this.cellCenter(i), this.cellCenter(j))))
+        const k = j * this.res + i
+        this.data[k] = this.blocked[k] ? 0 : Math.min(1, Math.max(0, fn(this.cellCenter(i), this.cellCenter(j))))
       }
     }
     this.dirty = true
   }
 
-  clearRect(minX: number, minZ: number, maxX: number, maxZ: number) {
+  /** 矩形内の雪をどけて、以後も積もらないようにする */
+  blockRect(minX: number, minZ: number, maxX: number, maxZ: number) {
     for (let j = 0; j < this.res; j++) {
       const z = this.cellCenter(j)
       if (z < minZ || z > maxZ) continue
       for (let i = 0; i < this.res; i++) {
         const x = this.cellCenter(i)
-        if (x >= minX && x <= maxX) this.data[j * this.res + i] = 0
+        if (x < minX || x > maxX) continue
+        this.data[j * this.res + i] = 0
+        this.blocked[j * this.res + i] = 1
       }
     }
     this.dirty = true
@@ -95,5 +102,33 @@ export class SnowField {
     forEachCell((k, take) => (data[k] -= take * scale))
     this.dirty = true
     return want * scale * this.unitsPerCell
+  }
+
+  /** 雪原全体の雪の合計（単位換算済み） */
+  total(): number {
+    let sum = 0
+    for (let k = 0; k < this.data.length; k++) sum += this.data[k]
+    return sum * this.unitsPerCell
+  }
+
+  /** (x, z) を中心に半径 radius へ雪を降らせる（降雪機）。中心ほど速く積もる */
+  add(x: number, z: number, radius: number, rate: number, dt: number) {
+    const { res, data, blocked } = this
+    const i0 = Math.max(0, this.toCell(x - radius))
+    const i1 = Math.min(res - 1, this.toCell(x + radius))
+    const j0 = Math.max(0, this.toCell(z - radius))
+    const j1 = Math.min(res - 1, this.toCell(z + radius))
+    const r2 = radius * radius
+    for (let j = j0; j <= j1; j++) {
+      const dz = this.cellCenter(j) - z
+      for (let i = i0; i <= i1; i++) {
+        const dx = this.cellCenter(i) - x
+        const d2 = dx * dx + dz * dz
+        const k = j * res + i
+        if (d2 > r2 || blocked[k]) continue
+        data[k] = Math.min(1, data[k] + rate * dt * (1 - d2 / r2))
+      }
+    }
+    this.dirty = true
   }
 }

@@ -123,6 +123,7 @@ export class SnowSurface {
       this.field.dirty = false
     }
     this.uniforms.uTime.value = time
+    this.uniforms.uMaxH.value = WORLD.snowMaxHeight
     this.uniforms.uPlayer.value.set(playerX, playerZ, collectRadius)
   }
 }

@@ -53,4 +53,67 @@ export const BUILDINGS: BuildingDef[] = [
     dropRange: 3,
     photos: {},
   },
+  {
+    id: 'library',
+    label: '図書館',
+    x: 15,
+    z: 13,
+    width: 9,
+    depth: 7,
+    height: 7,
+    required: 1400,
+    dropRange: 3,
+    photos: {},
+  },
 ]
+
+export const ECONOMY = {
+  /** 雪1単位を寄付したときにもらえるゴールド */
+  goldPerSnow: 1,
+}
+
+export type UpgradeId = 'shovel' | 'backpack' | 'plow' | 'snowMachine'
+
+export type UpgradeDef = {
+  label: string
+  description: string
+  baseCost: number
+  /** 価格 = baseCost × growth^level */
+  growth: number
+  /** Tier（完成した建物の数）ごとの最大レベル。配列を超えた Tier は最後の値 */
+  maxLevel: number[]
+}
+
+export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
+  shovel: { label: 'スコップ', description: '回収半径と速さ アップ', baseCost: 30, growth: 1.5, maxLevel: [3, 6, 10] },
+  backpack: { label: 'リュック', description: '持てる雪 +50%', baseCost: 25, growth: 1.45, maxLevel: [3, 6, 10] },
+  plow: { label: '自動除雪機', description: '雪を集めて勝手に寄付', baseCost: 120, growth: 1.8, maxLevel: [1, 3, 5] },
+  snowMachine: { label: '降雪機', description: '周りに雪を降らせる', baseCost: 80, growth: 1.6, maxLevel: [2, 4, 6] },
+}
+
+/** アップグレードの効果量。lil-gui から調整できるようにまとめて持つ */
+export const UPGRADE_EFFECT = {
+  shovelRadiusPerLevel: 0.2,
+  shovelRatePerLevel: 0.25,
+  backpackCapacityPerLevel: 0.5,
+  plow: { speed: 3.2, radius: 1.6, rate: 0.9, capacity: 30, deliverChunk: 10 },
+  snowMachine: { radius: 5, rate: 0.12 },
+}
+
+/** 降雪機の設置場所（購入順） */
+export const SNOW_MACHINE_SPOTS = [
+  { x: -18, z: 8 },
+  { x: 18, z: -6 },
+  { x: -20, z: -18 },
+  { x: -4, z: 20 },
+  { x: 22, z: 24 },
+  { x: -22, z: 22 },
+]
+
+/** 演出パラメータ（sim には影響しない） */
+export const FX = {
+  /** 雪1単位あたりに湧かせる吸い込みの粒の数 */
+  suctionPerSnow: 2.5,
+  /** 完成時のカラー化にかかる秒数 */
+  colorizeSeconds: 2.5,
+}

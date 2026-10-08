@@ -1,17 +1,22 @@
 import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { PLAYER, WORLD } from './config'
-import { createGame, distanceToBuilding, stepGame } from './sim/game'
+import { FX, UPGRADES, WORLD, type UpgradeId } from './config'
+import { buyUpgrade, createGame, distanceToBuilding, stats, stepGame, type GameEvent } from './sim/game'
 import { SnowSurface } from './render/snowSurface'
 import { Monolith } from './render/monolith'
 import { PlayerView } from './render/playerView'
 import { Projectiles, Sparkles, Suction } from './render/effects'
 import { Input } from './input'
 import { Hud } from './hud'
+import { Shop } from './shop'
+import { UnitsView } from './render/units'
+import { createDebugGui } from './debugGui'
 
 // ?view=god で展示用の神視点（自動周回）カメラ
-const isGodView = new URLSearchParams(location.search).get('view') === 'god'
+const params = new URLSearchParams(location.search)
+const isGodView = params.get('view') === 'god'
+// ?debug で lil-gui の調整パネル
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -45,7 +50,8 @@ const playerView = new PlayerView()
 const suction = new Suction()
 const sparkles = new Sparkles()
 const projectiles = new Projectiles()
-scene.add(playerView.group, suction.mesh, sparkles.mesh, projectiles.mesh)
+const units = new UnitsView()
+scene.add(playerView.group, suction.mesh, sparkles.mesh, projectiles.mesh, units.group)
 
 type BuildingView = {
   monolith: Monolith
@@ -65,6 +71,16 @@ for (const b of state.buildings) {
 
 const input = new Input(renderer.domElement, !isGodView)
 const hud = new Hud(document.body)
+// 購入で発生したイベントも、stepGame のイベントと同じ経路で処理する
+const pendingEvents: GameEvent[] = []
+const shop = isGodView ? null : new Shop(document.body, (id) => pendingEvents.push(...buyUpgrade(state, id)))
+if (params.has('debug')) {
+  createDebugGui(state, {
+    replayColorize: () => {
+      for (const view of buildingViews.values()) if (view.colorize >= 0) view.colorize = 0
+    },
+  })
+}
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300)
 const controls = isGodView ? new OrbitControls(camera, renderer.domElement) : null
@@ -98,15 +114,21 @@ renderer.setAnimationLoop((now: number) => {
   const time = now / 1000
 
   const move = input.move()
-  const events = stepGame(state, move, dt)
+  const events = [...pendingEvents.splice(0), ...stepGame(state, move, dt)]
   const p = state.player
+  const st = stats(state)
 
   playerView.update(dt, p, state.field, Math.hypot(move.x, move.z) > 0.05)
   playerView.packWorldPosition(packPos)
 
   for (const e of events) {
     if (e.type === 'collect') {
-      suckBudget += e.amount * 2.5
+      suckBudget += e.amount * FX.suctionPerSnow
+    } else if (e.type === 'upgrade') {
+      hud.toast(`${UPGRADES[e.id].label} Lv${e.level}！`, 1200)
+      sparkles.burst(packPos, 24, 0xffd36e, 4)
+    } else if (e.type === 'complete') {
+      // 完成演出自体は雪玉の着弾と表示の追従を待ってから（下のループ）
     } else if (e.type === 'throw') {
       const b = state.buildings.find((b) => b.id === e.buildingId)!
       const view = buildingViews.get(b.id)!
@@ -116,18 +138,19 @@ renderer.setAnimationLoop((now: number) => {
         Math.max(0.3, view.monolith.topY) + 0.2,
         b.z + (Math.random() - 0.5) * b.depth * 0.8,
       )
-      projectiles.launch(packPos, to, () => {
+      const from = e.from ? units.plowPosition(e.from.plowId, tmp) : packPos
+      if (!from) continue
+      projectiles.launch(from, to, () => {
         view.inFlight = Math.max(0, view.inFlight - e.amount)
         sparkles.burst(to, 5, 0xffffff, 3)
       })
     }
-    // 'complete' は雪玉の着弾と表示の追従を待ってから演出するので、ここでは何もしない
   }
 
   // 削った場所から雪の粒を湧かせる
   for (let n = 0; suckBudget >= 1 && n < 40; n++, suckBudget--) {
     const a = Math.random() * Math.PI * 2
-    const r = PLAYER.collectRadius * Math.sqrt(Math.random())
+    const r = st.collectRadius * Math.sqrt(Math.random())
     tmp.set(p.x + Math.cos(a) * r, 0, p.z + Math.sin(a) * r)
     tmp.y = state.field.amountAt(tmp.x, tmp.z) * WORLD.snowMaxHeight + 0.05
     suction.spawn(tmp)
@@ -162,9 +185,9 @@ renderer.setAnimationLoop((now: number) => {
         tmp.set(b.x + (Math.random() - 0.5) * b.width, Math.random() * b.height, b.z + b.depth / 2 + 0.3)
         sparkles.burst(tmp, 8, n % 2 ? 0xffd36e : 0xfff4c2, 5)
       }
-      hud.toast(`${b.label}が復活した！`)
+      hud.toast(`${b.label}が復活した！ アップグレード上限アップ`, 3500)
     } else if (view.colorize >= 0 && view.colorize < 1) {
-      view.colorize = Math.min(1, view.colorize + dt / 2.5)
+      view.colorize = Math.min(1, view.colorize + dt / FX.colorizeSeconds)
       if (Math.random() < 0.5) {
         tmp.set(b.x + (Math.random() - 0.5) * b.width, view.colorize * b.height, b.z + b.depth / 2 + 0.2)
         sparkles.burst(tmp, 2, 0xffd36e, 2.5)
@@ -178,10 +201,13 @@ renderer.setAnimationLoop((now: number) => {
   suction.update(dt, packPos)
   sparkles.update(dt)
   projectiles.update(dt)
-  snow.update(time, p.x, p.z, PLAYER.collectRadius)
+  units.update(dt, time, state.plows, state.machines, (pos) => sparkles.burst(tmp.copy(pos).setY(1), 30, 0xbfe3ff, 5))
+  snow.update(time, p.x, p.z, st.collectRadius)
 
-  const main = buildingViews.get(state.buildings[0].id)!
-  hud.update(p.carried, p.capacity, main.display)
+  // HUD の進捗は「次に建てる建物」（全部完成したら最後の建物）
+  const current = state.buildings.find((b) => !b.completed) ?? state.buildings[state.buildings.length - 1]
+  hud.update(dt, p.carried, p.capacity, current.label, buildingViews.get(current.id)!.display, state.gold)
+  shop?.update(state)
 
   if (controls) {
     controls.update()
@@ -211,5 +237,7 @@ renderer.setAnimationLoop((now: number) => {
   renderer.render(scene, camera)
 })
 
-// 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890）
-if (import.meta.env.DEV) Object.assign(window, { game: state })
+// 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890, buy('plow')）
+if (import.meta.env.DEV) {
+  Object.assign(window, { game: state, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
+}
