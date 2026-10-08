@@ -1,14 +1,16 @@
 import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { FX, UPGRADES, WORLD, type UpgradeId } from './config'
+import { FX, ITEMS, SKILL_EFFECT, SKILLS, UPGRADES, WORLD, type UpgradeId } from './config'
 import {
+  buyItem,
   buyUpgrade,
   createGame,
   currentBuilding,
   distanceToBuilding,
   stats,
   stepGame,
+  useSkill,
   type Building,
   type GameEvent,
 } from './sim/game'
@@ -18,6 +20,8 @@ import { PlayerView } from './render/playerView'
 import { Projectiles, Sparkles, Suction } from './render/effects'
 import { UnitsView } from './render/units'
 import { BuildingLabels } from './render/buildingLabels'
+import { RareView } from './render/rareView'
+import { SkillBar } from './skillBar'
 import { Input } from './input'
 import { Hud } from './hud'
 import { Shop } from './shop'
@@ -66,7 +70,8 @@ const suction = new Suction()
 const sparkles = new Sparkles()
 const projectiles = new Projectiles()
 const units = new UnitsView()
-scene.add(playerView.group, suction.mesh, sparkles.mesh, projectiles.mesh, units.group)
+const rareView = new RareView()
+scene.add(playerView.group, suction.mesh, sparkles.mesh, projectiles.mesh, units.group, rareView.group)
 
 type BuildingView = {
   monolith: Monolith
@@ -126,7 +131,16 @@ function resetSave() {
   clearStorage()
   location.reload()
 }
-const shop = isGodView ? null : new Shop(document.body, (id) => pendingEvents.push(...buyUpgrade(state, id)), resetSave)
+const shop = isGodView
+  ? null
+  : new Shop(
+      document.body,
+      (id) => pendingEvents.push(...buyUpgrade(state, id)),
+      (id) => pendingEvents.push(...buyItem(state, id)),
+      resetSave,
+    )
+// 演出中・全体マップ中はスキルを使えない
+const skillBar = isGodView ? null : new SkillBar(document.body, (id) => !rig.inputLocked && pendingEvents.push(...useSkill(state, id)))
 const minimap = new Minimap(document.body, () => toggleOverview())
 unlockAudio()
 
@@ -201,6 +215,30 @@ function resize() {
 addEventListener('resize', resize)
 resize()
 
+/** スキル発動時の演出（sim 側の効果とは別。見た目と音だけ） */
+function playSkillEffect(id: keyof typeof SKILLS, amount?: number) {
+  const pos = playerView.group.position
+  if (id === 'dash') {
+    sparkles.burst(tmp.copy(pos).setY(0.5), 20, 0xdff4ff, 5)
+  } else if (id === 'boost') {
+    sparkles.burst(tmp.copy(pos).setY(1), 30, 0xffd36e, 4)
+    hud.toast(`ブースト！ ${SKILL_EFFECT.boostTime}秒間スピードアップ`, 1200)
+  } else if (id === 'longThrow') {
+    hud.toast(`遠投！ +${Math.floor(amount ?? 0)}`, 1200)
+  } else if (id === 'blizzard') {
+    // 半径いっぱいから雪を巻き上げる
+    const r = SKILL_EFFECT.blizzardRadius
+    for (let n = 0; n < 60; n++) {
+      const a = (n / 60) * Math.PI * 2
+      tmp.set(pos.x + Math.cos(a) * r * Math.sqrt(Math.random()), 0.5, pos.z + Math.sin(a) * r * Math.sqrt(Math.random()))
+      sparkles.burst(tmp, 3, 0xffffff, 6)
+      suction.spawn(tmp)
+    }
+    playFanfare()
+    hud.toast(`ブリザード！！ +${Math.floor(amount ?? 0)}`, 2000)
+  }
+}
+
 /** 完成演出のカット割り：完成した建物を正面から → 次の建物（なければキャンパス全体） */
 function celebrationShots(b: Building): Shot[] {
   const portrait = camera.aspect < 1
@@ -261,6 +299,19 @@ renderer.setAnimationLoop((now: number) => {
       sparkles.burst(packPos, 24, 0xffd36e, 4)
       playCoin()
       save()
+    } else if (e.type === 'item') {
+      hud.toast(`${ITEMS[e.id].label} を手に入れた！`, 1800)
+      sparkles.burst(packPos, 30, 0x9ff0ff, 4)
+      playCoin()
+      save()
+    } else if (e.type === 'skill') {
+      playSkillEffect(e.id, e.amount)
+    } else if (e.type === 'skillFail') {
+      hud.toast(`${SKILLS[e.id].label}：${e.reason}`, 1200)
+      skillBar?.shake(e.id)
+    } else if (e.type === 'rarePickup') {
+      sparkles.burst(tmp.set(e.x, 1, e.z), 24, 0x7fe9ff, 4)
+      hud.toast('レア雪ゲット！', 900)
     } else if (e.type === 'complete') {
       // 完成演出自体は雪玉の着弾と表示の追従を待ってから（下のループ）
       save()
@@ -277,8 +328,8 @@ renderer.setAnimationLoop((now: number) => {
       view.inFlight += e.amount
       projectiles.launch(from, to, () => {
         view.inFlight = Math.max(0, view.inFlight - e.amount)
-        sparkles.burst(to, 5, 0xffffff, 3)
-      }, Math.min(2, Math.sqrt(e.amount / 4)))
+        sparkles.burst(to, e.rare ? 14 : 5, e.rare ? 0x7fe9ff : 0xffffff, 3)
+      }, e.rare ? 1.6 : Math.min(2.5, Math.sqrt(e.amount / 4)), e.rare ? 0x7fe9ff : 0xffffff)
     }
   }
 
@@ -354,8 +405,12 @@ renderer.setAnimationLoop((now: number) => {
 
   // HUD の進捗は「いま建てている建物」（全部完成したら最後の建物）
   const shown = current ?? state.buildings[state.buildings.length - 1]
-  hud.update(dt, p.carried, p.capacity, shown.label, buildingViews.get(shown.id)!.display, state.gold)
+  hud.update(dt, p.carried, p.capacity, shown.label, buildingViews.get(shown.id)!.display, state.gold, p.rare)
   shop?.update(state)
+  skillBar?.update(state)
+  rareView.update(time, state.rares, state.field)
+  // ブースト中・ダッシュ中は足元から雪煙
+  if ((p.boostTime > 0 && moving > 0.1) || p.dashTime > 0) sparkles.burst(tmp.copy(playerView.group.position).setY(0.3), p.dashTime > 0 ? 4 : 1, 0xdff4ff, 2)
   minimap.update(dt, time, state, rig.mode === 'ground' && !rig.overview ? rig.yaw : null)
   document.body.classList.toggle('cinematic', rig.cinematic)
 

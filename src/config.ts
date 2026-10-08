@@ -59,7 +59,7 @@ export const ECONOMY = {
   goldPerSnow: 1,
 }
 
-export type UpgradeId = 'shovel' | 'backpack' | 'throwing' | 'plow' | 'snowMachine'
+export type UpgradeId = 'shovel' | 'power' | 'backpack' | 'throwing' | 'plow' | 'snowMachine' | 'cooldown'
 
 export type UpgradeDef = {
   label: string
@@ -72,23 +72,91 @@ export type UpgradeDef = {
 }
 
 export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
-  shovel: { label: 'スコップ', description: '回収半径と速さ アップ', baseCost: 30, growth: 1.5, maxLevel: [3, 5, 7, 9, 11, 13, 15] },
+  shovel: { label: 'スコップ', description: '回収半径 アップ', baseCost: 30, growth: 1.5, maxLevel: [3, 5, 7, 9, 11, 13, 15] },
+  power: { label: '腕力', description: '雪を削る速さ アップ', baseCost: 30, growth: 1.5, maxLevel: [3, 5, 7, 9, 11, 13, 15] },
   backpack: { label: 'リュック', description: '持てる雪 +50%', baseCost: 25, growth: 1.45, maxLevel: [3, 5, 7, 9, 11, 13, 15] },
   throwing: { label: '雪玉投げ', description: '建物へ投げ込む速さ アップ', baseCost: 40, growth: 1.5, maxLevel: [3, 5, 7, 9, 11, 13, 15] },
   plow: { label: '自動除雪機', description: '雪を集めて勝手に寄付', baseCost: 120, growth: 1.8, maxLevel: [1, 2, 3, 4, 5, 6, 8] },
   snowMachine: { label: '降雪機', description: '周りに雪を降らせる', baseCost: 80, growth: 1.6, maxLevel: [2, 3, 4, 5, 6, 7, 8] },
+  cooldown: { label: 'クールダウン短縮', description: 'スキルの待ち時間 ダウン', baseCost: 150, growth: 1.6, maxLevel: [1, 2, 3, 4, 5, 6, 8] },
 }
 
 /** アップグレードの効果量。lil-gui から調整できるようにまとめて持つ */
 export const UPGRADE_EFFECT = {
   shovelRadiusPerLevel: 0.2,
-  shovelRatePerLevel: 0.25,
+  powerRatePerLevel: 0.25,
   backpackCapacityPerLevel: 0.5,
   /** 雪玉投げ：1個あたりの量 ×(1 + chunk×Lv)、投げる間隔 ÷(1 + interval×Lv) */
   throwChunkPerLevel: 0.5,
   throwIntervalPerLevel: 0.15,
   plow: { speed: 3.2, radius: 1.6, rate: 0.9, capacity: 30, deliverChunk: 10 },
   snowMachine: { radius: 5, rate: 0.12 },
+  /** クールダウン短縮：待ち時間 ÷(1 + cooldownPerLevel×Lv) */
+  cooldownPerLevel: 0.12,
+}
+
+// ---- スキル ----
+// 通常スキル3つ＋必殺技1つ。アイテム（スキルの書）を買うと使えるようになる。
+// それぞれ独立したクールダウンを持ち、アップグレード「クールダウン短縮」で短くなる。
+
+export type SkillId = 'dash' | 'boost' | 'longThrow' | 'blizzard'
+
+export type SkillDef = {
+  label: string
+  description: string
+  /** KeyboardEvent.code */
+  key: string
+  keyLabel: string
+  /** クールダウン（秒） */
+  cooldown: number
+  ultimate: boolean
+}
+
+export const SKILLS: Record<SkillId, SkillDef> = {
+  dash: { label: 'ダッシュ', description: '向いている方向へ素早く飛び出す', key: 'Space', keyLabel: 'Space', cooldown: 3, ultimate: false },
+  boost: { label: 'ブースト', description: 'しばらく移動速度アップ', key: 'KeyQ', keyLabel: 'Q', cooldown: 25, ultimate: false },
+  longThrow: { label: '遠投', description: '持っている雪をどこからでも建物へ投げ込む', key: 'KeyR', keyLabel: 'R', cooldown: 30, ultimate: false },
+  blizzard: { label: 'ブリザード', description: '周囲の雪を根こそぎ建物へ送り込む', key: 'KeyF', keyLabel: 'F', cooldown: 120, ultimate: true },
+}
+
+export const SKILL_EFFECT = {
+  dashSpeed: 26,
+  dashTime: 0.22,
+  boostSpeedMult: 1.7,
+  boostTime: 6,
+  /** 遠投・ブリザードで飛ばす雪玉の最大個数（演出用に分割する数） */
+  volleyCount: 12,
+  blizzardRadius: 14,
+}
+
+// ---- レア雪 ----
+// アイテム「レア雪レーダー」を買うと雪原に現れる。普通の雪とは別枠で持てて（所持上限なし）、建物への貢献が大きい。
+
+export const RARE = {
+  /** 1個あたりの建物への貢献（普通の雪の量に換算） */
+  value: 60,
+  spawnInterval: 12,
+  maxOnField: 4,
+}
+
+// ---- アイテム ----
+// 一度買えばずっと有効な解禁型。建物の完成数（Tier）や累計で集めた雪の量で、ショップに並ぶ。
+
+export type ItemId = 'rareRadar' | SkillId
+
+export type ItemDef = {
+  label: string
+  description: string
+  cost: number
+  unlock: { tier?: number; collected?: number }
+}
+
+export const ITEMS: Record<ItemId, ItemDef> = {
+  dash: { label: 'ダッシュの書', description: 'スキル「ダッシュ」を覚える', cost: 80, unlock: { collected: 300 } },
+  rareRadar: { label: 'レア雪レーダー', description: '光るレア雪が雪原に現れる（1個で雪60ぶん）', cost: 250, unlock: { tier: 1 } },
+  boost: { label: 'ブーストの書', description: 'スキル「ブースト」を覚える', cost: 200, unlock: { tier: 1, collected: 1500 } },
+  longThrow: { label: '遠投の書', description: 'スキル「遠投」を覚える', cost: 600, unlock: { tier: 2 } },
+  blizzard: { label: 'ブリザードの書', description: '必殺技「ブリザード」を覚える', cost: 1500, unlock: { tier: 3 } },
 }
 
 /** 降雪機の設置場所（購入順） */

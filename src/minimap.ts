@@ -78,6 +78,8 @@ export class Minimap {
 
     for (const m of s.machines) dot(g, toPx(m.x), toPx(m.z), 3 * dpr, '#4a7fd6')
     for (const p of s.plows) dot(g, toPx(p.x), toPx(p.z), 3.5 * dpr, '#f28c28')
+    // レア雪は点滅する水色の点
+    for (const r of s.rares) dot(g, toPx(r.x), toPx(r.z), (3 + Math.sin(time * 8) * 1.2) * dpr, '#5fe3ff')
 
     // プレイヤー（向きつきの三角）とグランドレベル時の視野
     const px = toPx(s.player.x)

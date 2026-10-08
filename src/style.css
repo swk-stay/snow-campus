@@ -129,3 +129,53 @@ body.cinematic #labels { opacity: 0; transition: opacity 0.4s; }
   .bl-value { font-size: 13px; }
   .bl-bar { width: 90px; }
 }
+
+.hud-rare { margin-left: 10px; color: #7fe9ff; font-size: 14px; }
+
+/* ショップのタブ */
+.shop-tab { border: none; background: none; padding: 4px 6px; font-weight: bold; font-size: 14px; color: #8a92a0; cursor: pointer; border-bottom: 2px solid transparent; }
+.shop-tab.active { color: #1d2433; border-bottom-color: #2f5fb3; }
+.shop-badge:not(:empty) { margin-left: 4px; padding: 0 6px; border-radius: 999px; background: #e0463a; color: #fff; font-size: 11px; }
+.shop-row.locked { opacity: 0.55; }
+.shop-row.locked .shop-level { color: #a05a00; }
+.shop-row.owned .shop-level { color: #2e8b57; }
+.shop-row.owned .shop-buy:disabled { background: #d8f0e0; color: #2e8b57; font-size: 16px; }
+
+/* スキルボタン */
+#skill-bar {
+  position: fixed; right: 12px; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 56px);
+  display: flex; gap: 10px; align-items: flex-end; z-index: 2;
+}
+.skill {
+  --cd: 0; position: relative; width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.85);
+  background: radial-gradient(circle at 35% 30%, #5b8fe0, #2f5fb3); color: #fff; cursor: pointer; overflow: hidden;
+  display: grid; place-items: center; align-content: center; gap: 1px; padding: 0; touch-action: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.skill.ultimate { width: 78px; height: 78px; background: radial-gradient(circle at 35% 30%, #ffd36e, #e0801e); border-color: #fff3c4; }
+.skill::after {
+  /* クールダウンの円グラフ（残り割合のぶんだけ暗くする） */
+  content: ''; position: absolute; inset: 0;
+  background: conic-gradient(rgba(10, 15, 30, 0.7) calc(var(--cd) * 360deg), transparent 0);
+  pointer-events: none;
+}
+.skill-name { font-size: 12px; font-weight: bold; z-index: 1; }
+.skill kbd { font: inherit; font-size: 10px; opacity: 0.8; z-index: 1; }
+.skill-cd { position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; font-weight: bold; z-index: 2; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+.skill.cooling .skill-name, .skill.cooling kbd { opacity: 0.35; }
+.skill.learned { animation: pop 0.5s ease-out; }
+.skill.ready-flash { animation: flash 0.5s ease-out; }
+.skill.shake { animation: shake 0.3s; }
+@keyframes pop { from { transform: scale(0); } 70% { transform: scale(1.2); } to { transform: scale(1); } }
+@keyframes flash { from { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.9); } to { box-shadow: 0 0 0 14px rgba(255, 255, 255, 0); } }
+@keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+@media (pointer: coarse) { .skill kbd { display: none; } }
+@media (max-width: 480px) {
+  #skill-bar { gap: 8px; }
+  .skill { width: 56px; height: 56px; }
+  .skill.ultimate { width: 66px; height: 66px; }
+}
+body.cinematic #skill-bar, body.shop-open #skill-bar { opacity: 0; pointer-events: none; }
+.skill[hidden] { display: none; }
+#skill-bar { transition: opacity 0.2s; }
+body.god-view #skill-bar { display: none; }

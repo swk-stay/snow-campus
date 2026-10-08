@@ -7,6 +7,7 @@ const tmpQuat = new THREE.Quaternion()
 const tmpScale = new THREE.Vector3()
 const tmpVec = new THREE.Vector3()
 const IDENTITY_QUAT = new THREE.Quaternion()
+const tmpColor = new THREE.Color()
 const ZERO_MATRIX = new THREE.Matrix4().makeScale(0, 0, 0)
 
 type Particle = {
@@ -169,10 +170,14 @@ export class Projectiles {
       new THREE.IcosahedronGeometry(0.22, 1),
       new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }),
     )
+    const white = new THREE.Color(0xffffff)
+    for (let i = 0; i < count; i++) this.mesh.setColorAt(i, white)
   }
 
-  /** scale: 雪玉の見た目の大きさ（量が多いほど大きく） */
-  launch(from: THREE.Vector3, to: THREE.Vector3, onLand: () => void, scale = 1) {
+  /** scale: 雪玉の見た目の大きさ（量が多いほど大きく）、color: レア雪などで色を変える */
+  launch(from: THREE.Vector3, to: THREE.Vector3, onLand: () => void, scale = 1, color: THREE.ColorRepresentation = 0xffffff) {
+    this.mesh.setColorAt(this.cursor, tmpColor.set(color))
+    this.mesh.instanceColor!.needsUpdate = true
     const p = this.ps[this.cursor]
     this.cursor = (this.cursor + 1) % this.ps.length
     // プール一周で上書きされる場合も、着弾処理（進捗の反映）だけは取りこぼさない

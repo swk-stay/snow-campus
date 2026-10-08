@@ -1,5 +1,5 @@
 import GUI from 'lil-gui'
-import { ECONOMY, FX, PLAYER, UPGRADE_EFFECT, UPGRADES, WORLD, type UpgradeId } from './config'
+import { ECONOMY, FX, ITEMS, PLAYER, RARE, SKILL_EFFECT, SKILLS, UPGRADE_EFFECT, UPGRADES, WORLD, type ItemId, type SkillId, type UpgradeId } from './config'
 import { maxLevel, refillField, syncOwnedUnits, type GameState } from './sim/game'
 
 // ?debug のときだけ出す調整パネル。config のオブジェクトを直接書き換えるので即座に反映される。
@@ -36,13 +36,23 @@ export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
       .onChange(() => syncOwnedUnits(s))
   }
   up.add(UPGRADE_EFFECT, 'shovelRadiusPerLevel', 0, 1, 0.05).name('スコップ: 半径/Lv')
-  up.add(UPGRADE_EFFECT, 'shovelRatePerLevel', 0, 1, 0.05).name('スコップ: 速さ/Lv')
+  up.add(UPGRADE_EFFECT, 'powerRatePerLevel', 0, 1, 0.05).name('腕力: 速さ/Lv')
   up.add(UPGRADE_EFFECT, 'backpackCapacityPerLevel', 0, 2, 0.1).name('リュック: 容量/Lv')
   up.add(UPGRADE_EFFECT, 'throwChunkPerLevel', 0, 2, 0.05).name('雪玉投げ: 量/Lv')
   up.add(UPGRADE_EFFECT, 'throwIntervalPerLevel', 0, 1, 0.05).name('雪玉投げ: 間隔短縮/Lv')
   up.add(UPGRADE_EFFECT.plow, 'speed', 0.5, 10, 0.1).name('除雪機: 速度')
   up.add(UPGRADE_EFFECT.plow, 'radius', 0.5, 5, 0.1).name('除雪機: 半径')
   up.add(UPGRADE_EFFECT.snowMachine, 'rate', 0, 1, 0.01).name('降雪機: 降雪量')
+
+  const sk = gui.addFolder('スキル・レア雪').close()
+  for (const id of Object.keys(SKILLS) as SkillId[]) sk.add(SKILLS[id], 'cooldown', 0.5, 300, 0.5).name(`${SKILLS[id].label}: CD (s)`)
+  sk.add(SKILL_EFFECT, 'dashSpeed', 5, 60, 1).name('ダッシュ速度')
+  sk.add(SKILL_EFFECT, 'boostSpeedMult', 1, 4, 0.1).name('ブースト倍率')
+  sk.add(SKILL_EFFECT, 'boostTime', 1, 20, 0.5).name('ブースト秒数')
+  sk.add(SKILL_EFFECT, 'blizzardRadius', 3, 40, 1).name('ブリザード半径')
+  sk.add(RARE, 'value', 1, 500, 1).name('レア雪の価値')
+  sk.add(RARE, 'spawnInterval', 1, 60, 1).name('レア雪の湧き間隔 (s)')
+  sk.add(s, 'totalCollected').name('累計回収量').listen().disable()
 
   const fx = gui.addFolder('演出').close()
   fx.add(FX, 'suctionPerSnow', 0, 10, 0.1).name('吸い込みの粒/雪1')
@@ -59,6 +69,12 @@ export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
       syncOwnedUnits(s)
     },
     refill: () => refillField(s),
+    allItems: () => {
+      for (const id of Object.keys(ITEMS) as ItemId[]) s.items[id] = true
+    },
+    resetCd: () => {
+      for (const id of Object.keys(SKILLS) as SkillId[]) s.cooldowns[id] = 0
+    },
     replay: hooks.replayColorize,
     reset: hooks.resetSave,
   }
@@ -67,6 +83,8 @@ export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
   act.add(actions, 'almost').name('次の建物を 90% に')
   act.add(actions, 'maxAll').name('アップグレードを上限まで')
   act.add(actions, 'refill').name('雪原をリセット')
+  act.add(actions, 'allItems').name('アイテムを全部入手')
+  act.add(actions, 'resetCd').name('スキルのCDをリセット')
   act.add(actions, 'replay').name('カラー化を再生')
   act.add(actions, 'reset').name('セーブを消してリロード')
   act.add(s, 'gold').name('所持ゴールド').listen().disable()

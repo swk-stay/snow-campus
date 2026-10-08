@@ -1,4 +1,4 @@
-import { UPGRADES, type UpgradeId } from './config'
+import { ITEMS, UPGRADES, type ItemId, type UpgradeId } from './config'
 import { syncOwnedUnits, type GameState } from './sim/game'
 
 // セーブ／ロード。いまは localStorage（端末ごと）。
@@ -11,7 +11,10 @@ type SaveData = {
   savedAt: number
   gold: number
   upgrades: Partial<Record<UpgradeId, number>>
-  player: { x: number; z: number; carried: number }
+  /** 以下は後から追加した項目なので、古いセーブには無い */
+  items?: Partial<Record<ItemId, boolean>>
+  totalCollected?: number
+  player: { x: number; z: number; carried: number; rare?: number }
   buildings: Record<string, { deposited: number; completed: boolean }>
   /** 雪原を 8bit に量子化して base64 にしたもの（320×320 で約 140KB） */
   field: { res: number; data: string }
@@ -38,7 +41,9 @@ export function serialize(s: GameState): SaveData {
     savedAt: Date.now(),
     gold: s.gold,
     upgrades: { ...s.upgrades },
-    player: { x: s.player.x, z: s.player.z, carried: s.player.carried },
+    items: { ...s.items },
+    totalCollected: s.totalCollected,
+    player: { x: s.player.x, z: s.player.z, carried: s.player.carried, rare: s.player.rare },
     buildings: Object.fromEntries(s.buildings.map((b) => [b.id, { deposited: b.deposited, completed: b.completed }])),
     field: { res: s.field.res, data: encodeField(s.field.data) },
   }
@@ -51,6 +56,9 @@ export function apply(s: GameState, d: SaveData) {
   s.player.x = d.player.x
   s.player.z = d.player.z
   s.player.carried = d.player.carried
+  s.player.rare = d.player.rare ?? 0
+  for (const id of Object.keys(ITEMS) as ItemId[]) s.items[id] = d.items?.[id] ?? false
+  s.totalCollected = d.totalCollected ?? 0
   for (const b of s.buildings) {
     const saved = d.buildings[b.id]
     if (!saved) continue
