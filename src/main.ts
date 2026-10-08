@@ -344,12 +344,18 @@ renderer.setAnimationLoop((now: number) => {
   suckBudget = Math.min(suckBudget, 40)
 
   const current = currentBuilding(state)
+  // 見た目上の「いま建てている建物」。sim は雪玉を投げた瞬間に加算・完成判定するが、
+  // 表示は雪玉の着弾を待って伸びるので、完成演出が始まるまでは前の建物を「建設中」として見せ続ける
+  // （sim の completed で切り替えると、95% くらいで「完成」表示・次の建物へ切り替わってしまう）
+  const shownCurrent = state.buildings.find((b) => !buildingViews.get(b.id)!.celebrated) ?? null
   for (const b of state.buildings) {
     const view = buildingViews.get(b.id)!
     const target = Math.min(1, Math.max(0, (b.deposited - view.inFlight) / b.required))
     const prev = view.display
-    view.display += (target - view.display) * Math.min(1, dt * 6)
-    if (Math.abs(target - view.display) < 1e-4) view.display = target
+    // 指数的に近づけるだけだと 99% 付近で長く粘るので、最低速度（毎秒 15%）も保証する
+    const gap = target - view.display
+    const step = Math.max(Math.abs(gap) * Math.min(1, dt * 6), dt * 0.15)
+    view.display = Math.abs(gap) <= step ? target : view.display + Math.sign(gap) * step
 
     // せり上がるときに足元から雪煙
     const rise = view.display - prev
@@ -391,8 +397,8 @@ renderer.setAnimationLoop((now: number) => {
       }
     }
 
-    const stage = b.completed ? 'done' : b === current ? 'current' : 'locked'
-    const inZone = stage === 'current' && distanceToBuilding(b, p.x, p.z) <= b.dropRange
+    const stage = view.celebrated ? 'done' : b === shownCurrent ? 'current' : 'locked'
+    const inZone = b === current && distanceToBuilding(b, p.x, p.z) <= b.dropRange
     view.monolith.update(time, view.display, Math.max(0, view.colorize), stage, inZone)
     labels.update(b, stage, view.display, view.monolith.topY, camera)
   }
@@ -404,7 +410,7 @@ renderer.setAnimationLoop((now: number) => {
   snow.update(time, p.x, p.z, st.collectRadius)
 
   // HUD の進捗は「いま建てている建物」（全部完成したら最後の建物）
-  const shown = current ?? state.buildings[state.buildings.length - 1]
+  const shown = shownCurrent ?? state.buildings[state.buildings.length - 1]
   hud.update(dt, p.carried, p.capacity, shown.label, buildingViews.get(shown.id)!.display, state.gold, p.rare)
   shop?.update(state)
   skillBar?.update(state)
