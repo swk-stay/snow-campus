@@ -7,8 +7,11 @@ import type { MoveInput } from './sim/game'
 
 export type ViewMode = 'top' | 'ground'
 
-/** 演出カット。pos から look を見る。duration 秒たったら次のカットへ */
-export type Shot = { pos: THREE.Vector3; look: THREE.Vector3; duration: number; onStart?: () => void }
+/**
+ * 演出カット。pos から look を見る。duration 秒たったら次のカットへ。
+ * subject を渡すと、カメラとその箱の間に被る建物を main が薄くする
+ */
+export type Shot = { pos: THREE.Vector3; look: THREE.Vector3; duration: number; subject?: THREE.Box3; onStart?: () => void }
 
 export type RigContext = {
   player: THREE.Vector3
@@ -39,6 +42,7 @@ export class CameraRig {
 
   private shots: Shot[] = []
   private shotTime = 0
+  private shotIndex = 0
   private readonly pos = new THREE.Vector3()
   private readonly look = new THREE.Vector3()
   private readonly camera: THREE.PerspectiveCamera
@@ -57,6 +61,11 @@ export class CameraRig {
     return this.cinematic || this.overview
   }
 
+  /** いまのカットの被写体（演出中でなければ null） */
+  get subject(): THREE.Box3 | null {
+    return this.shots[this.shotIndex]?.subject ?? null
+  }
+
   /** 演出が始まってからの経過秒（スキップ可否の判定用） */
   get cinematicElapsed(): number {
     return this.shotTime
@@ -65,6 +74,7 @@ export class CameraRig {
   play(shots: Shot[]) {
     this.shots = shots
     this.shotTime = 0
+    this.shotIndex = 0
     this.overview = false
     shots[0]?.onStart?.()
   }
@@ -105,6 +115,7 @@ export class CameraRig {
         return this.update(dt, ctx)
       }
       const shot = this.shots[i]
+      this.shotIndex = i
       if (t - dt <= 0 && i > 0) shot.onStart?.()
       tmp.copy(shot.pos)
       tmp2.copy(shot.look)

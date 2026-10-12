@@ -58,7 +58,8 @@ const beaconFragment = /* glsl */ `
 
 export class Monolith {
   readonly group = new THREE.Group()
-  private readonly body: THREE.Group
+  /** 建物のモデル本体（Editor のクリック判定に使う） */
+  readonly body: THREE.Group
   private readonly ghost: THREE.LineSegments
   private readonly apron: THREE.Mesh
   private readonly beacon: THREE.Mesh
@@ -69,15 +70,19 @@ export class Monolith {
   private readonly pad: THREE.Mesh
   /** 室内（照明・柱・家具）のメッシュ。遠いときは隠す */
   private readonly interior: THREE.Object3D[]
+  private readonly footprint: { x: number; z: number; hw: number; hd: number }
+  private colorize = 0
 
   constructor(b: Building, sunDir: THREE.Vector3) {
     this.height = b.height
     this.group.position.set(b.x, 0, b.z)
+    this.footprint = { x: b.x, z: b.z, hw: b.width / 2, hd: b.depth / 2 }
 
     this.shared = {
       uColorize: { value: 0 },
       uHeight: { value: b.height },
       uSunDir: { value: sunDir.clone().normalize() },
+      uFade: { value: 1 },
     }
     const kit = new Kit()
     MODELS[b.id](kit, b)
@@ -152,6 +157,27 @@ export class Monolith {
     return this.height + this.body.position.y
   }
 
+  /** いま地上に出ている部分の外接箱（ワールド座標）。まだ何も出ていなければ null */
+  bounds(out: THREE.Box3): THREE.Box3 | null {
+    if (!this.body.visible) return null
+    const f = this.footprint
+    return out.set(out.min.set(f.x - f.hw, 0, f.z - f.hd), out.max.set(f.x + f.hw, this.topY, f.z + f.hd))
+  }
+
+  /** 演出で被写体の手前に被るときに薄くする。target は 0..1（1 でそのまま） */
+  fade(target: number, dt: number) {
+    const u = this.shared.uFade
+    u.value += (target - u.value) * Math.min(1, dt * 6)
+    if (Math.abs(target - u.value) < 0.005) u.value = target
+    this.updateSigns()
+  }
+
+  private updateSigns() {
+    // サインはカラー化が終わる頃に浮かび上がる
+    const a = Math.max(0, Math.min(1, (this.colorize - 0.7) / 0.3)) * this.shared.uFade.value
+    for (const m of this.signs) m.opacity = a
+  }
+
   /**
    * @param progress 建設進捗 0..1（表示用に補間済みのもの）
    * @param colorize カラー化の進捗 0..1
@@ -163,8 +189,8 @@ export class Monolith {
     this.body.visible = progress > 0.002
     this.pad.visible = !this.body.visible
     this.shared.uColorize.value = colorize
-    // サインはカラー化が終わる頃に浮かび上がる
-    for (const m of this.signs) m.opacity = Math.max(0, Math.min(1, (colorize - 0.7) / 0.3))
+    this.colorize = colorize
+    this.updateSigns()
     this.apronUniforms.uTime.value = time
     this.apronUniforms.uActive.value += ((inZone ? 1 : 0) - this.apronUniforms.uActive.value) * 0.15
     const current = stage === 'current'

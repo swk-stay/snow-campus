@@ -11,11 +11,17 @@ const snowMat = new THREE.MeshStandardMaterial({ color: 0xf6f9ff, roughness: 0.9
 export function createScenery(): THREE.Group {
   const group = new THREE.Group()
   group.add(trees(treeSpots()))
-  group.add(bus(85, 69.5, 0))
-  group.add(busStopSign(94.5, 72.4))
-  group.add(guardHouse(43, 65.6))
-  group.add(sportsFacilities())
+  group.add(named(bus(85, 69.5, 0), 'バス'))
+  group.add(named(busStopSign(94.5, 72.4), 'バス停の標識'))
+  group.add(named(guardHouse(43, 65.6), '守衛所'))
+  group.add(named(sportsFacilities(), 'グラウンドの設備'))
   return group
+}
+
+/** Editor でクリックしたものの名前を出すための目印（userData.target） */
+function named<T extends THREE.Object3D>(obj: T, target: string): T {
+  obj.userData.target = target
+  return obj
 }
 
 type Pt = readonly [number, number]
@@ -162,6 +168,7 @@ function trees(spots: TreeSpot[]): THREE.Group {
     const list = spots.filter((s) => s.kind === kind)
     if (!list.length) continue
     const mesh = new THREE.InstancedMesh(geo, mat, list.length)
+    named(mesh, kind === 'sakura' ? '並木（桜）' : kind === 'conifer' ? '並木（針葉樹）' : '並木（広葉樹）')
     list.forEach((s, i) => {
       q.setFromAxisAngle(up, (s.x * 7.1 + s.z * 3.3) % (Math.PI * 2))
       m.compose(new THREE.Vector3(s.x, 0, s.z), q, new THREE.Vector3(s.scale, s.scale, s.scale))

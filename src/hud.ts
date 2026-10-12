@@ -1,6 +1,7 @@
 // 画面上部のステータス表示とトースト。DOM で十分なので Three.js には載せない。
 
 export class Hud {
+  readonly el: HTMLDivElement
   private readonly snowFill: HTMLDivElement
   private readonly snowText: HTMLSpanElement
   private readonly buildFill: HTMLDivElement
@@ -21,6 +22,7 @@ export class Hud {
       <div class="hud-gold"><span class="coin"></span><span data-gold>0</span> G<span class="hud-rare" data-rare hidden></span></div>
     `
     root.appendChild(hud)
+    this.el = hud
     this.buildLabel = hud.querySelector('[data-build-label]')!
     this.goldText = hud.querySelector('[data-gold]')!
     this.rareText = hud.querySelector('[data-rare]')!

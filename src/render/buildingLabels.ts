@@ -17,13 +17,33 @@ type Label = {
   obj: CSS2DObject
 }
 
+const arrowForward = new THREE.Vector3()
+
 export class BuildingLabels {
   readonly renderer = new CSS2DRenderer()
   private readonly labels = new Map<string, Label>()
+  private readonly arrowObj: CSS2DObject
+  private readonly arrowEl: HTMLDivElement
+  private readonly arrowIcon: SVGElement
+  private readonly arrowLabel: HTMLSpanElement
 
   constructor(scene: THREE.Scene, buildings: Building[]) {
     this.renderer.domElement.id = 'labels'
     document.body.appendChild(this.renderer.domElement)
+
+    // 光の柱が遠くて見えないとき用に、キャラクターの頭上に建設予定地の方向を示す矢印を出す。
+    // 矢じり（頭）だけの三角形だと回転しても向きが分かりにくいので、軸（尾）付きの矢印にする
+    this.arrowEl = document.createElement('div')
+    this.arrowEl.className = 'site-arrow'
+    this.arrowEl.hidden = true
+    this.arrowEl.innerHTML = `
+      <svg class="site-arrow-icon" viewBox="0 0 24 24"><path d="M12 1 L21 12 L15 12 L15 23 L9 23 L9 12 L3 12 Z" /></svg>
+      <span class="site-arrow-label"></span>
+    `
+    this.arrowIcon = this.arrowEl.querySelector('.site-arrow-icon')!
+    this.arrowLabel = this.arrowEl.querySelector('.site-arrow-label')!
+    this.arrowObj = new CSS2DObject(this.arrowEl)
+    scene.add(this.arrowObj)
 
     for (const b of buildings) {
       const el = document.createElement('div')
@@ -66,6 +86,28 @@ export class BuildingLabels {
     const d = camera.position.distanceTo(l.obj.position)
     const fade = stage === 'current' ? 1 : Math.max(0, Math.min(1, (90 - d) / 40))
     l.el.style.opacity = `${fade}`
+  }
+
+  /**
+   * @param playerPos プレイヤーのワールド座標
+   * @param target 矢印で示す建物。null なら隠す
+   */
+  updateArrow(playerPos: THREE.Vector3, target: Building | null, camera: THREE.Camera) {
+    this.arrowEl.hidden = !target
+    if (!target) return
+    this.arrowObj.position.set(playerPos.x, playerPos.y + 2.3, playerPos.z)
+
+    // カメラの向きを基準にした画面上の回転角（0 deg で真上 = 正面）
+    camera.getWorldDirection(arrowForward)
+    const fx = arrowForward.x
+    const fz = arrowForward.z
+    const tx = target.x - playerPos.x
+    const tz = target.z - playerPos.z
+    const screenX = fx * tz - fz * tx
+    const screenY = tx * fx + tz * fz
+    const deg = (Math.atan2(screenX, screenY) * 180) / Math.PI
+    this.arrowIcon.style.transform = `rotate(${deg}deg)`
+    setText(this.arrowLabel, target.label)
   }
 
   render(scene: THREE.Scene, camera: THREE.Camera) {

@@ -8,6 +8,7 @@ import * as THREE from 'three'
 //   glass: ガラス。雪の状態ではすりガラス（氷）で、完成すると透けて中の床や柱が見える
 //   light: 照明やモニターなど自分で光るもの
 // さらに、カメラとプレイヤーの間にある部分はディザで抜く（実寸の建物は高いので、見下ろしでも隠れるため）。
+// 演出カットで被写体の手前に被る建物は、uFade で棟ごと薄くする（これもディザ）。
 
 export type Slot = 'solid' | 'glass' | 'light'
 
@@ -17,6 +18,11 @@ export const occlusion = {
   uFocus: { value: new THREE.Vector3() },
   /** 0 で無効、1 で有効（演出中などは 0 にする） */
   uOccl: { value: 0 },
+}
+
+/** 全建物で共有する断面の高さ。これより上（ワールド y）は描かない。Editor で建物の中を見るときに使う */
+export const section = {
+  uClipY: { value: 1e6 },
 }
 
 const vertexShader = /* glsl */ `
@@ -45,6 +51,8 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uCamPos;
   uniform vec3 uFocus;
   uniform float uOccl;
+  uniform float uClipY;
+  uniform float uFade; // 1: そのまま, 0: 完全に消える
   varying vec3 vColor;
   varying vec3 vLocal;
   varying vec3 vWorld;
@@ -77,7 +85,8 @@ const fragmentShader = /* glsl */ `
   }
 
   void main() {
-    if (vWorld.y < 0.0) discard;
+    if (vWorld.y < 0.0 || vWorld.y > uClipY) discard;
+    if (bayer(gl_FragCoord.xy) > uFade) discard;
 
     // カメラ→プレイヤーの線分に近い部分を抜く（カメラ側ほど太く）
     if (uOccl > 0.0) {
@@ -151,10 +160,12 @@ export type BuildingUniforms = {
   uColorize: { value: number }
   uHeight: { value: number }
   uSunDir: { value: THREE.Vector3 }
+  /** 演出で手前に被ったときの薄さ（1 でそのまま） */
+  uFade: { value: number }
 }
 
 export function createBuildingMaterials(u: BuildingUniforms): Record<Slot, THREE.ShaderMaterial> {
-  const uniforms = { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...u, ...occlusion }
+  const uniforms = { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...u, ...occlusion, ...section }
   const make = (slot: Slot) =>
     new THREE.ShaderMaterial({
       uniforms,

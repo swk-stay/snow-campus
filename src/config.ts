@@ -242,3 +242,13 @@ export const FX = {
   /** 完成時のカラー化にかかる秒数 */
   colorizeSeconds: 2.5,
 }
+
+/** タイムアタック（?mode=timeattack）。セーブとは別に、最初から始めて建物の完成までのタイムを競う */
+export const TIME_ATTACK = {
+  /** ゴールまでに完成させる建物の数（BUILDINGS の先頭から）。学園祭で回転を早くしたいときは減らす */
+  goal: BUILDINGS.length,
+  /** スタート前のカウントダウン（秒） */
+  countdown: 3,
+  /** 端末に残す記録の件数 */
+  keepRuns: 5,
+}
