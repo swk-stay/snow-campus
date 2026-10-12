@@ -293,6 +293,7 @@ function celebrationShots(b: Building): Shot[] {
       pos: new THREE.Vector3(b.x + dist * 0.25, b.height * 0.5 + 2, b.z + b.depth / 2 + dist),
       look: new THREE.Vector3(b.x, b.height * 0.45, b.z),
       duration: 1 + FX.colorizeSeconds + 1.8,
+      subject: buildingBox(b),
     },
   ]
   const next = currentBuilding(state)
@@ -302,6 +303,7 @@ function celebrationShots(b: Building): Shot[] {
       pos: new THREE.Vector3(next.x + d * 0.3, d * 0.8, next.z + next.depth / 2 + d),
       look: new THREE.Vector3(next.x, next.height * 0.3, next.z),
       duration: 2.8,
+      subject: buildingBox(next),
       onStart: () => hud.toast(`次は「${next.label}」！ 光の柱が目印`, 2600),
     })
   } else {
@@ -313,6 +315,47 @@ function celebrationShots(b: Building): Shot[] {
     })
   }
   return shots
+}
+
+/** 完成形の外接箱 */
+function buildingBox(b: Building): THREE.Box3 {
+  return new THREE.Box3(
+    new THREE.Vector3(b.x - b.width / 2, 0, b.z - b.depth / 2),
+    new THREE.Vector3(b.x + b.width / 2, b.height, b.z + b.depth / 2),
+  )
+}
+
+/** 演出中、カメラから被写体（の箱の角と中心）への視線を遮る建物を薄くする */
+const fadeRay = new THREE.Ray()
+const fadeBox = new THREE.Box3()
+const fadeHit = new THREE.Vector3()
+const fadeCenter = new THREE.Vector3()
+const fadeSize = new THREE.Vector3()
+const fadeSamples = Array.from({ length: 9 }, () => new THREE.Vector3())
+function fadeOccluders(dt: number) {
+  const subject = rig.subject
+  if (subject) {
+    subject.getCenter(fadeCenter)
+    subject.getSize(fadeSize).multiplyScalar(0.42)
+    fadeSamples[0].copy(fadeCenter)
+    for (let k = 0; k < 8; k++) {
+      fadeSamples[k + 1].set(k & 1 ? 1 : -1, k & 2 ? 1 : -1, k & 4 ? 1 : -1).multiply(fadeSize).add(fadeCenter)
+    }
+  }
+  const cam = camera.position
+  for (const view of buildingViews.values()) {
+    const box = subject ? view.monolith.bounds(fadeBox) : null
+    let blocking = false
+    if (box && !box.containsPoint(fadeCenter)) {
+      fadeRay.origin.copy(cam)
+      blocking = fadeSamples.some((s) => {
+        fadeRay.direction.subVectors(s, cam).normalize()
+        const hit = fadeRay.intersectBox(box, fadeHit)
+        return hit !== null && hit.distanceToSquared(cam) < s.distanceToSquared(cam)
+      })
+    }
+    view.monolith.fade(blocking ? 0.15 : 1, dt)
+  }
 }
 
 const tmp = new THREE.Vector3()
@@ -518,6 +561,7 @@ renderer.setAnimationLoop((now: number) => {
   occlusion.uOccl.value += ((occlude ? 1 : 0) - occlusion.uOccl.value) * Math.min(1, dt * 6)
   occlusion.uCamPos.value.copy(camera.position)
   occlusion.uFocus.value.copy(playerView.group.position).setY(playerView.group.position.y + 1)
+  fadeOccluders(dt)
 
   renderer.render(scene, camera)
   labels.render(scene, camera)
