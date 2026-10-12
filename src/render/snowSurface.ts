@@ -5,30 +5,34 @@ import { paintGround } from './campusGround'
 
 // 雪原の描画。SnowField を R8 テクスチャに詰め、頂点シェーダーで高さに変換する。
 // 法線は高さマップの差分から求めるので、削った跡の縁にちゃんと陰影が付く。
+// キャンパス全体だとセルが 77 万個あるので、頂点は 2 セルに 1 つに間引き、
+// 雪の有無（地面が見えるか）だけはフラグメントシェーダーでセル単位に引き直す（削った跡の縁がぼけないように）。
+
+/** 頂点を何セルに 1 つ置くか */
+const VERTEX_STRIDE = 2
 
 const vertexShader = /* glsl */ `
   uniform sampler2D uField;
   uniform float uSize;
+  uniform vec2 uCenter;
   uniform float uTexel;
   uniform float uMaxH;
-  varying float vH;
   varying vec3 vNormal;
   varying vec3 vWorld;
   #include <fog_pars_vertex>
 
   float h(vec2 xz) {
-    return texture2D(uField, xz / uSize + 0.5).r;
+    return texture2D(uField, (xz - uCenter) / uSize + 0.5).r;
   }
 
   void main() {
     vec4 wp = modelMatrix * vec4(position, 1.0);
-    float e = uSize * uTexel;
-    float hc = h(wp.xz);
+    // 法線は頂点の間隔（2 セル）で差分をとる
+    float e = uSize * uTexel * ${VERTEX_STRIDE.toFixed(1)};
     float hx = h(wp.xz + vec2(e, 0.0)) - h(wp.xz - vec2(e, 0.0));
     float hz = h(wp.xz + vec2(0.0, e)) - h(wp.xz - vec2(0.0, e));
     vNormal = normalize(vec3(-hx * uMaxH / (2.0 * e), 1.0, -hz * uMaxH / (2.0 * e)));
-    wp.y += hc * uMaxH;
-    vH = hc;
+    wp.y += h(wp.xz) * uMaxH;
     vWorld = wp.xyz;
     vec4 mvPosition = viewMatrix * wp;
     gl_Position = projectionMatrix * mvPosition;
@@ -37,13 +41,14 @@ const vertexShader = /* glsl */ `
 `
 
 const fragmentShader = /* glsl */ `
+  uniform sampler2D uField;
+  uniform vec2 uCenter;
   uniform vec3 uSunDir;
   uniform float uTime;
   uniform vec3 uPlayer; // xy = プレイヤーの xz, z = 回収半径
   uniform vec3 uFacing; // xy = 向きの単位ベクトル (x, z), z = 回収の扇形の半角
   uniform sampler2D uGround;
   uniform float uSize;
-  varying float vH;
   varying vec3 vNormal;
   varying vec3 vWorld;
   #include <fog_pars_fragment>
@@ -53,11 +58,14 @@ const fragmentShader = /* glsl */ `
   }
 
   void main() {
+    // 雪の有無はセル単位のテクスチャから引き直す（頂点は間引いているので、削った跡の縁を細かく出すため）
+    vec2 uv = (vWorld.xz - uCenter) / uSize + 0.5;
+    float vH = texture2D(uField, uv).r;
     vec3 n = normalize(vNormal);
     float diff = max(dot(n, uSunDir), 0.0);
 
     // 雪の下の地面（芝生・園路・構内道路。campusGround.ts で描いたもの）
-    vec3 ground = texture2D(uGround, vWorld.xz / uSize + 0.5).rgb;
+    vec3 ground = texture2D(uGround, uv).rgb;
     vec3 groundLit = ground * (0.55 + 0.45 * diff);
 
     vec3 snow = mix(vec3(0.42, 0.52, 0.78), vec3(1.0), diff);
@@ -111,6 +119,7 @@ export class SnowSurface {
       ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
       uField: { value: this.texture },
       uSize: { value: field.size },
+      uCenter: { value: new THREE.Vector2(field.centerX, field.centerZ) },
       uTexel: { value: 1 / field.res },
       uMaxH: { value: WORLD.snowMaxHeight },
       uSunDir: { value: sunDir.clone().normalize() },
@@ -120,9 +129,11 @@ export class SnowSurface {
       uGround: { value: createGroundTexture() },
     }
 
-    // 頂点はセルと1対1（480×480 で約23万頂点）
-    const geo = new THREE.PlaneGeometry(field.size, field.size, field.res - 1, field.res - 1)
+    // 頂点は VERTEX_STRIDE セルに 1 つ（880×880 セルで約 19 万頂点）
+    const seg = Math.round(field.res / VERTEX_STRIDE) - 1
+    const geo = new THREE.PlaneGeometry(field.size, field.size, seg, seg)
     geo.rotateX(-Math.PI / 2)
+    geo.translate(field.centerX, 0, field.centerZ)
     this.mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader, fragmentShader, fog: true }))
     this.mesh.frustumCulled = false
   }
@@ -130,8 +141,11 @@ export class SnowSurface {
   /** facing: プレイヤーの向き（+Z 方向が 0）、arc: 回収の扇形の角度（ラジアン） */
   update(time: number, playerX: number, playerZ: number, collectRadius: number, facing: number, arc: number) {
     if (this.field.dirty) {
-      const src = this.field.data
-      for (let k = 0; k < src.length; k++) this.texData[k] = Math.round(Math.min(1, src[k]) * 255)
+      // 変わった範囲だけ 8bit に詰め直す（毎フレーム 77 万セル全部を回すと重いため）
+      const { data: src, res, dirtyRect: r } = this.field
+      for (let j = r.j0; j <= r.j1; j++) {
+        for (let k = j * res + r.i0, end = j * res + r.i1; k <= end; k++) this.texData[k] = Math.round(Math.min(1, src[k]) * 255)
+      }
       this.texture.needsUpdate = true
       this.field.dirty = false
     }
@@ -143,7 +157,7 @@ export class SnowSurface {
 }
 
 function createGroundTexture(): THREE.Texture {
-  const tex = new THREE.CanvasTexture(paintGround(2048))
+  const tex = new THREE.CanvasTexture(paintGround(4096))
   tex.colorSpace = THREE.SRGBColorSpace
   // Canvas の上端が -Z。雪原のテクスチャ（行 0 が -Z）と向きをそろえる
   tex.flipY = false

@@ -67,6 +67,8 @@ export class Monolith {
   private readonly apronUniforms
   private readonly signs: THREE.MeshBasicMaterial[]
   private readonly pad: THREE.Mesh
+  /** 室内（照明・柱・家具）のメッシュ。遠いときは隠す */
+  private readonly interior: THREE.Object3D[]
 
   constructor(b: Building, sunDir: THREE.Vector3) {
     this.height = b.height
@@ -80,6 +82,7 @@ export class Monolith {
     const kit = new Kit()
     MODELS[b.id](kit, b)
     this.body = kit.build(createBuildingMaterials(this.shared))
+    this.interior = this.body.children.filter((m) => m.userData.interior)
     const signs = kit.buildSigns()
     if (signs.length) this.body.add(...signs)
     this.signs = signs.map((m) => m.material)
@@ -137,6 +140,11 @@ export class Monolith {
       }),
     )
     this.group.add(this.beacon)
+  }
+
+  /** 室内を描くか（遠い建物や全体マップでは省いて軽くする） */
+  setInterior(visible: boolean) {
+    for (const m of this.interior) m.visible = visible
   }
 
   /** 現在見えている屋上の高さ（ワールド y） */

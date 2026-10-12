@@ -1,71 +1,29 @@
-import type { BuildingDef } from '../../config'
+import { cw, deskIsland, facade, insetPoly, insidePoly, interior, pcRow, plant, rectSides, rng, shelfRow, type CellKind } from './kit'
+import { OUTER_MODELS } from './outerModels'
 import {
-  cw,
-  deskIsland,
-  facade,
-  insetPoly,
-  insidePoly,
-  interior,
-  Kit,
-  pcRow,
-  plant,
-  rectSides,
-  rng,
-  shelfRow,
-  spanAtZ,
-  type CellKind,
-} from './kit'
+  car,
+  ceilingLights,
+  CLEAR,
+  FRAME,
+  GLASS,
+  h3,
+  levels,
+  OFFWHITE,
+  ORANGE,
+  RED_CHAIR,
+  ringWalls,
+  roof,
+  rooftop,
+  WARM_LIGHT,
+  WHITE,
+  WOOD,
+  type Model,
+  type Pt,
+} from './parts'
 
 // 神奈川工科大学・中庭まわりの 10 棟。寸法は OSM（PLATEAU 由来）の外形と高さ、外観は大学公式の
 // キャンパスマップの写真を見て作った。座標は建物ローカル（原点 = 敷地の外接矩形の中心、+X 南・+Z 西）。
 // 見下ろしでは +Z（西）の面がカメラ側に来るので、そこは特に作り込んでいる。
-
-type Pt = readonly [number, number]
-type Model = (k: Kit, b: BuildingDef) => void
-
-const WHITE = 0xf0f1f0
-const OFFWHITE = 0xe2dfd8
-const GLASS = 0x86a7bd
-const CLEAR = 0xc3d6df
-const FRAME = 0x8f989f
-const WOOD = 0xc89a64
-const RED_CHAIR = 0xd23a2a
-const ORANGE = 0xe0662a
-const WARM_LIGHT = 0xffe0a8
-
-/** 0..1 の決定的なハッシュ（窓の配置のばらつき用） */
-function h3(a: number, b: number, c: number): number {
-  const s = Math.sin(a * 12.9898 + b * 78.233 + c * 37.719) * 43758.5453
-  return s - Math.floor(s)
-}
-
-/** 階の床の高さの配列（1 階の高さ、基準階の高さ、階数） */
-function levels(ground: number, typical: number, floors: number): number[] {
-  const out = [0, ground]
-  for (let i = 1; i < floors; i++) out.push(ground + typical * i)
-  return out
-}
-
-/** 屋上のスラブとパラペット（立ち上がり） */
-function roof(k: Kit, x0: number, z0: number, x1: number, z1: number, y: number, parapet: number, color: number) {
-  k.box(x0, y - 0.3, z0, x1, y + 0.05, z1, 0xc9c7c1)
-  const t = 0.3
-  k.box(x0, y, z0, x1, y + parapet, z0 + t, color)
-  k.box(x0, y, z1 - t, x1, y + parapet, z1, color)
-  k.box(x0, y, z0, x0 + t, y + parapet, z1, color)
-  k.box(x1 - t, y, z0, x1, y + parapet, z1, color)
-}
-
-/** 屋上の設備（室外機・塔屋）。見下ろしで屋上が単調にならないように */
-function rooftop(k: Kit, x0: number, z0: number, x1: number, z1: number, y: number, r: () => number) {
-  for (let i = 0; i < 6; i++) {
-    const w = 1.2 + r() * 2.2
-    const d = 1.0 + r() * 1.6
-    const x = x0 + 1 + r() * (x1 - x0 - w - 2)
-    const z = z0 + 1 + r() * (z1 - z0 - d - 2)
-    k.box(x, y, z, x + w, y + 0.9 + r() * 0.8, z + d, 0xa9adb0)
-  }
-}
 
 // ---------------------------------------------------------------------------
 // D2号館 先進技術研究所：2 階建て・六角形。1 階は奥まったガラスと細い柱、2 階は張り出した箱で、
@@ -117,24 +75,26 @@ const d2: Model = (k) => {
   // 室内：暖色の天井照明、展示の車、受付カウンター、2 階の机、吹き抜けの階段、楕円の天窓
   ceilingLights(k, inner, y1 - 0.05, 2.4, WARM_LIGHT)
   ceilingLights(k, insetPoly(outer, 0.6), yTop - 0.05, 2.4, WARM_LIGHT)
-  car(k, -4, 0.12, 4, 0.4, 0xc62b25)
-  car(k, 3, 0.12, 6, -0.3, 0xe8e2d5)
-  k.box(-9, 0.12, -3, -7.6, 1.1, 3, ORANGE)
-  for (const [x, z] of [[2, -5], [6, -2], [-1, -8]] as Pt[]) {
-    k.box(x - 0.9, 0.12, z - 0.4, x + 0.9, 0.55, z + 0.4, ORANGE)
-    k.box(x - 0.9, 0.55, z - 0.4, x + 0.9, 0.95, z - 0.2, ORANGE)
-  }
-  // 吹き抜けの階段（1 階から 2 階へ、踏み板が宙に浮いて見える）
-  for (let i = 0; i < 18; i++) {
-    const t = i / 17
-    const x = 8 - t * 9
-    const y = 0.12 + t * (y1 + 0.3)
-    k.box(x - 0.18, y, -1.2, x + 0.18, y + 0.08, 0.6, WHITE)
-  }
-  k.box(-1.2, y1 + 0.45, -1.4, 8.2, y1 + 1.5, -1.3, 0xd8e4ea, 'glass')
-  // 2 階：机とオレンジの椅子
-  for (let x = -8; x <= 8; x += 4) deskIsland(k, x, y1 + 0.45, 8.5, 2.6, 1.0, 0xf3f0ea, ORANGE)
-  for (let x = -6; x <= 6; x += 4) deskIsland(k, x, y1 + 0.45, -9, 2.6, 1.0, 0xf3f0ea, ORANGE)
+  k.inside(() => {
+    car(k, -4, 0.12, 4, 0.4, 0xc62b25)
+    car(k, 3, 0.12, 6, -0.3, 0xe8e2d5)
+    k.box(-9, 0.12, -3, -7.6, 1.1, 3, ORANGE)
+    for (const [x, z] of [[2, -5], [6, -2], [-1, -8]] as Pt[]) {
+      k.box(x - 0.9, 0.12, z - 0.4, x + 0.9, 0.55, z + 0.4, ORANGE)
+      k.box(x - 0.9, 0.55, z - 0.4, x + 0.9, 0.95, z - 0.2, ORANGE)
+    }
+    // 吹き抜けの階段（1 階から 2 階へ、踏み板が宙に浮いて見える）
+    for (let i = 0; i < 18; i++) {
+      const t = i / 17
+      const x = 8 - t * 9
+      const y = 0.12 + t * (y1 + 0.3)
+      k.box(x - 0.18, y, -1.2, x + 0.18, y + 0.08, 0.6, WHITE)
+    }
+    k.box(-1.2, y1 + 0.45, -1.4, 8.2, y1 + 1.5, -1.3, 0xd8e4ea, 'glass')
+    // 2 階：机とオレンジの椅子
+    for (let x = -8; x <= 8; x += 4) deskIsland(k, x, y1 + 0.45, 8.5, 2.6, 1.0, 0xf3f0ea, ORANGE)
+    for (let x = -6; x <= 6; x += 4) deskIsland(k, x, y1 + 0.45, -9, 2.6, 1.0, 0xf3f0ea, ORANGE)
+  })
   // 楕円の天窓（屋根の上から光って見える）
   const sky: Pt[] = []
   for (let i = 0; i < 20; i++) {
@@ -146,47 +106,6 @@ const d2: Model = (k) => {
   function towards(x: number, z: number, d: number): Pt {
     const l = Math.hypot(x, z)
     return [x - (x / l) * d, z - (z / l) * d]
-  }
-}
-
-/** 展示用の車（箱を組み合わせた簡易形） */
-function car(k: Kit, x: number, y: number, z: number, angle: number, color: number) {
-  k.obox(x, y + 0.3, z, 4.2, 0.6, 1.8, angle, color)
-  k.obox(x - Math.cos(angle) * 0.3, y + 0.9, z + Math.sin(angle) * 0.3, 2.2, 0.55, 1.6, angle, 0x2a3138)
-  for (const [u, v] of [[1.4, 0.95], [1.4, -0.95], [-1.4, 0.95], [-1.4, -0.95]]) {
-    const wx = x + u * Math.cos(angle) + v * Math.sin(angle)
-    const wz = z - u * Math.sin(angle) + v * Math.cos(angle)
-    k.cylinder(wx, wz, 0.33, y, y + 0.66, 0x1d1f22, 8)
-  }
-}
-
-/** 多角形の外周にガラスの壁と細いマリオンを立てる */
-function ringWalls(k: Kit, poly: readonly Pt[], y0: number, y1: number, step: number, glass: number, mullion: number) {
-  for (let i = 0; i < poly.length; i++) {
-    const a = poly[i]
-    const b = poly[(i + 1) % poly.length]
-    k.wall(a, b, y0, y1, glass, 'glass')
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1])
-    const ux = (b[0] - a[0]) / len, uz = (b[1] - a[1]) / len
-    const n = Math.max(1, Math.round(len / step))
-    for (let j = 0; j <= n; j++) {
-      const u = (j / n) * len
-      k.obox(a[0] + ux * u, y0, a[1] + uz * u, 0.05, y1 - y0, 0.1, Math.atan2(-uz, ux), mullion)
-    }
-    // 上下の枠
-    k.slabWall(a, b, y1 - 0.12, y1, 0.12, mullion)
-  }
-}
-
-/** 多角形の内側に並べる天井の照明（z 方向に step ごとの帯） */
-function ceilingLights(k: Kit, poly: readonly Pt[], y: number, step: number, color: number, width = 0.5) {
-  const zs = poly.map((p) => p[1])
-  for (let z = Math.min(...zs) + step / 2; z < Math.max(...zs); z += step) {
-    const span = spanAtZ(poly, z)
-    if (!span) continue
-    const [x0, x1] = [span[0] + 0.6, span[1] - 0.6]
-    if (x1 - x0 < 0.5) continue
-    k.quad([x0, y, z + width / 2], [x1, y, z + width / 2], [x1, y, z - width / 2], [x0, y, z - width / 2], color, 'light')
   }
 }
 
@@ -221,46 +140,48 @@ const d1: Model = (k) => {
     k.obox(x, 0.1, z, wide, H - 0.32, thin, r() * Math.PI, WHITE)
   }
 
-  // 家具：柱を避けて置く。白いテーブルと椅子、木の作業台、植物、工作機械、ソーラーカー
-  const free = (x: number, z: number, rad: number) => insidePoly(inner, x, z) && !cols.some(([cx, cz]) => Math.hypot(cx - x, cz - z) < rad)
-  let placed = 0
-  for (let tries = 0; placed < 46 && tries < 3000; tries++) {
-    const x = -20 + r() * 40
-    const z = -21 + r() * 42
-    const kind = r()
-    if (kind < 0.35) {
-      if (!free(x, z, 1.1)) continue
-      k.box(x - 0.6, 0.8, z - 0.6, x + 0.6, 0.85, z + 0.6, WHITE)
-      k.box(x - 0.03, 0.1, z - 0.03, x + 0.03, 0.8, z + 0.03, WHITE)
-      for (const [dx, dz] of [[0.9, 0], [-0.9, 0]]) {
-        k.box(x + dx - 0.22, 0.5, z + dz - 0.22, x + dx + 0.22, 0.55, z + dz + 0.22, WHITE)
-        k.box(x + dx + Math.sign(dx) * 0.18, 0.55, z - 0.22, x + dx + Math.sign(dx) * 0.22, 1.0, z + 0.22, WHITE)
+  k.inside(() => {
+    // 家具：柱を避けて置く。白いテーブルと椅子、木の作業台、植物、工作機械、ソーラーカー
+    const free = (x: number, z: number, rad: number) => insidePoly(inner, x, z) && !cols.some(([cx, cz]) => Math.hypot(cx - x, cz - z) < rad)
+    let placed = 0
+    for (let tries = 0; placed < 46 && tries < 3000; tries++) {
+      const x = -20 + r() * 40
+      const z = -21 + r() * 42
+      const kind = r()
+      if (kind < 0.35) {
+        if (!free(x, z, 1.1)) continue
+        k.box(x - 0.6, 0.8, z - 0.6, x + 0.6, 0.85, z + 0.6, WHITE)
+        k.box(x - 0.03, 0.1, z - 0.03, x + 0.03, 0.8, z + 0.03, WHITE)
+        for (const [dx, dz] of [[0.9, 0], [-0.9, 0]]) {
+          k.box(x + dx - 0.22, 0.5, z + dz - 0.22, x + dx + 0.22, 0.55, z + dz + 0.22, WHITE)
+          k.box(x + dx + Math.sign(dx) * 0.18, 0.55, z - 0.22, x + dx + Math.sign(dx) * 0.22, 1.0, z + 0.22, WHITE)
+        }
+      } else if (kind < 0.6) {
+        if (!free(x, z, 1.4)) continue
+        k.box(x - 1.2, 0.85, z - 0.45, x + 1.2, 0.95, z + 0.45, WOOD)
+        k.box(x - 1.1, 0.1, z - 0.4, x + 1.1, 0.85, z + 0.4, 0x6f6a62)
+        // 工具や材料
+        k.box(x - 0.6, 0.95, z - 0.2, x - 0.1, 1.15, z + 0.25, 0x3f6fae)
+        k.box(x + 0.3, 0.95, z - 0.3, x + 0.9, 1.0, z + 0.1, 0xe6d3b0)
+      } else if (kind < 0.85) {
+        if (!free(x, z, 0.6)) continue
+        plant(k, x, 0.1, z, 1.6 + r() * 1.8)
+      } else {
+        if (!free(x, z, 1.3)) continue
+        // 工作機械（ボール盤・旋盤のような箱）
+        k.box(x - 0.7, 0.1, z - 0.5, x + 0.7, 1.3, z + 0.5, 0x5f7f8f)
+        k.box(x - 0.5, 1.3, z - 0.3, x + 0.1, 1.9, z + 0.3, 0x4a6676)
       }
-    } else if (kind < 0.6) {
-      if (!free(x, z, 1.4)) continue
-      k.box(x - 1.2, 0.85, z - 0.45, x + 1.2, 0.95, z + 0.45, WOOD)
-      k.box(x - 1.1, 0.1, z - 0.4, x + 1.1, 0.85, z + 0.4, 0x6f6a62)
-      // 工具や材料
-      k.box(x - 0.6, 0.95, z - 0.2, x - 0.1, 1.15, z + 0.25, 0x3f6fae)
-      k.box(x + 0.3, 0.95, z - 0.3, x + 0.9, 1.0, z + 0.1, 0xe6d3b0)
-    } else if (kind < 0.85) {
-      if (!free(x, z, 0.6)) continue
-      plant(k, x, 0.1, z, 1.6 + r() * 1.8)
-    } else {
-      if (!free(x, z, 1.3)) continue
-      // 工作機械（ボール盤・旋盤のような箱）
-      k.box(x - 0.7, 0.1, z - 0.5, x + 0.7, 1.3, z + 0.5, 0x5f7f8f)
-      k.box(x - 0.5, 1.3, z - 0.3, x + 0.1, 1.9, z + 0.3, 0x4a6676)
+      placed++
     }
-    placed++
-  }
-  // ソーラーカー（学生プロジェクト）：平たい涙形
-  const sx = 8, sz = 10
-  if (free(sx, sz, 0.1)) {
-    k.obox(sx, 0.35, sz, 4.6, 0.25, 1.6, 0.2, WHITE)
-    k.obox(sx + 0.2, 0.6, sz, 3.6, 0.04, 1.4, 0.2, 0x1e2f5a, 'light')
-    k.obox(sx - 0.6, 0.6, sz - 0.1, 0.9, 0.35, 0.6, 0.2, 0x2a3138)
-  }
+    // ソーラーカー（学生プロジェクト）：平たい涙形
+    const sx = 8, sz = 10
+    if (free(sx, sz, 0.1)) {
+      k.obox(sx, 0.35, sz, 4.6, 0.25, 1.6, 0.2, WHITE)
+      k.obox(sx + 0.2, 0.6, sz, 3.6, 0.04, 1.4, 0.2, 0x1e2f5a, 'light')
+      k.obox(sx - 0.6, 0.6, sz - 0.1, 0.9, 0.35, 0.6, 0.2, 0x2a3138)
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -728,4 +649,4 @@ const k1: Model = (k, b) => {
   k.box(-6, 0, -5, 6, top, 5, 0xdadad6)
 }
 
-export const MODELS: Record<string, Model> = { d1, d2, c1, d3, k2, c6, b5, k4, k3, k1 }
+export const MODELS: Record<string, Model> = { d1, d2, c1, d3, k2, c6, b5, k4, k3, k1, ...OUTER_MODELS }

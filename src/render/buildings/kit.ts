@@ -3,6 +3,7 @@ import type { Slot } from './material'
 
 // 建物モデルを組み立てるための道具。箱・板・押し出しなどを slot（solid / glass / light）ごとに
 // 1 つのジオメトリへ詰めていき、最後に slot ごとに 1 メッシュにまとめる（ドローコールを 3 本に抑える）。
+// 室内（interior() の中で作るもの）は別のメッシュにして、遠くの建物では隠せるようにする（LOD）。
 // 座標は建物ローカル（原点 = 敷地の中心の地面、+X が南、+Z が西）。
 
 type Vec = readonly [number, number, number]
@@ -31,13 +32,28 @@ export function rng(seed: number): () => number {
 /** 壁のサイン（文字）。頂点カラーでは文字を描けないので、Canvas のテクスチャを貼った板を別に作る */
 type Sign = { text: string; x: number; y: number; z: number; w: number; h: number; angle: number; color: string; logo: boolean }
 
+type Layer = 'shell' | 'interior'
+
 export class Kit {
-  private readonly buffers: Record<Slot, Buffer> = { solid: new Buffer(), glass: new Buffer(), light: new Buffer() }
+  private readonly buffers: Record<Layer, Record<Slot, Buffer>> = {
+    shell: { solid: new Buffer(), glass: new Buffer(), light: new Buffer() },
+    interior: { solid: new Buffer(), glass: new Buffer(), light: new Buffer() },
+  }
   private readonly signs: Sign[] = []
+  /** いま作っているのが外側（shell）か室内（interior）か。interior() の中だけ 'interior' になる */
+  layer: Layer = 'shell'
+
+  /** fn の中で作るものを室内（遠くでは描かない）にする。interior() を使わずに家具を置くとき用 */
+  inside(fn: () => void) {
+    const prev = this.layer
+    this.layer = 'interior'
+    fn()
+    this.layer = prev
+  }
 
   /** 4 頂点の面（反時計回りが表）。法線は面から計算する */
   quad(a: Vec, b: Vec, c: Vec, d: Vec, color: number, slot: Slot = 'solid') {
-    const buf = this.buffers[slot]
+    const buf = this.buffers[this.layer][slot]
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2]
     const vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2]
     let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx
@@ -90,18 +106,20 @@ export class Kit {
     this.obox((a[0] + b[0]) / 2, y0, (a[1] + b[1]) / 2, len, y1 - y0, t, angle, color, slot)
   }
 
-  /** 多角形を押し出した立体（屋根スラブや床、六角形の建物など）。pts は XZ 平面 */
-  prism(pts: readonly Pt[], y0: number, y1: number, color: number, slot: Slot = 'solid', sides = true) {
-    const shape = pts.map(([x, z]) => new THREE.Vector2(x, z))
-    const tris = THREE.ShapeUtils.triangulateShape(shape, [])
-    const buf = this.buffers[slot]
+  /** 多角形を押し出した立体（屋根スラブや床、六角形の建物など）。pts は XZ 平面。holes で穴（天窓など）を開けられる */
+  prism(pts: readonly Pt[], y0: number, y1: number, color: number, slot: Slot = 'solid', sides = true, holes: readonly (readonly Pt[])[] = []) {
+    const toVec = (p: readonly Pt[]) => p.map(([x, z]) => new THREE.Vector2(x, z))
+    const tris = THREE.ShapeUtils.triangulateShape(toVec(pts), holes.map(toVec))
+    // 三角形の頂点番号は、外周 → 穴の順につなげた並びを指す
+    const all = [...pts, ...holes.flat()]
+    const buf = this.buffers[this.layer][slot]
     tmpColor.setHex(color)
     // 三角形の巻き順を、上面は上から・底面は下から見て表になるようにそろえる（DoubleSide の陰影が裏返らないように）
     const [i0, j0, k0] = tris[0]
-    const upward = (pts[j0][0] - pts[i0][0]) * (pts[k0][1] - pts[i0][1]) - (pts[j0][1] - pts[i0][1]) * (pts[k0][0] - pts[i0][0]) < 0
+    const upward = (all[j0][0] - all[i0][0]) * (all[k0][1] - all[i0][1]) - (all[j0][1] - all[i0][1]) * (all[k0][0] - all[i0][0]) < 0
     for (const [y, ny] of [[y1, 1], [y0, -1]] as const) {
       const base = buf.pos.length / 3
-      for (const [x, z] of pts) {
+      for (const [x, z] of all) {
         buf.pos.push(x, y, z)
         buf.nor.push(0, ny, 0)
         buf.col.push(tmpColor.r, tmpColor.g, tmpColor.b)
@@ -110,10 +128,12 @@ export class Kit {
       for (const [i, j, k] of tris) buf.idx.push(base + i, base + (flip ? k : j), base + (flip ? j : k))
     }
     if (!sides) return
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[i]
-      const b = pts[(i + 1) % pts.length]
-      this.quad([a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], y1, b[1]], [a[0], y1, a[1]], color, slot)
+    for (const ring of [pts, ...holes]) {
+      for (let i = 0; i < ring.length; i++) {
+        const a = ring[i]
+        const b = ring[(i + 1) % ring.length]
+        this.quad([a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], y1, b[1]], [a[0], y1, a[1]], color, slot)
+      }
     }
   }
 
@@ -181,28 +201,31 @@ export class Kit {
     })
   }
 
-  /** slot ごとに 1 メッシュへまとめる */
+  /** slot ごとに 1 メッシュへまとめる。室内のメッシュは userData.interior = true */
   build(materials: Record<Slot, THREE.Material>): THREE.Group {
     const group = new THREE.Group()
-    for (const slot of ['solid', 'light', 'glass'] as Slot[]) {
-      const buf = this.buffers[slot]
-      if (!buf.idx.length) continue
-      const geo = new THREE.BufferGeometry()
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(buf.pos, 3))
-      geo.setAttribute('normal', new THREE.Float32BufferAttribute(buf.nor, 3))
-      geo.setAttribute('color', new THREE.Float32BufferAttribute(buf.col, 3))
-      geo.setIndex(buf.idx)
-      geo.computeBoundingSphere()
-      const mesh = new THREE.Mesh(geo, materials[slot])
-      // ガラスは中身（solid）より後に描く
-      mesh.renderOrder = slot === 'glass' ? 1 : 0
-      group.add(mesh)
+    for (const layer of ['shell', 'interior'] as Layer[]) {
+      for (const slot of ['solid', 'light', 'glass'] as Slot[]) {
+        const buf = this.buffers[layer][slot]
+        if (!buf.idx.length) continue
+        const geo = new THREE.BufferGeometry()
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(buf.pos, 3))
+        geo.setAttribute('normal', new THREE.Float32BufferAttribute(buf.nor, 3))
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(buf.col, 3))
+        geo.setIndex(buf.idx)
+        geo.computeBoundingSphere()
+        const mesh = new THREE.Mesh(geo, materials[slot])
+        // ガラスは中身（solid）より後に描く
+        mesh.renderOrder = slot === 'glass' ? 1 : 0
+        mesh.userData.interior = layer === 'interior'
+        group.add(mesh)
+      }
     }
     return group
   }
 
   get vertexCount(): number {
-    return Object.values(this.buffers).reduce((n, b) => n + b.pos.length / 3, 0)
+    return Object.values(this.buffers).reduce((n, l) => n + Object.values(l).reduce((m, b) => m + b.pos.length / 3, 0), 0)
   }
 }
 
@@ -390,6 +413,7 @@ export type InteriorSpec = {
 
 /** 各階の床スラブ・天井の照明パネル・内部の柱と、指定があれば家具を作る */
 export function interior(k: Kit, s: InteriorSpec) {
+  const prev = k.layer
   const inset = s.inset ?? 0.4
   const slab = s.slab ?? 0xd8d6d0
   const light = s.ceilingLight ?? 0xfff3d6
@@ -398,13 +422,17 @@ export function interior(k: Kit, s: InteriorSpec) {
   for (let fl = 0; fl < s.levels.length - 1; fl++) {
     const y = s.levels[fl]
     const h = s.levels[fl + 1] - y
+    // 床と天井は外側（shell）に入れる：遠くから見ても、ガラスの奥に床の層が見えるように
+    k.layer = prev
     // 床（地面に置く階は少し上げて、地面とのちらつきを防ぐ）
     const onGround = y < 0.5
     const top = onGround ? Math.max(y + 0.05, 0.12) : y + 0.05
     k.box(x0, onGround ? 0 : y - 0.3, z0, x1, top, z1, slab)
-    // 天井（上の階の床の裏）と照明パネル
+    // 天井（上の階の床の裏）
     const cy = y + h - 0.35
     k.quad([x0, cy, z1], [x1, cy, z1], [x1, cy, z0], [x0, cy, z0], 0xd5d8da)
+    // 照明パネル・柱・家具は室内（近くでだけ描く）
+    k.layer = 'interior'
     const step = 3.6
     for (let x = x0 + 1.5; x < x1 - 1; x += step) {
       for (let z = z0 + 1.5; z < z1 - 1; z += step) {
@@ -417,6 +445,7 @@ export function interior(k: Kit, s: InteriorSpec) {
     }
     s.furnish?.(k, fl, top, h, r)
   }
+  k.layer = prev
 }
 
 // ---- 家具（室内をガラス越しに見せるための小物） ----
