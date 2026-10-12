@@ -1,7 +1,7 @@
 import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, UPGRADES, WORLD, type UpgradeId } from './config'
+import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, TIME_ATTACK, UPGRADES, WORLD, type UpgradeId } from './config'
 import {
   buyItem,
   buyUpgrade,
@@ -24,16 +24,19 @@ import { RareView } from './render/rareView'
 import { SkillBar } from './skillBar'
 import { Input } from './input'
 import { Hud } from './hud'
-import { Shop } from './shop'
+import { Shop, type ShopAction } from './shop'
+import { TimeAttack } from './timeAttack'
 import { Minimap } from './minimap'
 import { CameraRig, type Shot, type ViewMode } from './camera'
 import { createDebugGui } from './debugGui'
 import { clearStorage, loadFromStorage, saveToStorage } from './save'
 import { playCoin, playFanfare, unlockAudio } from './audio'
 
-// ?view=god で展示用の神視点（自動周回）カメラ、?debug で lil-gui の調整パネル
+// ?view=god で展示用の神視点（自動周回）カメラ、?debug で lil-gui の調整パネル、
+// ?mode=timeattack でタイムアタック（セーブを読まずに最初から始め、セーブもしない）
 const params = new URLSearchParams(location.search)
 const isGodView = params.get('view') === 'god'
+const isTimeAttack = !isGodView && params.get('mode') === 'timeattack'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -51,7 +54,7 @@ sun.position.copy(sunDir).multiplyScalar(30)
 scene.add(sun)
 
 const state = createGame()
-const resumed = loadFromStorage(state)
+const resumed = !isTimeAttack && loadFromStorage(state)
 
 const snow = new SnowSurface(state.field, sunDir)
 scene.add(snow.mesh)
@@ -131,16 +134,40 @@ function resetSave() {
   clearStorage()
   location.reload()
 }
+/** 通常モードとタイムアタックの切り替え。どちらもページを読み直す（通常モードのセーブは pagehide で保存される） */
+function switchMode(timeAttack: boolean) {
+  const url = new URL(location.href)
+  if (timeAttack) url.searchParams.set('mode', 'timeattack')
+  else url.searchParams.delete('mode')
+  location.href = url.href
+}
+const timeAttack = isTimeAttack
+  ? new TimeAttack(document.body, hud.el, state.buildings.slice(0, TIME_ATTACK.goal), {
+      retry: () => location.reload(),
+      quit: () => switchMode(false),
+    })
+  : null
+const shopActions: ShopAction[] = isTimeAttack
+  ? [
+      { label: '最初からやり直す', onClick: () => location.reload(), confirm: 'タイムアタックを最初からやり直しますか？' },
+      { label: 'タイムアタックをやめる', onClick: () => switchMode(false), confirm: 'タイムアタックをやめて通常モードに戻りますか？', danger: true },
+    ]
+  : [
+      { label: 'タイムアタックに挑戦', onClick: () => switchMode(true), confirm: '最初の状態からタイムアタックを始めますか？（いまのセーブはそのまま残ります）' },
+      // 学園祭で次の人に渡すときなどに使う
+      { label: 'セーブを消して最初から', onClick: resetSave, confirm: 'セーブデータを消して最初からやり直しますか？', danger: true },
+    ]
 const shop = isGodView
   ? null
   : new Shop(
       document.body,
       (id) => pendingEvents.push(...buyUpgrade(state, id)),
       (id) => pendingEvents.push(...buyItem(state, id)),
-      resetSave,
+      shopActions,
     )
-// 演出中・全体マップ中はスキルを使えない
-const skillBar = isGodView ? null : new SkillBar(document.body, (id) => !rig.inputLocked && pendingEvents.push(...useSkill(state, id)))
+/** 演出中・全体マップ中・タイムアタックのカウントダウン中は操作できない */
+const inputLocked = () => rig.inputLocked || !!timeAttack?.locked
+const skillBar = isGodView ? null : new SkillBar(document.body, (id) => !inputLocked() && pendingEvents.push(...useSkill(state, id)))
 const minimap = new Minimap(document.body, () => toggleOverview())
 unlockAudio()
 
@@ -175,16 +202,18 @@ function toggleOverview() {
 }
 refreshViewButton()
 
+// 完成演出をスキップできるまでの秒数。タイムアタック中は演出の間もタイムが進むので、すぐスキップできる
+const skipAfter = isTimeAttack ? 0.3 : 2.5
 addEventListener('keydown', (e) => {
   if (e.repeat) return
-  if (rig.cinematic && rig.cinematicElapsed > 2.5) rig.skipCinematic()
+  if (rig.cinematic && rig.cinematicElapsed > skipAfter) rig.skipCinematic()
   else if (e.code === 'KeyV') toggleView()
   else if (e.code === 'KeyM') toggleOverview()
 })
 // 俯瞰中は画面タップで戻る。演出は少し見せてからタップでスキップできる
 renderer.domElement.addEventListener('pointerdown', () => {
   if (rig.overview) toggleOverview()
-  else if (rig.cinematic && rig.cinematicElapsed > 2.5) rig.skipCinematic()
+  else if (rig.cinematic && rig.cinematicElapsed > skipAfter) rig.skipCinematic()
 })
 
 if (params.has('debug')) {
@@ -196,9 +225,9 @@ if (params.has('debug')) {
   })
 }
 
-// オートセーブ：10秒ごと、タブを離れたとき、購入・完成のとき。神視点（展示用）は保存しない
+// オートセーブ：10秒ごと、タブを離れたとき、購入・完成のとき。神視点（展示用）とタイムアタックは保存しない
 function save() {
-  if (!resetting && !isGodView) saveToStorage(state)
+  if (!resetting && !isGodView && !isTimeAttack) saveToStorage(state)
 }
 setInterval(save, 10_000)
 addEventListener('pagehide', save)
@@ -281,9 +310,11 @@ renderer.setAnimationLoop((now: number) => {
   last = now
   const time = now / 1000
 
+  timeAttack?.update(dt, rig.cinematic)
   if (!isGodView) rig.turn(-input.turn() * dt * 2)
-  const move = rig.inputLocked ? { x: 0, z: 0 } : rig.toWorld(input.move())
-  const events = [...pendingEvents.splice(0), ...stepGame(state, move, dt)]
+  const move = inputLocked() ? { x: 0, z: 0 } : rig.toWorld(input.move())
+  // カウントダウン中はゲームの時間を止める
+  const events = [...pendingEvents.splice(0), ...stepGame(state, move, timeAttack?.locked ? 0 : dt)]
   const p = state.player
   const st = stats(state)
   const moving = Math.min(1, Math.hypot(move.x, move.z))
@@ -387,6 +418,7 @@ renderer.setAnimationLoop((now: number) => {
       // 完成！ カメラを建物へ飛ばして、着いた頃にカラー化を始める
       view.celebrated = true
       view.hold = isGodView ? 0 : 1
+      timeAttack?.complete(b.id)
       input.release()
       if (!isGodView) rig.play(celebrationShots(b))
     } else if (view.celebrated && view.colorize < 0) {
