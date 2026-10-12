@@ -118,6 +118,16 @@ state.buildings.forEach((b) => {
   scene.add(view.monolith.group)
 })
 
+/** 点 q が建物（いま地上に出ている部分）から margin 以内に入っていれば、その建物を返す */
+function buildingAt(q: THREE.Vector3, margin: number) {
+  return state.buildings.find(
+    (b) =>
+      Math.abs(q.x - b.x) < b.width / 2 + margin &&
+      Math.abs(q.z - b.z) < b.depth / 2 + margin &&
+      q.y < buildingViews.get(b.id)!.monolith.topY + margin,
+  )
+}
+
 const labels = new BuildingLabels(scene, state.buildings)
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 1500)
@@ -127,7 +137,8 @@ try {
 } catch {
   // 視点の記憶は無くても困らない
 }
-const god = isGodView ? new GodCamera(camera, renderer.domElement, WORLD.size / 2) : null
+// 神視点のカメラは近くの面で切れないよう、建物から少し離れたところで当たる
+const god = isGodView ? new GodCamera(camera, renderer.domElement, WORLD.size / 2, (q) => !!buildingAt(q, 1)) : null
 if (god) {
   fog.near = 250
   fog.far = 650
@@ -338,6 +349,8 @@ function fadeOccluders(dt: number) {
     }
   }
   const cam = camera.position
+  // 神視点で建物の中に入ったら、その建物を薄くして外が見えるようにする（壁は両面描画なので、中からだと視界がふさがる）
+  const inside = god ? buildingAt(cam, 1) : undefined
   for (const view of buildingViews.values()) {
     const box = subject ? view.monolith.bounds(fadeBox) : null
     let blocking = false
@@ -349,6 +362,7 @@ function fadeOccluders(dt: number) {
         return hit !== null && hit.distanceToSquared(cam) < s.distanceToSquared(cam)
       })
     }
+    if (inside && view === buildingViews.get(inside.id)) blocking = true
     view.monolith.fade(blocking ? 0.15 : 1, dt)
   }
 }
@@ -542,13 +556,7 @@ renderer.setAnimationLoop((now: number) => {
       moving,
       focus: current ? focusPos : null,
       near,
-      blocked: (q) =>
-        state.buildings.some(
-          (b) =>
-            Math.abs(q.x - b.x) < b.width / 2 + 0.4 &&
-            Math.abs(q.z - b.z) < b.depth / 2 + 0.4 &&
-            q.y < buildingViews.get(b.id)!.monolith.topY + 0.4,
-        ),
+      blocked: (q) => !!buildingAt(q, 0.4),
       worldSize: WORLD.size,
     })
     fog.near = rig.fog.near
