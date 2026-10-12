@@ -3,7 +3,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { MoveInput } from './sim/game'
 
 // ?view=god の神視点（展示用）カメラ。マウス／タッチは OrbitControls（回転・ズーム）、
-// WASD / 矢印でカメラを水平に移動する（自機は動かさない）。右下のパネルで自動回転の ON/OFF と移動速度の段階を切り替える。
+// WASD / 矢印でカメラを見ている方向へ移動する（FPS のスペクテイター風。自機は動かさない）。右下のパネルで自動回転の ON/OFF と移動速度の段階を切り替える。
+
+/** 注視点の高さの範囲（m）。地面に潜らず、上がりすぎない程度 */
+const MIN_Y = 0
+const MAX_Y = 150
 
 /** 移動速度の段階（m/秒）。キャンパスは一辺 200m 強なので、最速で数秒で端まで行ける程度 */
 const SPEEDS = [
@@ -65,18 +69,20 @@ export class GodCamera {
     this.refresh()
   }
 
-  /** move はスクリーン基準（x: 右, z: 下）。カメラの向きに合わせて、カメラと注視点を一緒に水平移動する */
+  /** move はスクリーン基準（x: 右, z: 下）。W/S は見ている方向（上下も含む）、A/D は水平に左右へ、カメラと注視点を一緒に動かす */
   update(dt: number, move: MoveInput) {
     if (move.x !== 0 || move.z !== 0) {
-      this.camera.getWorldDirection(forward).setY(0)
-      if (forward.lengthSq() < 1e-6) forward.set(0, 0, -1)
-      forward.normalize()
-      right.crossVectors(forward, this.camera.up).normalize()
+      this.camera.getWorldDirection(forward)
+      right.crossVectors(forward, this.camera.up)
+      // 真上から見下ろしているときは右方向が決まらないので、カメラのローカル X 軸を使う
+      if (right.lengthSq() < 1e-6) right.setFromMatrixColumn(this.camera.matrixWorld, 0)
+      right.setY(0).normalize()
       const step = SPEEDS[this.speedIndex].value * dt
       delta.copy(right).multiplyScalar(move.x * step).addScaledVector(forward, -move.z * step)
       // 注視点が範囲外に出ないぶんだけ動かす
       const target = this.controls.target
       delta.x = THREE.MathUtils.clamp(target.x + delta.x, -this.limit, this.limit) - target.x
+      delta.y = THREE.MathUtils.clamp(target.y + delta.y, MIN_Y, MAX_Y) - target.y
       delta.z = THREE.MathUtils.clamp(target.z + delta.z, -this.limit, this.limit) - target.z
       target.add(delta)
       this.camera.position.add(delta)
