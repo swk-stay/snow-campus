@@ -33,7 +33,7 @@ export class CameraRig {
   yaw = 0
   overview = false
   /** フォグの距離（俯瞰では遠くまで見せる）。main が scene.fog に反映する */
-  readonly fog = { near: 55, far: 140 }
+  readonly fog = { near: 90, far: 260 }
 
   private shots: Shot[] = []
   private shotTime = 0
@@ -107,7 +107,7 @@ export class CameraRig {
       tmp.copy(shot.pos)
       tmp2.copy(shot.look)
       speed = 2.2
-      this.setFog(70, 220, dt)
+      this.setFog(150, 480, dt)
     } else if (this.overview) {
       // フィールド全体が画面に収まる距離（縦持ちは横幅で決まるので遠くなる）
       const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2)
@@ -125,7 +125,7 @@ export class CameraRig {
       tmp2.y += 0.5
       tmp2.z -= 1
       this.yaw = 0
-      this.setFog(55, 140, dt)
+      this.setFog(90, 260, dt)
     } else {
       // グランドレベル：プレイヤーの背後。歩いている方向へゆっくり回り込む（真後ろへ歩くときは回らない）
       const target = ctx.facing + Math.PI
@@ -147,7 +147,7 @@ export class CameraRig {
       // 少し先を見る
       tmp2.set(head.x - Math.sin(this.yaw) * 3, head.y + 0.6, head.z - Math.cos(this.yaw) * 3)
       speed = 6
-      this.setFog(40, 130, dt)
+      this.setFog(70, 300, dt)
     }
 
     if (!this.initialized) {

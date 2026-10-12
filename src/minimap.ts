@@ -1,7 +1,9 @@
 import type { GameState } from './sim/game'
+import { paintGround } from './render/campusGround'
 
-// 常時表示のミニマップ（右上）。北が上で固定。タップ／M キーで全体マップ（俯瞰カメラ）に切り替える。
-// 雪の量は 0.3 秒ごとに縮小コピーした画像、建物・除雪機・プレイヤーは毎フレーム描く。
+// 常時表示のミニマップ（右上）。向きは見下ろし視点と同じで固定（上が東。公式キャンパスマップと同じ向き）。
+// タップ／M キーで全体マップ（俯瞰カメラ）に切り替える。
+// 地面（芝生・園路）の上に、0.3 秒ごとに縮小コピーした雪を重ねる。建物・除雪機・プレイヤーは毎フレーム描く。
 
 const SNOW_RES = 80
 
@@ -11,6 +13,7 @@ export class Minimap {
   private readonly snow: HTMLCanvasElement
   private readonly snowCtx: CanvasRenderingContext2D
   private readonly snowImage: ImageData
+  private readonly ground = paintGround(256)
   private snowTimer = 0
 
   constructor(root: HTMLElement, onTap: () => void) {
@@ -47,6 +50,7 @@ export class Minimap {
       this.drawSnow(s)
     }
     g.imageSmoothingEnabled = true
+    g.drawImage(this.ground, 0, 0, W, W)
     g.drawImage(this.snow, 0, 0, W, W)
 
     // 建物：完成はカラー、いま建てているものは金色で点滅、未解放は点線
@@ -115,12 +119,12 @@ export class Minimap {
     for (let j = 0; j < SNOW_RES; j++) {
       for (let i = 0; i < SNOW_RES; i++) {
         const v = data[Math.floor(j * step) * res + Math.floor(i * step)]
-        // 地面（濃紺）→ 雪（白）
+        // 雪が薄いほど透けて地面が見える
         const o = (j * SNOW_RES + i) * 4
-        px[o] = 40 + v * 205
-        px[o + 1] = 48 + v * 202
-        px[o + 2] = 62 + v * 193
-        px[o + 3] = 255
+        px[o] = 236
+        px[o + 1] = 242
+        px[o + 2] = 252
+        px[o + 3] = Math.min(255, v * 400)
       }
     }
     this.snowCtx.putImageData(this.snowImage, 0, 0)
