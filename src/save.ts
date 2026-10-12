@@ -6,6 +6,12 @@ import { syncOwnedUnits, type GameState } from './sim/game'
 
 // v2：マップを神奈川工科大学の実寸に作り替えた（建物 id・雪原の大きさが変わった）ので、旧セーブは読まない
 const KEY = 'snow-campus-save-v2'
+let key = KEY
+
+/** 保存先を本編とは別にする（?balance で調整しながら遊んだ進行を、本編のセーブに混ぜないため） */
+export function useSaveSlot(name: string) {
+  key = `${KEY}-${name}`
+}
 
 type SaveData = {
   v: 1
@@ -79,7 +85,7 @@ export function apply(s: GameState, d: SaveData) {
 
 export function saveToStorage(s: GameState): boolean {
   try {
-    localStorage.setItem(KEY, JSON.stringify(serialize(s)))
+    localStorage.setItem(key, JSON.stringify(serialize(s)))
     return true
   } catch {
     return false
@@ -88,7 +94,7 @@ export function saveToStorage(s: GameState): boolean {
 
 export function loadFromStorage(s: GameState): boolean {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return false
     const d = JSON.parse(raw) as SaveData
     if (d.v !== 1) return false
@@ -101,7 +107,7 @@ export function loadFromStorage(s: GameState): boolean {
 
 export function clearStorage() {
   try {
-    localStorage.removeItem(KEY)
+    localStorage.removeItem(key)
   } catch {
     // 消せなくても致命的ではない
   }

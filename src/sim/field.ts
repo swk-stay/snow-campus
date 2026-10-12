@@ -1,5 +1,5 @@
 /** 雪の量の単位：0.25m² を最大の高さまで覆う雪 = 1。セル解像度を変えてもバランスが変わらないようにするため */
-const UNIT_AREA = 0.25
+export const UNIT_AREA = 0.25
 
 /**
  * 雪原。res×res のセルに雪の量 (0..1) を持つ。
@@ -70,8 +70,17 @@ export class SnowField {
   /**
    * (x, z) を中心に半径 radius の雪を削り、削った量（単位換算済み）を返す。
    * 中心ほど速く削れる（1 - (d/r)^2 の減衰）。合計が maxAmount を超える場合は全体を比例縮小する。
+   * arc を渡すと、向き facing（+Z 方向が 0）を中心とした角度 arc（ラジアン）の扇形だけを削る。
    */
-  collect(x: number, z: number, radius: number, rate: number, dt: number, maxAmount: number): number {
+  collect(
+    x: number,
+    z: number,
+    radius: number,
+    rate: number,
+    dt: number,
+    maxAmount: number,
+    arc?: { facing: number; angle: number },
+  ): number {
     if (maxAmount <= 0) return 0
     const { res, data } = this
     const i0 = Math.max(0, this.toCell(x - radius))
@@ -79,6 +88,10 @@ export class SnowField {
     const j0 = Math.max(0, this.toCell(z - radius))
     const j1 = Math.min(res - 1, this.toCell(z + radius))
     const r2 = radius * radius
+    // 扇形の判定：中心方向との内積 >= cos(半角) × 距離
+    const fx = arc ? Math.sin(arc.facing) : 0
+    const fz = arc ? Math.cos(arc.facing) : 0
+    const cosHalf = arc && arc.angle < Math.PI * 2 ? Math.cos(arc.angle / 2) : -2
 
     const forEachCell = (fn: (k: number, take: number) => void) => {
       for (let j = j0; j <= j1; j++) {
@@ -87,6 +100,7 @@ export class SnowField {
           const dx = this.cellCenter(i) - x
           const d2 = dx * dx + dz * dz
           if (d2 > r2) continue
+          if (dx * fx + dz * fz < cosHalf * Math.sqrt(d2)) continue
           const k = j * res + i
           const take = Math.min(data[k], rate * dt * (1 - d2 / r2))
           if (take > 0) fn(k, take)

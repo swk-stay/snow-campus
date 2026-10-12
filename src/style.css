@@ -44,7 +44,7 @@ canvas { display: block; touch-action: none; }
 }
 
 #shop-button {
-  position: fixed; right: 12px; bottom: max(16px, env(safe-area-inset-bottom)); padding: 12px 18px;
+  position: fixed; right: calc(12px + var(--balance-w, 0px)); bottom: max(16px, env(safe-area-inset-bottom)); padding: 12px 18px;
   border: none; border-radius: 999px; background: #2f5fb3; color: #fff; font-size: 16px; font-weight: bold;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); cursor: pointer;
 }
@@ -54,7 +54,7 @@ canvas { display: block; touch-action: none; }
 @keyframes glow { to { box-shadow: 0 0 0 6px rgba(255, 211, 110, 0.6), 0 4px 14px rgba(0, 0, 0, 0.25); background: #3a72d4; } }
 
 #shop {
-  position: fixed; right: 12px; bottom: 76px; width: min(340px, calc(100vw - 24px)); max-height: 60vh; overflow: auto;
+  position: fixed; right: calc(12px + var(--balance-w, 0px)); bottom: 76px; width: min(340px, calc(100vw - 24px)); max-height: 60vh; overflow: auto;
   border-radius: 16px; background: rgba(255, 255, 255, 0.95); color: #1d2433; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
   transform: translateY(20px); opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
 }
@@ -77,7 +77,7 @@ canvas { display: block; touch-action: none; }
 .shop-reset { display: block; width: calc(100% - 28px); margin: 10px 14px 14px; padding: 8px; border: 1px solid #e3b4b4; border-radius: 10px; background: #fff; color: #b03030; font-size: 12px; cursor: pointer; }
 
 #minimap {
-  position: fixed; top: max(12px, env(safe-area-inset-top)); right: 12px; width: 150px; height: 150px;
+  position: fixed; top: max(12px, env(safe-area-inset-top)); right: calc(12px + var(--balance-w, 0px)); width: 150px; height: 150px;
   border-radius: 14px; overflow: hidden; border: 2px solid rgba(255, 255, 255, 0.85);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); cursor: pointer; background: #283040;
 }
@@ -145,7 +145,7 @@ body.cinematic #labels { opacity: 0; transition: opacity 0.4s; }
 
 /* スキルボタン */
 #skill-bar {
-  position: fixed; right: 12px; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 56px);
+  position: fixed; right: calc(12px + var(--balance-w, 0px)); bottom: calc(max(16px, env(safe-area-inset-bottom)) + 56px);
   display: flex; gap: 10px; align-items: flex-end; z-index: 2;
 }
 .skill {
@@ -181,3 +181,61 @@ body.cinematic #skill-bar, body.shop-open #skill-bar { opacity: 0; pointer-event
 .skill[hidden] { display: none; }
 #skill-bar { transition: opacity 0.2s; }
 body.god-view #skill-bar { display: none; }
+
+/* バランス調整ダッシュボード（?balance）。開いている間はゲーム画面を左に寄せる */
+body.balance-open { --balance-w: 400px; }
+body.balance-open #app { margin-right: var(--balance-w); }
+body.balance-open #toast { left: calc((100% - var(--balance-w)) / 2); }
+#balance {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 400px; z-index: 8; display: none; flex-direction: column;
+  background: #141a26; color: #dfe6f2; font-size: 12px; box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
+  -webkit-user-select: text; user-select: text;
+}
+body.balance-open #balance { display: flex; }
+#balance header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #2a3346; font-size: 14px; }
+#balance button { font: inherit; color: inherit; cursor: pointer; }
+.bal-speed { display: flex; gap: 2px; margin-left: auto; }
+.bal-speed button { padding: 3px 7px; border: 1px solid #3a4560; border-radius: 6px; background: #1d2433; }
+.bal-speed button.active { background: #2f5fb3; border-color: #2f5fb3; }
+.bal-close { border: none; background: none; font-size: 18px !important; padding: 0 4px; }
+.bal-body { overflow: auto; padding: 0 10px 20px; }
+#balance details { border-bottom: 1px solid #2a3346; padding: 6px 0 10px; }
+#balance summary { cursor: pointer; font-weight: bold; font-size: 13px; padding: 4px 0; color: #ffd36e; }
+#balance h4 { margin: 10px 0 4px; font-size: 12px; color: #9fb0cc; }
+.bal-note { margin: 2px 0 6px; color: #8391a8; font-size: 11px; }
+.bal-dim { color: #8391a8; }
+.bal-grid { display: grid; grid-template-columns: 7.5em 5.5em 1fr; gap: 4px 8px; align-items: center; }
+.bal-grid > :nth-child(3n) { color: #9fb0cc; font-size: 11px; }
+.bal-grid > :nth-child(3n - 1) { font-variant-numeric: tabular-nums; }
+.bal-input {
+  width: 100%; box-sizing: border-box; padding: 3px 5px; border: 1px solid #3a4560; border-radius: 5px;
+  background: #0d121b; color: #fff; font: inherit; font-variant-numeric: tabular-nums;
+}
+.bal-input.changed { border-color: #ffb347; background: #2a2010; }
+.bal-input:focus { outline: 1px solid #6ea0ff; }
+.bal-small { padding: 3px 8px; border: 1px solid #3a4560; border-radius: 6px; background: #1d2433; font-size: 11px !important; justify-self: start; }
+.bal-small.danger { border-color: #7a3a3a; color: #ff9c9c !important; }
+.bal-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.bal-table th { text-align: left; font-weight: normal; color: #8391a8; padding: 2px 4px; }
+.bal-table td { padding: 2px 4px; border-top: 1px solid #222b3c; }
+.bal-table td:nth-child(2) { width: 6em; }
+.bal-cards { display: grid; gap: 6px; }
+.bal-card { padding: 6px 8px; border-radius: 8px; background: #1b2232; display: grid; gap: 4px; }
+.bal-card-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-variant-numeric: tabular-nums; }
+.bal-card-head > span { color: #9fb0cc; }
+.bal-effect { color: #bfe3ff; font-size: 11px; }
+.bal-inline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bal-inline label { display: grid; gap: 1px; font-size: 10px; color: #8391a8; width: 5.5em; }
+.bal-inline label.wide { flex: 1; min-width: 10em; }
+.bal-diff { margin: 6px 0 0; padding: 6px; border-radius: 6px; background: #0d121b; color: #bfe3ff; font-size: 11px; white-space: pre-wrap; word-break: break-all; }
+#balance-toggle {
+  position: fixed; right: 0; top: 50%; z-index: 8; padding: 10px 6px; border: none; border-radius: 8px 0 0 8px;
+  background: #141a26; color: #ffd36e; font-weight: bold; writing-mode: vertical-rl; cursor: pointer;
+}
+#balance-toggle kbd { font: inherit; font-size: 10px; opacity: 0.7; }
+body.balance-open #balance-toggle { display: none; }
+/* 狭い画面ではゲーム画面を縮めず、下半分に重ねる */
+@media (max-width: 800px) {
+  body.balance-open { --balance-w: 0px; }
+  #balance { top: auto; left: 0; width: auto; height: 55vh; }
+}

@@ -113,7 +113,7 @@ const SKILL_IDS = Object.keys(SKILLS) as SkillId[]
 
 export function createGame(): GameState {
   const field = new SnowField(WORLD.fieldRes, WORLD.size)
-  const buildings = BUILDINGS.map((def) => ({ ...def, deposited: 0, completed: false }))
+  const buildings = BUILDINGS.map((def) => ({ ...def, required: requiredOf(def), deposited: 0, completed: false }))
   for (const b of buildings) {
     // 建物の敷地と寄付ゾーンは雪をどけて、降雪機でも積もらないようにする
     field.blockRect(
@@ -152,6 +152,27 @@ export function createGame(): GameState {
   return s
 }
 
+/** 建物の完成に必要な量（全体倍率込み） */
+export function requiredOf(def: BuildingDef): number {
+  return Math.max(1, Math.round(def.required * ECONOMY.requiredScale))
+}
+
+/**
+ * 必要量を config に合わせる（調整画面から毎フレームいじれるようにするため）。
+ * 完成済みの建物は満タンのまま、いま建てている建物は必要量を下回ったらその場で完成させる。
+ */
+function syncRequired(s: GameState, events: GameEvent[]) {
+  s.buildings.forEach((b, i) => {
+    b.required = requiredOf(BUILDINGS[i])
+    if (b.completed) b.deposited = b.required
+  })
+  const b = currentBuilding(s)
+  if (b && b.deposited >= b.required - 1e-6) {
+    b.deposited = b.required
+    complete(s, b, events)
+  }
+}
+
 /** 雪原を初期状態の積雪に戻す */
 export function refillField(s: GameState) {
   const half = WORLD.size / 2
@@ -184,7 +205,11 @@ export function maxLevel(s: GameState, id: UpgradeId): number {
 
 export function upgradeCost(s: GameState, id: UpgradeId): number {
   const def = UPGRADES[id]
-  return Math.round(def.baseCost * def.growth ** s.upgrades[id])
+  return Math.round(def.baseCost * def.growth ** s.upgrades[id] * ECONOMY.costScale)
+}
+
+export function itemCost(id: ItemId): number {
+  return Math.round(ITEMS[id].cost * ECONOMY.costScale)
 }
 
 export type PurchaseCheck = 'ok' | 'max' | 'gold'
@@ -217,13 +242,13 @@ export type ItemCheck = 'ok' | 'owned' | 'locked' | 'gold'
 export function canBuyItem(s: GameState, id: ItemId): ItemCheck {
   if (s.items[id]) return 'owned'
   if (!itemUnlocked(s, id)) return 'locked'
-  if (s.gold < ITEMS[id].cost) return 'gold'
+  if (s.gold < itemCost(id)) return 'gold'
   return 'ok'
 }
 
 export function buyItem(s: GameState, id: ItemId): GameEvent[] {
   if (canBuyItem(s, id) !== 'ok') return []
-  s.gold -= ITEMS[id].cost
+  s.gold -= itemCost(id)
   s.items[id] = true
   return [{ type: 'item', id }]
 }
@@ -321,12 +346,17 @@ export function stepGame(s: GameState, input: MoveInput, dt: number): GameEvent[
   const p = s.player
   const st = stats(s)
   p.capacity = st.capacity
+  syncRequired(s, events)
 
   for (const id of SKILL_IDS) s.cooldowns[id] = Math.max(0, s.cooldowns[id] - dt)
   p.boostTime = Math.max(0, p.boostTime - dt)
   movePlayer(s, input, dt)
 
-  const collected = s.field.collect(p.x, p.z, st.collectRadius, st.collectRate, dt, p.capacity - p.carried)
+  // 掘っている感じを出すため、向いている方向の扇形（既定は前方の半円）だけを削る
+  const collected = s.field.collect(p.x, p.z, st.collectRadius, st.collectRate, dt, p.capacity - p.carried, {
+    facing: p.facing,
+    angle: (PLAYER.collectArc * Math.PI) / 180,
+  })
   if (collected > 0) {
     p.carried += collected
     s.totalCollected += collected
@@ -391,11 +421,13 @@ function deposit(s: GameState, b: Building, amount: number, events: GameEvent[],
   const gold = amount * ECONOMY.goldPerSnow
   s.gold += gold
   events.push({ type: 'throw', buildingId: b.id, amount, from, rare }, { type: 'gold', amount: gold })
-  if (b.deposited >= b.required - 1e-6) {
-    b.completed = true
-    s.tier = s.buildings.filter((x) => x.completed).length
-    events.push({ type: 'complete', buildingId: b.id })
-  }
+  if (b.deposited >= b.required - 1e-6) complete(s, b, events)
+}
+
+function complete(s: GameState, b: Building, events: GameEvent[]) {
+  b.completed = true
+  s.tier = s.buildings.filter((x) => x.completed).length
+  events.push({ type: 'complete', buildingId: b.id })
 }
 
 function stepPlow(s: GameState, plow: Plow, dt: number, events: GameEvent[]) {
