@@ -1,0 +1,88 @@
+html, body, #app { margin: 0; height: 100%; overflow: hidden; background: #0b0f17; }
+body { font-family: system-ui, sans-serif; }
+canvas { display: block; touch-action: none; }
+
+#editor-labels { position: fixed; inset: 0; pointer-events: none; }
+.editor-building {
+  padding: 2px 8px; border-radius: 8px; background: rgba(20, 30, 50, 0.55); color: #fff;
+  font-size: 11px; white-space: nowrap;
+}
+.editor-note {
+  max-width: 220px; margin: 0 0 0 10px; padding: 3px 8px; border: 2px solid; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92); color: #1d2433; font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: auto; cursor: pointer;
+}
+.editor-note.selected { box-shadow: 0 0 0 3px rgba(255, 211, 110, 0.9); font-weight: bold; }
+
+#editor-panel {
+  position: fixed; top: 12px; right: 12px; bottom: 12px; width: min(340px, calc(100vw - 24px)); overflow: auto;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px; box-sizing: border-box;
+  border-radius: 14px; background: rgba(255, 255, 255, 0.95); color: #1d2433; font-size: 13px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+#editor-panel section { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid #e3e8f0; }
+#editor-panel.editing .ep-form { background: #fff8e3; margin: 0 -12px; padding: 10px 12px; }
+.ep-head { display: flex; align-items: baseline; gap: 8px; }
+.ep-head b { font-size: 16px; }
+.ep-sub { color: #667; font-size: 11px; }
+.ep-back { margin-left: auto; font-size: 12px; color: #2f5fb3; }
+.ep-hint { color: #778; font-size: 11px; }
+.ep-row { display: flex; align-items: center; gap: 6px; }
+.ep-row input[type='text'] { flex: 1; min-width: 0; }
+.ep-row input[type='range'] { flex: 1; }
+.ep-row output { width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; }
+
+.ep-xyz { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.ep-xyz label { display: flex; align-items: center; gap: 4px; }
+.ep-xyz input { width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
+.ax-x, .ax-y, .ax-z { font-weight: bold; }
+.ax-x { color: #d33; } .ax-y { color: #2a2; } .ax-z { color: #36d; }
+
+#editor-panel input[type='text'], #editor-panel input[type='number'], #editor-panel textarea {
+  padding: 5px 6px; border: 1px solid #c9d1de; border-radius: 6px; font: inherit; box-sizing: border-box;
+}
+#editor-panel textarea { width: 100%; resize: vertical; }
+
+.ep-kinds { display: flex; gap: 6px; }
+.ep-kinds label { flex: 1; }
+.ep-kinds input { display: none; }
+.ep-kinds span {
+  display: block; padding: 5px 0; border: 2px solid var(--c); border-radius: 8px; text-align: center;
+  color: var(--c); font-weight: bold; cursor: pointer;
+}
+.ep-kinds input:checked + span { background: var(--c); color: #fff; }
+
+.ep-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.ep-actions button {
+  padding: 6px 10px; border: 1px solid #c9d1de; border-radius: 8px; background: #fff; font: inherit; cursor: pointer;
+}
+.ep-actions button.primary { flex: 1; border: none; background: #2f5fb3; color: #fff; font-weight: bold; }
+.ep-actions button.danger { border-color: #e3b4b4; color: #b03030; }
+.ep-actions button[hidden] { display: none; }
+
+.ep-list-head { display: flex; justify-content: space-between; }
+.ep-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; counter-reset: note; }
+.ep-list li {
+  counter-increment: note; padding: 6px 8px; border-left: 4px solid var(--c); border-radius: 6px;
+  background: #f4f6fa; cursor: pointer;
+}
+.ep-list li.selected { background: #fff3cf; }
+.ep-list small { color: #778; }
+.ep-item-head { display: flex; align-items: center; gap: 6px; }
+.ep-item-head::before { content: counter(note) '.'; font-weight: bold; }
+.ep-kind { color: var(--c); font-weight: bold; }
+.ep-pos { color: #667; font-size: 11px; font-variant-numeric: tabular-nums; }
+.ep-item-head button { border: none; background: none; cursor: pointer; color: #667; font-size: 14px; padding: 0 2px; }
+.ep-go { margin-left: auto; }
+.ep-text { white-space: pre-wrap; word-break: break-word; }
+
+#editor-flash {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px;
+  background: rgba(20, 30, 50, 0.85); color: #fff; font-size: 13px; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+#editor-flash.visible { opacity: 1; }
+
+/* スマホ縦は下半分にパネル */
+@media (max-width: 600px) {
+  #editor-panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 50vh; }
+}

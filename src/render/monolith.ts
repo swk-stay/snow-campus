@@ -58,7 +58,8 @@ const beaconFragment = /* glsl */ `
 
 export class Monolith {
   readonly group = new THREE.Group()
-  private readonly body: THREE.Group
+  /** 建物のモデル本体（Editor のクリック判定に使う） */
+  readonly body: THREE.Group
   private readonly ghost: THREE.LineSegments
   private readonly apron: THREE.Mesh
   private readonly beacon: THREE.Mesh
