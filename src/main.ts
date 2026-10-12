@@ -451,7 +451,7 @@ renderer.setAnimationLoop((now: number) => {
           sparkles.burst(tmp, 8, n % 2 ? 0xffd36e : 0xfff4c2, 5)
         }
         playFanfare()
-        hud.toast(`てってれ～！ ${b.label} 完成！`, 3000)
+        hud.toast(`${b.label} 完成！`, 3000)
       }
     } else if (view.colorize >= 0 && view.colorize < 1) {
       view.colorize = Math.min(1, view.colorize + dt / FX.colorizeSeconds)
