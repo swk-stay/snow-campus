@@ -4,7 +4,14 @@ import { syncOwnedUnits, type GameState } from './sim/game'
 // セーブ／ロード。いまは localStorage（端末ごと）。
 // オンライン化後はルームの状態をサーバーが持つので、ここはソロプレイ用として残す想定。
 
-const KEY = 'snow-campus-save-v1'
+// v2：マップを神奈川工科大学の実寸に作り替えた（建物 id・雪原の大きさが変わった）ので、旧セーブは読まない
+const KEY = 'snow-campus-save-v2'
+let key = KEY
+
+/** 保存先を本編とは別にする（?balance で調整しながら遊んだ進行を、本編のセーブに混ぜないため） */
+export function useSaveSlot(name: string) {
+  key = `${KEY}-${name}`
+}
 
 type SaveData = {
   v: 1
@@ -16,7 +23,7 @@ type SaveData = {
   totalCollected?: number
   player: { x: number; z: number; carried: number; rare?: number }
   buildings: Record<string, { deposited: number; completed: boolean }>
-  /** 雪原を 8bit に量子化して base64 にしたもの（320×320 で約 140KB） */
+  /** 雪原を 8bit に量子化して base64 にしたもの（480×480 で約 300KB） */
   field: { res: number; data: string }
 }
 
@@ -78,7 +85,7 @@ export function apply(s: GameState, d: SaveData) {
 
 export function saveToStorage(s: GameState): boolean {
   try {
-    localStorage.setItem(KEY, JSON.stringify(serialize(s)))
+    localStorage.setItem(key, JSON.stringify(serialize(s)))
     return true
   } catch {
     return false
@@ -87,7 +94,7 @@ export function saveToStorage(s: GameState): boolean {
 
 export function loadFromStorage(s: GameState): boolean {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return false
     const d = JSON.parse(raw) as SaveData
     if (d.v !== 1) return false
@@ -100,7 +107,7 @@ export function loadFromStorage(s: GameState): boolean {
 
 export function clearStorage() {
   try {
-    localStorage.removeItem(KEY)
+    localStorage.removeItem(key)
   } catch {
     // 消せなくても致命的ではない
   }

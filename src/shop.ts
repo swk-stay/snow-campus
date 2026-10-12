@@ -1,5 +1,5 @@
 import { BUILDINGS, ITEMS, UPGRADES, type ItemId, type UpgradeId } from './config'
-import { canBuy, canBuyItem, maxLevel, upgradeCost, type GameState } from './sim/game'
+import { canBuy, canBuyItem, itemCost, maxLevel, upgradeCost, type GameState } from './sim/game'
 
 // ショップ。「アップグレード」（レベル制）と「アイテム」（一度買えばずっと有効な解禁型）の2タブ。
 // スマホは画面下のボタンで開くシート、PC は E キーでも開閉できる。
@@ -115,7 +115,7 @@ export class Shop {
       row.classList.toggle('locked', check === 'locked')
       row.classList.toggle('owned', check === 'owned')
       setText(level, check === 'owned' ? '入手済み' : check === 'locked' ? unlockText(s, id) : '')
-      setText(buy, check === 'owned' ? '✓' : `${ITEMS[id].cost} G`)
+      setText(buy, check === 'owned' ? '✓' : `${itemCost(id)} G`)
       buy.disabled = check !== 'ok'
       if (check === 'ok') newItems++
     }
