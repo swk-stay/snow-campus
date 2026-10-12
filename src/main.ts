@@ -119,7 +119,7 @@ const labels = new BuildingLabels(scene, state.buildings)
 const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 1500)
 const rig = new CameraRig(camera)
 try {
-  rig.mode = (localStorage.getItem('snow-campus-view') as ViewMode | null) ?? 'top'
+  rig.mode = (localStorage.getItem('snow-campus-view') as ViewMode | null) ?? 'ground'
 } catch {
   // 視点の記憶は無くても困らない
 }
@@ -168,7 +168,7 @@ viewBar.querySelector('[data-map]')!.addEventListener('click', () => toggleOverv
 if (isGodView) document.body.classList.add('god-view')
 
 function refreshViewButton() {
-  viewButton.innerHTML = `${rig.mode === 'top' ? '見下ろし' : 'グランド'} <kbd>V</kbd>`
+  viewButton.innerHTML = `視点変更 <kbd>V</kbd>`
   document.body.classList.toggle('overview', rig.overview)
 }
 function toggleView() {
