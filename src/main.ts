@@ -505,6 +505,9 @@ renderer.setAnimationLoop((now: number) => {
     view.monolith.update(time, view.display, Math.max(0, view.colorize), stage, inZone)
     labels.update(b, stage, view.display, view.monolith.topY, camera)
   }
+  // 光の柱が遠くて見えない／演出中・全体マップ中は、キャラクターの頭上の矢印で建設予定地の方向を示す
+  const arrowTarget = !isGodView && !rig.cinematic && !rig.overview ? current : null
+  labels.updateArrow(playerView.group.position, arrowTarget, camera)
 
   scoop.update(dt, packPos)
   sparkles.update(dt)
