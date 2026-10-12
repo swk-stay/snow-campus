@@ -10,6 +10,9 @@ const ITEM_IDS = Object.keys(ITEMS) as ItemId[]
 
 type Row = { row: HTMLElement; level: HTMLElement; buy: HTMLButtonElement }
 
+/** パネルの一番下に並べるボタン（タイムアタックの開始、セーブを消す など） */
+export type ShopAction = { label: string; onClick: () => void; confirm?: string; danger?: boolean }
+
 export class Shop {
   private readonly panel: HTMLDivElement
   private readonly button: HTMLButtonElement
@@ -19,7 +22,7 @@ export class Shop {
   private readonly lists: Record<'upgrade' | 'item', HTMLDivElement>
   private open = false
 
-  constructor(root: HTMLElement, onBuy: (id: UpgradeId) => void, onBuyItem: (id: ItemId) => void, onReset: () => void) {
+  constructor(root: HTMLElement, onBuy: (id: UpgradeId) => void, onBuyItem: (id: ItemId) => void, actions: ShopAction[]) {
     this.button = document.createElement('button')
     this.button.id = 'shop-button'
     this.button.innerHTML = 'ショップ <kbd>E</kbd>'
@@ -62,14 +65,15 @@ export class Shop {
       this.lists.item.appendChild(r.row)
     }
 
-    // 学園祭で次の人に渡すときなどに使う
-    const reset = document.createElement('button')
-    reset.className = 'shop-reset'
-    reset.textContent = 'セーブを消して最初から'
-    reset.addEventListener('click', () => {
-      if (confirm('セーブデータを消して最初からやり直しますか？')) onReset()
-    })
-    this.panel.appendChild(reset)
+    for (const action of actions) {
+      const button = document.createElement('button')
+      button.className = `shop-action${action.danger ? ' danger' : ''}`
+      button.textContent = action.label
+      button.addEventListener('click', () => {
+        if (!action.confirm || confirm(action.confirm)) action.onClick()
+      })
+      this.panel.appendChild(button)
+    }
     root.appendChild(this.panel)
 
     addEventListener('keydown', (e) => {

@@ -28,7 +28,7 @@ const tmp = new THREE.Vector3()
 const tmp2 = new THREE.Vector3()
 
 export class CameraRig {
-  mode: ViewMode = 'top'
+  mode: ViewMode = 'ground'
   /** カメラの水平方向の向き。0 で -Z を見る（見下ろしは常に 0） */
   yaw = 0
   overview = false
