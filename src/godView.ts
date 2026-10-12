@@ -8,11 +8,11 @@ import type { MoveInput } from './sim/game'
 
 /** カメラの高さの範囲（m）。地面に潜らず、上がりすぎない程度 */
 const MIN_Y = 2
-const MAX_Y = 250
+const MAX_Y = 400
 /** カメラがキャンパスの外へ出られる幅（m）。最初の引きの位置も入るように */
 const OUTSIDE = 80
 
-/** 移動速度の段階（m/秒）。キャンパスは一辺 200m 強なので、最速で数秒で端まで行ける程度 */
+/** 移動速度の段階（m/秒）。キャンパスは東西 450m ほどなので、最速で数秒で端まで行ける程度 */
 const SPEEDS = [
   { label: '遅い', value: 10 },
   { label: '普通', value: 25 },
@@ -39,20 +39,20 @@ export class GodCamera {
   private speedIndex = 1
   private collisionIndex = 0
   private readonly camera: THREE.PerspectiveCamera
-  private readonly limit: number
+  private readonly area: { x: number; z: number; half: number }
   private readonly blocked: (p: THREE.Vector3) => boolean
   private readonly rotateButton: HTMLButtonElement
   private readonly speedButton: HTMLButtonElement
   private readonly collisionButton: HTMLButtonElement
 
-  /** limit：キャンパスの範囲（原点からの x / z の絶対値。カメラはこれより OUTSIDE だけ外まで動ける）。blocked：その点が建物の中なら true */
-  constructor(camera: THREE.PerspectiveCamera, dom: HTMLElement, limit: number, blocked: (p: THREE.Vector3) => boolean) {
+  /** area：キャンパスの範囲（中心と半幅。カメラはこれより OUTSIDE だけ外まで動ける）。blocked：その点が建物の中なら true */
+  constructor(camera: THREE.PerspectiveCamera, dom: HTMLElement, area: { x: number; z: number; half: number }, blocked: (p: THREE.Vector3) => boolean) {
     this.camera = camera
-    this.limit = limit
+    this.area = area
     this.blocked = blocked
-    camera.position.set(0, 120, 165)
+    camera.position.set(area.x, 230, area.z + 300)
     this.controls = new OrbitControls(camera, dom)
-    this.controls.target.set(0, 8, 0)
+    this.controls.target.set(area.x, 8, area.z)
     this.controls.autoRotate = true
     this.controls.autoRotateSpeed = 0.6
     this.controls.enableDamping = true
@@ -106,10 +106,11 @@ export class GodCamera {
       delta.copy(right).multiplyScalar(move.x * step).addScaledVector(forward, -move.z * step)
       // カメラが範囲外に出ないぶんだけ動かす（注視点はカメラの遠く先にあるので、注視点で制限すると手前で止まってしまう）
       const pos = this.camera.position
-      const range = this.limit + OUTSIDE
-      delta.x = THREE.MathUtils.clamp(pos.x + delta.x, -range, range) - pos.x
+      const { x: cx, z: cz, half } = this.area
+      const range = half + OUTSIDE
+      delta.x = THREE.MathUtils.clamp(pos.x + delta.x, cx - range, cx + range) - pos.x
       delta.y = THREE.MathUtils.clamp(pos.y + delta.y, MIN_Y, MAX_Y) - pos.y
-      delta.z = THREE.MathUtils.clamp(pos.z + delta.z, -range, range) - pos.z
+      delta.z = THREE.MathUtils.clamp(pos.z + delta.z, cz - range, cz + range) - pos.z
       this.collide(delta)
       const target = this.controls.target
       target.add(delta)

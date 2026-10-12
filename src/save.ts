@@ -76,7 +76,7 @@ export function apply(s: GameState, d: SaveData) {
   if (d.field.res === s.field.res && decodeField(d.field.data, s.field.data)) {
     // 建物まわりは積もらない設定なので、念のため 0 に戻す
     for (let k = 0; k < s.field.data.length; k++) if (s.field.blocked[k]) s.field.data[k] = 0
-    s.field.dirty = true
+    s.field.markAllDirty()
   }
   syncOwnedUnits(s)
 }

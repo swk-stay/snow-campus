@@ -77,7 +77,7 @@ const outer = new THREE.Mesh(
   new THREE.MeshBasicMaterial({ color: 0xf0f3fa }),
 )
 outer.rotation.x = -Math.PI / 2
-outer.position.y = 0.75 * WORLD.snowMaxHeight
+outer.position.set(WORLD.centerX, 0.75 * WORLD.snowMaxHeight, WORLD.centerZ)
 scene.add(outer)
 // 並木・バス・守衛所（建て直しの対象ではない景色）
 scene.add(createScenery())
@@ -130,18 +130,20 @@ function buildingAt(q: THREE.Vector3, margin: number) {
 
 const labels = new BuildingLabels(scene, state.buildings)
 
-const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 1500)
+const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 2500)
 const rig = new CameraRig(camera)
 try {
   rig.mode = (localStorage.getItem('snow-campus-view') as ViewMode | null) ?? 'ground'
 } catch {
   // 視点の記憶は無くても困らない
 }
-// 神視点のカメラは近くの面で切れないよう、建物から少し離れたところで当たる
-const god = isGodView ? new GodCamera(camera, renderer.domElement, WORLD.size / 2, (q) => !!buildingAt(q, 1)) : null
+// 神視点のカメラは近くの面で切れないよう、建物から少し離れたところで当たる。キャンパス全体（約 450m）が収まるように、中心から引いて回る
+const god = isGodView
+  ? new GodCamera(camera, renderer.domElement, { x: WORLD.centerX, z: WORLD.centerZ, half: WORLD.size / 2 }, (q) => !!buildingAt(q, 1))
+  : null
 if (god) {
-  fog.near = 250
-  fog.far = 650
+  fog.near = 450
+  fog.far = 1200
 }
 
 const input = new Input(renderer.domElement, !isGodView)
@@ -294,10 +296,11 @@ function playSkillEffect(id: keyof typeof SKILLS, amount?: number) {
 function celebrationShots(b: Building): Shot[] {
   const portrait = camera.aspect < 1
   const dist = (Math.max(b.width, b.height) * 1.1 + 5) * (portrait ? 1.7 : 1)
+  const look = new THREE.Vector3(b.x, b.height * 0.45, b.z)
   const shots: Shot[] = [
     {
-      pos: new THREE.Vector3(b.x + dist * 0.25, b.height * 0.5 + 2, b.z + b.depth / 2 + dist),
-      look: new THREE.Vector3(b.x, b.height * 0.45, b.z),
+      pos: clearViewpoint(b, look, dist, b.height * 0.5 + 2),
+      look,
       duration: 1 + FX.colorizeSeconds + 1.8,
       subject: buildingBox(b),
     },
@@ -305,23 +308,57 @@ function celebrationShots(b: Building): Shot[] {
   const next = currentBuilding(state)
   if (next) {
     const d = (portrait ? 26 : 16) + next.height
+    const nextLook = new THREE.Vector3(next.x, next.height * 0.3, next.z)
     shots.push({
-      pos: new THREE.Vector3(next.x + d * 0.3, d * 0.8, next.z + next.depth / 2 + d),
-      look: new THREE.Vector3(next.x, next.height * 0.3, next.z),
+      pos: clearViewpoint(next, nextLook, d, d * 0.8),
+      look: nextLook,
       duration: 2.8,
       subject: buildingBox(next),
       onStart: () => hud.toast(`次は「${next.label}」！ 光の柱が目印`, 2600),
     })
   } else {
     shots.push({
-      pos: new THREE.Vector3(60, 150, 190),
-      look: new THREE.Vector3(0, 10, 0),
+      pos: new THREE.Vector3(WORLD.centerX + 120, 300, WORLD.centerZ + 380),
+      look: new THREE.Vector3(WORLD.centerX, 10, WORLD.centerZ),
       duration: 4,
       onStart: () => hud.toast('キャンパスが全部復活した！', 3800),
     })
   }
   return shots
 }
+
+/**
+ * 建物を映すカメラの位置。西（見下ろしと同じ側）から順に 8 方向を試し、視線が他の建物に
+ * さえぎられない方向を選ぶ。どの方向もふさがっていれば、カメラを持ち上げて探し直す。
+ * キャンパス全体だと建物が密集していて、決め打ちの方向だと隣の棟の中に入ってしまうため
+ */
+function clearViewpoint(b: Building, look: THREE.Vector3, dist: number, height: number): THREE.Vector3 {
+  let best: THREE.Vector3 | null = null
+  let bestHits = Infinity
+  for (const lift of [0, 12, 28]) {
+    for (let i = 0; i < 8; i++) {
+      // 西（+Z）から始めて、左右交互に回していく
+      const a = (Math.ceil(i / 2) * (i % 2 ? 1 : -1) * Math.PI) / 4
+      const ux = Math.sin(a), uz = Math.cos(a)
+      const half = Math.abs(ux) * (b.width / 2) + Math.abs(uz) * (b.depth / 2)
+      const pos = new THREE.Vector3(b.x + ux * (half + dist) + uz * dist * 0.25, height + lift, b.z + uz * (half + dist) - ux * dist * 0.25)
+      let hits = 0
+      for (let k = 0; k <= 12; k++) {
+        tmp.lerpVectors(pos, look, k / 12)
+        for (const o of state.buildings) {
+          if (o !== b && Math.abs(tmp.x - o.x) < o.width / 2 + 1 && Math.abs(tmp.z - o.z) < o.depth / 2 + 1 && tmp.y < o.height + 1) hits++
+        }
+      }
+      if (hits === 0) return pos
+      if (hits < bestHits) {
+        best = pos
+        bestHits = hits
+      }
+    }
+  }
+  return best!
+}
+
 
 /** 完成形の外接箱 */
 function buildingBox(b: Building): THREE.Box3 {
@@ -366,6 +403,9 @@ function fadeOccluders(dt: number) {
     view.monolith.fade(blocking ? 0.15 : 1, dt)
   }
 }
+
+/** これより遠い建物は室内を描かない (m)。キャンパス全体だと全棟の家具で頂点が多くなりすぎるため */
+const INTERIOR_DISTANCE = 120
 
 const tmp = new THREE.Vector3()
 const packPos = new THREE.Vector3()
@@ -514,6 +554,10 @@ renderer.setAnimationLoop((now: number) => {
       }
     }
 
+    // 室内（照明・柱・家具）は近い建物だけ描く。全体マップでは全部省く
+    const away = Math.hypot(camera.position.x - b.x, camera.position.z - b.z) - Math.max(b.width, b.depth) / 2
+    view.monolith.setInterior(!rig.overview && away < INTERIOR_DISTANCE)
+
     const stage = view.celebrated ? 'done' : b === shownCurrent ? 'current' : 'locked'
     const inZone = b === current && distanceToBuilding(b, p.x, p.z) <= b.dropRange
     view.monolith.update(time, view.display, Math.max(0, view.colorize), stage, inZone)
@@ -558,6 +602,7 @@ renderer.setAnimationLoop((now: number) => {
       near,
       blocked: (q) => !!buildingAt(q, 0.4),
       worldSize: WORLD.size,
+      worldCenter: { x: WORLD.centerX, z: WORLD.centerZ },
     })
     fog.near = rig.fog.near
     fog.far = rig.fog.far
@@ -576,5 +621,5 @@ renderer.setAnimationLoop((now: number) => {
 
 // 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890, buy('plow')）
 if (import.meta.env.DEV) {
-  Object.assign(window, { game: state, rig, camera, controls: god?.controls, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
+  Object.assign(window, { game: state, rig, camera, controls: god?.controls, scene, renderer, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
 }

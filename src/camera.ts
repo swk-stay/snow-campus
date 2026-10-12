@@ -24,7 +24,9 @@ export type RigContext = {
   near: number
   /** その点が建物の中なら true（グランドレベルでカメラが建物にめり込まないように） */
   blocked: (p: THREE.Vector3) => boolean
+  /** 雪原（全体マップで映す範囲）の一辺と中心 */
   worldSize: number
+  worldCenter: { x: number; z: number }
 }
 
 const tmp = new THREE.Vector3()
@@ -122,9 +124,11 @@ export class CameraRig {
     } else if (this.overview) {
       // フィールド全体が画面に収まる距離（縦持ちは横幅で決まるので遠くなる）
       const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2)
-      const fit = (ctx.worldSize * 0.58) / (Math.tan(halfFov) * Math.min(this.camera.aspect, 1.3))
-      tmp.set(0, fit * 0.86, fit * 0.5)
-      tmp2.set(0, 0, -ctx.worldSize * 0.02)
+      const fit = (ctx.worldSize * 0.66) / (Math.tan(halfFov) * Math.min(this.camera.aspect, 1.3))
+      const { x: cx, z: cz } = ctx.worldCenter
+      // 斜めに見下ろすので手前（+Z）が画面からはみ出しやすい。注視点を少し手前へずらす
+      tmp.set(cx, fit * 0.86, cz + fit * 0.5 + ctx.worldSize * 0.08)
+      tmp2.set(cx, 0, cz + ctx.worldSize * 0.08)
       speed = 3
       this.setFog(fit * 3, fit * 4, dt)
     } else if (this.mode === 'top') {

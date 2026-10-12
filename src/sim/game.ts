@@ -112,7 +112,7 @@ const ITEM_IDS = Object.keys(ITEMS) as ItemId[]
 const SKILL_IDS = Object.keys(SKILLS) as SkillId[]
 
 export function createGame(): GameState {
-  const field = new SnowField(WORLD.fieldRes, WORLD.size)
+  const field = new SnowField(WORLD.fieldRes, WORLD.size, WORLD.centerX, WORLD.centerZ)
   const buildings = BUILDINGS.map((def) => ({ ...def, required: requiredOf(def), deposited: 0, completed: false }))
   for (const b of buildings) {
     // 建物の敷地と寄付ゾーンは雪をどけて、降雪機でも積もらないようにする
@@ -179,7 +179,7 @@ export function refillField(s: GameState) {
   s.field.fill((x, z) => {
     // 吹きだまり風のうねり。外周は描画側の外側の雪面に合わせて 0.75 へ寄せる
     const drift = 0.65 + 0.2 * Math.sin(x * 0.3) * Math.cos(z * 0.25) + 0.15 * Math.sin(x * 0.11 + z * 0.17)
-    const edge = Math.max(Math.abs(x), Math.abs(z)) / half
+    const edge = Math.max(Math.abs(x - WORLD.centerX), Math.abs(z - WORLD.centerZ)) / half
     const t = Math.min(1, Math.max(0, (edge - 0.85) / 0.15))
     return drift * (1 - t) + 0.75 * t
   })
@@ -403,10 +403,8 @@ function stepRares(s: GameState, st: Stats, dt: number, events: GameEvent[]) {
   s.rareTimer -= dt
   if (s.rareTimer > 0 || s.rares.length >= RARE.maxOnField) return
   s.rareTimer = RARE.spawnInterval
-  const limit = s.field.size / 2 - 3
   for (let n = 0; n < 30; n++) {
-    const x = (Math.random() * 2 - 1) * limit
-    const z = (Math.random() * 2 - 1) * limit
+    const { x, z } = s.field.randomPoint(3)
     // 雪がしっかり積もっていて、プレイヤーから少し離れた場所
     if (s.field.amountAt(x, z) < 0.4 || Math.hypot(x - p.x, z - p.z) < 8) continue
     const id = unitSeq++
@@ -440,11 +438,12 @@ function stepPlow(s: GameState, plow: Plow, dt: number, events: GameEvent[]) {
   plow.retarget -= dt
   const reached = Math.hypot(plow.targetX - plow.x, plow.targetZ - plow.z) < 0.5
   if (plow.retarget <= 0 || reached || s.field.amountAt(plow.targetX, plow.targetZ) < 0.05) {
-    const limit = s.field.size / 2 - 2
+    // キャンパス全体は広いので、近く（±60m）から探す
     let best = -1
     for (let n = 0; n < 16; n++) {
-      const x = (Math.random() * 2 - 1) * limit
-      const z = (Math.random() * 2 - 1) * limit
+      const q = { x: plow.x + (Math.random() * 2 - 1) * 60, z: plow.z + (Math.random() * 2 - 1) * 60 }
+      s.field.clamp(q, 2)
+      const { x, z } = q
       const score = s.field.amountAt(x, z) - Math.hypot(x - plow.x, z - plow.z) * 0.01
       if (score > best) {
         best = score
@@ -497,9 +496,7 @@ function movePlayer(s: GameState, input: MoveInput, dt: number) {
 
 /** 雪原の外と建物（未完成でも敷地）から押し出す。建物はめり込みの浅い軸へ */
 function pushOutOfBuildings(s: GameState, o: { x: number; z: number }, radius: number) {
-  const limit = s.field.size / 2 - 1
-  o.x = Math.min(limit, Math.max(-limit, o.x))
-  o.z = Math.min(limit, Math.max(-limit, o.z))
+  s.field.clamp(o, 1)
   for (const b of s.buildings) {
     const hw = b.width / 2 + radius
     const hd = b.depth / 2 + radius

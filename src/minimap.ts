@@ -2,10 +2,15 @@ import type { GameState } from './sim/game'
 import { paintGround } from './render/campusGround'
 
 // 常時表示のミニマップ（右上）。向きは見下ろし視点と同じで固定（上が東。公式キャンパスマップと同じ向き）。
+// キャンパス全体は広いので、プレイヤーのまわり SPAN m 四方だけを映す（雪原の端では止める）。
 // タップ／M キーで全体マップ（俯瞰カメラ）に切り替える。
 // 地面（芝生・園路）の上に、0.3 秒ごとに縮小コピーした雪を重ねる。建物・除雪機・プレイヤーは毎フレーム描く。
+// いま建てている建物が範囲の外にあるときは、縁にその方向の矢印を出す。
 
-const SNOW_RES = 80
+/** 雪の縮小コピーの解像度（雪原全体で。1 ピクセル約 2m） */
+const SNOW_RES = 230
+/** ミニマップに映す範囲の一辺 (m) */
+const SPAN = 180
 
 export class Minimap {
   private readonly canvas: HTMLCanvasElement
@@ -13,7 +18,7 @@ export class Minimap {
   private readonly snow: HTMLCanvasElement
   private readonly snowCtx: CanvasRenderingContext2D
   private readonly snowImage: ImageData
-  private readonly ground = paintGround(256)
+  private readonly ground = paintGround(1024)
   private snowTimer = 0
 
   constructor(root: HTMLElement, onTap: () => void) {
@@ -41,8 +46,18 @@ export class Minimap {
     if (this.canvas.width !== Math.round(css * dpr)) this.canvas.width = this.canvas.height = Math.round(css * dpr)
     const W = this.canvas.width
     const g = this.g
-    const size = s.field.size
-    const toPx = (v: number) => ((v + size / 2) / size) * W
+    const { size, centerX, centerZ } = s.field
+    // 映す範囲の左上（ワールド座標）。プレイヤーを中心に、雪原の外へははみ出さない
+    const clampView = (v: number, c: number) => Math.min(c + size / 2 - SPAN, Math.max(c - size / 2, v - SPAN / 2))
+    const vx = clampView(s.player.x, centerX)
+    const vz = clampView(s.player.z, centerZ)
+    const toPxX = (x: number) => ((x - vx) / SPAN) * W
+    const toPxZ = (z: number) => ((z - vz) / SPAN) * W
+    // 雪原全体の画像から、映す範囲だけを切り出して描く
+    const blit = (img: HTMLCanvasElement) => {
+      const k = img.width / size
+      g.drawImage(img, (vx - (centerX - size / 2)) * k, (vz - (centerZ - size / 2)) * k, SPAN * k, SPAN * k, 0, 0, W, W)
+    }
 
     this.snowTimer -= dt
     if (this.snowTimer <= 0) {
@@ -50,15 +65,15 @@ export class Minimap {
       this.drawSnow(s)
     }
     g.imageSmoothingEnabled = true
-    g.drawImage(this.ground, 0, 0, W, W)
-    g.drawImage(this.snow, 0, 0, W, W)
+    blit(this.ground)
+    blit(this.snow)
 
     // 建物：完成はカラー、いま建てているものは金色で点滅、未解放は点線
     for (const b of s.buildings) {
-      const x = toPx(b.x - b.width / 2)
-      const y = toPx(b.z - b.depth / 2)
-      const w = (b.width / size) * W
-      const h = (b.depth / size) * W
+      const x = toPxX(b.x - b.width / 2)
+      const y = toPxZ(b.z - b.depth / 2)
+      const w = (b.width / SPAN) * W
+      const h = (b.depth / SPAN) * W
       const current = !b.completed && s.buildings.find((o) => !o.completed) === b
       g.setLineDash([])
       if (b.completed) {
@@ -80,14 +95,44 @@ export class Minimap {
     }
     g.setLineDash([])
 
-    for (const m of s.machines) dot(g, toPx(m.x), toPx(m.z), 3 * dpr, '#4a7fd6')
-    for (const p of s.plows) dot(g, toPx(p.x), toPx(p.z), 3.5 * dpr, '#f28c28')
+    for (const m of s.machines) dot(g, toPxX(m.x), toPxZ(m.z), 3 * dpr, '#4a7fd6')
+    for (const p of s.plows) dot(g, toPxX(p.x), toPxZ(p.z), 3.5 * dpr, '#f28c28')
     // レア雪は点滅する水色の点
-    for (const r of s.rares) dot(g, toPx(r.x), toPx(r.z), (3 + Math.sin(time * 8) * 1.2) * dpr, '#5fe3ff')
+    for (const r of s.rares) dot(g, toPxX(r.x), toPxZ(r.z), (3 + Math.sin(time * 8) * 1.2) * dpr, '#5fe3ff')
+
+    // いま建てている建物が範囲の外なら、縁にその方向の矢印
+    const target = s.buildings.find((o) => !o.completed)
+    const px = toPxX(s.player.x)
+    const pz = toPxZ(s.player.z)
+    if (target) {
+      const tx = toPxX(target.x)
+      const tz = toPxZ(target.z)
+      if (tx < 0 || tz < 0 || tx > W || tz > W) {
+        const ang = Math.atan2(tz - pz, tx - px)
+        // 中心から矢印の方向へ伸ばして、縁の少し内側で止める
+        const m = 9 * dpr
+        const t = Math.min(
+          Math.abs((Math.cos(ang) > 0 ? W - m - px : m - px) / (Math.cos(ang) || 1e-6)),
+          Math.abs((Math.sin(ang) > 0 ? W - m - pz : m - pz) / (Math.sin(ang) || 1e-6)),
+        )
+        g.save()
+        g.translate(px + Math.cos(ang) * t, pz + Math.sin(ang) * t)
+        g.rotate(ang)
+        g.fillStyle = `rgba(255, 176, 32, ${0.75 + 0.25 * Math.sin(time * 6)})`
+        g.strokeStyle = '#fff'
+        g.lineWidth = 1.5 * dpr
+        g.beginPath()
+        g.moveTo(7 * dpr, 0)
+        g.lineTo(-5 * dpr, 5.5 * dpr)
+        g.lineTo(-5 * dpr, -5.5 * dpr)
+        g.closePath()
+        g.fill()
+        g.stroke()
+        g.restore()
+      }
+    }
 
     // プレイヤー（向きつきの三角）とグランドレベル時の視野
-    const px = toPx(s.player.x)
-    const pz = toPx(s.player.z)
     if (viewYaw !== null) {
       const dir = Math.atan2(-Math.cos(viewYaw), -Math.sin(viewYaw))
       g.fillStyle = 'rgba(255, 255, 255, 0.35)'

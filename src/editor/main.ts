@@ -24,7 +24,7 @@ document.body.appendChild(labelRenderer.domElement)
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0xb9cbe0)
-scene.fog = new THREE.Fog(0xb9cbe0, 250, 700)
+scene.fog = new THREE.Fog(0xb9cbe0, 450, 1200)
 const sunDir = new THREE.Vector3(0.45, 0.8, 0.35).normalize()
 scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.3))
 const sun = new THREE.DirectionalLight(0xffffff, 1.6)
@@ -53,9 +53,9 @@ const monoliths = state.buildings.map((b) => {
 })
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 2000)
-camera.position.set(90, 140, 170)
+camera.position.set(WORLD.centerX + 120, 230, WORLD.centerZ + 300)
 const controls = new OrbitControls(camera, renderer.domElement)
-controls.target.set(0, 0, 0)
+controls.target.set(WORLD.centerX, 0, WORLD.centerZ)
 controls.enableDamping = true
 // 地図のように、パンは地面と平行に動かす
 controls.screenSpacePanning = false
@@ -453,7 +453,7 @@ function groundHit(): THREE.Vector3 | null {
   const ray = raycaster.ray
   const out = new THREE.Vector3()
   if (!ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), out)) return null
-  if (Math.abs(out.x) > WORLD.size / 2 || Math.abs(out.z) > WORLD.size / 2) return null
+  if (Math.abs(out.x - WORLD.centerX) > WORLD.size / 2 || Math.abs(out.z - WORLD.centerZ) > WORLD.size / 2) return null
   const h = state.field.amountAt(out.x, out.z) * WORLD.snowMaxHeight
   if (h > 0) ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -h), out)
   return out
