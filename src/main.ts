@@ -1,6 +1,5 @@
 import './style.css'
 import * as THREE from 'three'
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, UPGRADES, WORLD, type UpgradeId } from './config'
 import {
   buyItem,
@@ -29,13 +28,14 @@ import { Hud } from './hud'
 import { Shop } from './shop'
 import { Minimap } from './minimap'
 import { CameraRig, type Shot, type ViewMode } from './camera'
+import { GodCamera } from './godView'
 import { createDebugGui } from './debugGui'
 import { BalanceDashboard } from './balanceDashboard'
 import { loadTuning } from './tuning'
 import { clearStorage, loadFromStorage, saveToStorage, useSaveSlot } from './save'
 import { playCoin, playFanfare, unlockAudio } from './audio'
 
-// ?view=god で展示用の神視点（自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード
+// ?view=god で展示用の神視点（WASD で移動・自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード
 const params = new URLSearchParams(location.search)
 const isGodView = params.get('view') === 'god'
 const isBalance = params.has('balance')
@@ -123,13 +123,8 @@ try {
 } catch {
   // 視点の記憶は無くても困らない
 }
-const controls = isGodView ? new OrbitControls(camera, renderer.domElement) : null
-if (controls) {
-  camera.position.set(0, 120, 165)
-  controls.target.set(0, 8, 0)
-  controls.autoRotate = true
-  controls.autoRotateSpeed = 0.6
-  controls.enableDamping = true
+const god = isGodView ? new GodCamera(camera, renderer.domElement, WORLD.size / 2) : null
+if (god) {
   fog.near = 250
   fog.far = 650
 }
@@ -189,7 +184,7 @@ function toggleOverview() {
 refreshViewButton()
 
 addEventListener('keydown', (e) => {
-  if (e.repeat) return
+  if (e.repeat || isGodView) return
   if (rig.cinematic && rig.cinematicElapsed > 2.5) rig.skipCinematic()
   else if (e.code === 'KeyV') toggleView()
   else if (e.code === 'KeyM') toggleOverview()
@@ -297,7 +292,8 @@ renderer.setAnimationLoop((now: number) => {
   const time = now / 1000
 
   if (!isGodView) rig.turn(-input.turn() * dt * 2)
-  const move = rig.inputLocked ? { x: 0, z: 0 } : rig.toWorld(input.move())
+  // 神視点では WASD はカメラの移動に使い、自機は動かさない
+  const move = isGodView || rig.inputLocked ? { x: 0, z: 0 } : rig.toWorld(input.move())
   // ダッシュボードの早回しは stepGame を複数回まわす（dt を大きくすると除雪機や回収の挙動が変わるため）
   const steps = dashboard?.timeScale ?? 1
   const events = pendingEvents.splice(0)
@@ -451,8 +447,8 @@ renderer.setAnimationLoop((now: number) => {
   dashboard?.update(dt)
   document.body.classList.toggle('cinematic', rig.cinematic)
 
-  if (controls) {
-    controls.update()
+  if (god) {
+    god.update(dt, input.move())
   } else {
     // 見下ろしで、いま建てている建物に近づいたら引きのアングルにする
     let near = 0
@@ -491,5 +487,5 @@ renderer.setAnimationLoop((now: number) => {
 
 // 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890, buy('plow')）
 if (import.meta.env.DEV) {
-  Object.assign(window, { game: state, rig, camera, controls, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
+  Object.assign(window, { game: state, rig, camera, controls: god?.controls, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
 }
