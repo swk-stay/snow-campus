@@ -5,6 +5,12 @@ import { syncOwnedUnits, type GameState } from './sim/game'
 // オンライン化後はルームの状態をサーバーが持つので、ここはソロプレイ用として残す想定。
 
 const KEY = 'snow-campus-save-v1'
+let key = KEY
+
+/** 保存先を本編とは別にする（?balance で調整しながら遊んだ進行を、本編のセーブに混ぜないため） */
+export function useSaveSlot(name: string) {
+  key = `${KEY}-${name}`
+}
 
 type SaveData = {
   v: 1
@@ -78,7 +84,7 @@ export function apply(s: GameState, d: SaveData) {
 
 export function saveToStorage(s: GameState): boolean {
   try {
-    localStorage.setItem(KEY, JSON.stringify(serialize(s)))
+    localStorage.setItem(key, JSON.stringify(serialize(s)))
     return true
   } catch {
     return false
@@ -87,7 +93,7 @@ export function saveToStorage(s: GameState): boolean {
 
 export function loadFromStorage(s: GameState): boolean {
   try {
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return false
     const d = JSON.parse(raw) as SaveData
     if (d.v !== 1) return false
@@ -100,7 +106,7 @@ export function loadFromStorage(s: GameState): boolean {
 
 export function clearStorage() {
   try {
-    localStorage.removeItem(KEY)
+    localStorage.removeItem(key)
   } catch {
     // 消せなくても致命的ではない
   }

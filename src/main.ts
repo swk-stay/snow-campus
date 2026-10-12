@@ -28,12 +28,21 @@ import { Shop } from './shop'
 import { Minimap } from './minimap'
 import { CameraRig, type Shot, type ViewMode } from './camera'
 import { createDebugGui } from './debugGui'
-import { clearStorage, loadFromStorage, saveToStorage } from './save'
+import { BalanceDashboard } from './balanceDashboard'
+import { loadTuning } from './tuning'
+import { clearStorage, loadFromStorage, saveToStorage, useSaveSlot } from './save'
 import { playCoin, playFanfare, unlockAudio } from './audio'
 
-// ?view=god で展示用の神視点（自動周回）カメラ、?debug で lil-gui の調整パネル
+// ?view=god で展示用の神視点（自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード
 const params = new URLSearchParams(location.search)
 const isGodView = params.get('view') === 'god'
+const isBalance = params.has('balance')
+// 調整した値はダッシュボードを開いたときだけ使う（普段のプレイには持ち込まない）。建物の必要量に効くので createGame より前に。
+// セーブも本編とは別の枠にする
+if (isBalance) {
+  loadTuning()
+  useSaveSlot('balance')
+}
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -187,6 +196,8 @@ renderer.domElement.addEventListener('pointerdown', () => {
   else if (rig.cinematic && rig.cinematicElapsed > 2.5) rig.skipCinematic()
 })
 
+const dashboard = isBalance ? new BalanceDashboard(document.body, state) : null
+
 if (params.has('debug')) {
   createDebugGui(state, {
     replayColorize: () => {
@@ -283,7 +294,11 @@ renderer.setAnimationLoop((now: number) => {
 
   if (!isGodView) rig.turn(-input.turn() * dt * 2)
   const move = rig.inputLocked ? { x: 0, z: 0 } : rig.toWorld(input.move())
-  const events = [...pendingEvents.splice(0), ...stepGame(state, move, dt)]
+  // ダッシュボードの早回しは stepGame を複数回まわす（dt を大きくすると除雪機や回収の挙動が変わるため）
+  const steps = dashboard?.timeScale ?? 1
+  const events = pendingEvents.splice(0)
+  for (let i = 0; i < steps; i++) events.push(...stepGame(state, move, dt))
+  dashboard?.record(events, dt * steps)
   const p = state.player
   const st = stats(state)
   const moving = Math.min(1, Math.hypot(move.x, move.z))
@@ -418,6 +433,7 @@ renderer.setAnimationLoop((now: number) => {
   // ブースト中・ダッシュ中は足元から雪煙
   if ((p.boostTime > 0 && moving > 0.1) || p.dashTime > 0) sparkles.burst(tmp.copy(playerView.group.position).setY(0.3), p.dashTime > 0 ? 4 : 1, 0xdff4ff, 2)
   minimap.update(dt, time, state, rig.mode === 'ground' && !rig.overview ? rig.yaw : null)
+  dashboard?.update(dt)
   document.body.classList.toggle('cinematic', rig.cinematic)
 
   if (controls) {

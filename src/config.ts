@@ -57,6 +57,10 @@ export const BUILDINGS: BuildingDef[] = [
 export const ECONOMY = {
   /** 雪1単位を寄付したときにもらえるゴールド */
   goldPerSnow: 1,
+  /** 価格の全体倍率（アップグレード・アイテム）。個別の価格はそのままで、まとめて上げ下げする */
+  costScale: 1,
+  /** 建物の完成に必要な雪の全体倍率（BUILDINGS[].required に掛ける） */
+  requiredScale: 1,
 }
 
 export type UpgradeId = 'shovel' | 'power' | 'backpack' | 'throwing' | 'plow' | 'snowMachine' | 'cooldown'
