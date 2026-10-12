@@ -18,6 +18,7 @@ export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
   const player = gui.addFolder('プレイヤー（基礎値）')
   player.add(PLAYER, 'speed', 1, 20, 0.5).name('移動速度')
   player.add(PLAYER, 'collectRadius', 0.5, 10, 0.1).name('回収半径 (m)')
+  player.add(PLAYER, 'collectArc', 30, 360, 5).name('回収の角度 (度)')
   player.add(PLAYER, 'collectRate', 0.1, 5, 0.1).name('削る速さ')
   player.add(PLAYER, 'capacity', 10, 1000, 10).name('所持上限')
   player.add(PLAYER, 'throwInterval', 0.01, 0.5, 0.01).name('投げる間隔 (s)')
@@ -55,7 +56,7 @@ export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
   sk.add(s, 'totalCollected').name('累計回収量').listen().disable()
 
   const fx = gui.addFolder('演出').close()
-  fx.add(FX, 'suctionPerSnow', 0, 10, 0.1).name('吸い込みの粒/雪1')
+  fx.add(FX, 'scoopPerSnow', 0, 10, 0.1).name('すくう雪の粒/雪1')
   fx.add(FX, 'colorizeSeconds', 0.5, 10, 0.1).name('カラー化の秒数')
 
   const actions = {

@@ -325,7 +325,11 @@ export function stepGame(s: GameState, input: MoveInput, dt: number): GameEvent[
   p.boostTime = Math.max(0, p.boostTime - dt)
   movePlayer(s, input, dt)
 
-  const collected = s.field.collect(p.x, p.z, st.collectRadius, st.collectRate, dt, p.capacity - p.carried)
+  // 掘っている感じを出すため、向いている方向の扇形（既定は前方の半円）だけを削る
+  const collected = s.field.collect(p.x, p.z, st.collectRadius, st.collectRate, dt, p.capacity - p.carried, {
+    facing: p.facing,
+    angle: (PLAYER.collectArc * Math.PI) / 180,
+  })
   if (collected > 0) {
     p.carried += collected
     s.totalCollected += collected

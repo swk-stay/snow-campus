@@ -37,44 +37,78 @@ function makeMesh(count: number, geo: THREE.BufferGeometry, mat: THREE.Material)
   return mesh
 }
 
-/** 雪原から背中の雪玉へ吸い込まれていく雪の粒 */
-export class Suction {
+type ScoopParticle = {
+  active: boolean
+  from: THREE.Vector3
+  /** 飛び出すときの横方向のぶれ（塊がばらけて見えるように） */
+  jitter: THREE.Vector3
+  t: number
+  duration: number
+  arc: number
+  size: number
+  spin: number
+}
+
+/**
+ * スコップですくった雪の粒。削った場所から放物線を描いて、肩越しに背中の雪玉へ放り込まれる。
+ * 着地点（背中）はプレイヤーと一緒に動くので、毎フレーム現在の位置へ向けて補間する。
+ */
+export class Scoop {
   readonly mesh: THREE.InstancedMesh
-  private readonly ps: Particle[]
+  private readonly ps: ScoopParticle[]
   private cursor = 0
 
   constructor(count = 500) {
-    this.ps = makePool(count)
-    this.mesh = makeMesh(count, new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }))
+    this.ps = Array.from({ length: count }, () => ({
+      active: false,
+      from: new THREE.Vector3(),
+      jitter: new THREE.Vector3(),
+      t: 0,
+      duration: 0.5,
+      arc: 1,
+      size: 0.1,
+      spin: 0,
+    }))
+    this.mesh = makeMesh(count, new THREE.IcosahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }))
   }
 
-  spawn(pos: THREE.Vector3) {
+  /** pos からすくい上げる。target は着地点（背中の雪玉）で、距離から飛ぶ時間と高さを決める */
+  spawn(pos: THREE.Vector3, target: THREE.Vector3, delay = 0) {
     const p = this.ps[this.cursor]
     this.cursor = (this.cursor + 1) % this.ps.length
+    const dist = pos.distanceTo(target)
     p.active = true
-    p.pos.copy(pos)
-    p.vel.set((Math.random() - 0.5) * 2, 2 + Math.random() * 3, (Math.random() - 0.5) * 2)
-    p.age = 0
-    p.size = 0.06 + Math.random() * 0.07
+    p.from.copy(pos)
+    p.jitter.set((Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5)
+    // delay ぶん t をマイナスから始めて、塊の中で少しずつ時間差を付ける
+    p.t = -delay
+    p.duration = 0.35 + dist * 0.06 + Math.random() * 0.08
+    // 頭（高さ 1.3m 前後）を越えて背中に落ちる高さ
+    p.arc = 1.0 + dist * 0.18 + Math.random() * 0.3
+    p.size = 0.05 + Math.random() * 0.07
+    p.spin = Math.random() * Math.PI * 2
   }
 
   update(dt: number, target: THREE.Vector3) {
     this.ps.forEach((p, i) => {
       if (!p.active) return
-      p.age += dt
-      tmpVec.subVectors(target, p.pos)
-      const dist = tmpVec.length()
-      if (dist < 0.3 || p.age > 3) {
+      p.t += dt
+      if (p.t < 0) return
+      const u = Math.min(1, p.t / p.duration)
+      if (u >= 1) {
         p.active = false
         this.mesh.setMatrixAt(i, ZERO_MATRIX)
         return
       }
-      // 時間とともに引力を強くして、最後は必ず吸い込まれるようにする
-      p.vel.addScaledVector(tmpVec.normalize(), (8 + p.age * 40) * dt)
-      p.vel.multiplyScalar(Math.max(0, 1 - dt * 2.5))
-      p.pos.addScaledVector(p.vel, dt)
-      tmpScale.setScalar(p.size * Math.min(1, 0.3 + dist / 1.5))
-      this.mesh.setMatrixAt(i, tmpMatrix.compose(p.pos, IDENTITY_QUAT, tmpScale))
+      // 序盤は速く跳ね上がり、背中へは落ちるように入る（ease-out 気味の水平移動＋放物線）
+      const h = 1 - (1 - u) * (1 - u)
+      tmpVec.lerpVectors(p.from, target, h)
+      tmpVec.y += p.arc * 4 * u * (1 - u)
+      tmpVec.addScaledVector(p.jitter, Math.sin(u * Math.PI))
+      tmpQuat.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, p.spin + u * 6)
+      // 地面から出てくるときに膨らみ、背中に入る直前で縮む
+      tmpScale.setScalar(p.size * Math.min(1, u * 6) * Math.min(1, (1 - u) * 4 + 0.3))
+      this.mesh.setMatrixAt(i, tmpMatrix.compose(tmpVec, tmpQuat, tmpScale))
     })
     this.mesh.instanceMatrix.needsUpdate = true
   }
