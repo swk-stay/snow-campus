@@ -16,6 +16,8 @@ import {
 } from './sim/game'
 import { SnowSurface } from './render/snowSurface'
 import { Monolith } from './render/monolith'
+import { occlusion } from './render/buildings/material'
+import { createScenery } from './render/scenery'
 import { PlayerView } from './render/playerView'
 import { Projectiles, Scoop, Sparkles } from './render/effects'
 import { UnitsView } from './render/units'
@@ -28,12 +30,21 @@ import { Shop } from './shop'
 import { Minimap } from './minimap'
 import { CameraRig, type Shot, type ViewMode } from './camera'
 import { createDebugGui } from './debugGui'
-import { clearStorage, loadFromStorage, saveToStorage } from './save'
+import { BalanceDashboard } from './balanceDashboard'
+import { loadTuning } from './tuning'
+import { clearStorage, loadFromStorage, saveToStorage, useSaveSlot } from './save'
 import { playCoin, playFanfare, unlockAudio } from './audio'
 
-// ?view=god で展示用の神視点（自動周回）カメラ、?debug で lil-gui の調整パネル
+// ?view=god で展示用の神視点（自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード
 const params = new URLSearchParams(location.search)
 const isGodView = params.get('view') === 'god'
+const isBalance = params.has('balance')
+// 調整した値はダッシュボードを開いたときだけ使う（普段のプレイには持ち込まない）。建物の必要量に効くので createGame より前に。
+// セーブも本編とは別の枠にする
+if (isBalance) {
+  loadTuning()
+  useSaveSlot('balance')
+}
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -42,7 +53,7 @@ app.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0xb9cbe0)
-const fog = new THREE.Fog(0xb9cbe0, 55, 140)
+const fog = new THREE.Fog(0xb9cbe0, 90, 260)
 scene.fog = fog
 const sunDir = new THREE.Vector3(0.45, 0.8, 0.35).normalize()
 scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.3))
@@ -57,13 +68,15 @@ const snow = new SnowSurface(state.field, sunDir)
 scene.add(snow.mesh)
 // 雪原の外側（回収できない背景の雪面）。高さは雪原外周の初期値 0.75 に合わせる
 const outer = new THREE.Mesh(
-  new THREE.RingGeometry(WORLD.size * 0.7, 400, 4, 1, Math.PI / 4),
+  new THREE.RingGeometry(WORLD.size * 0.7, WORLD.size * 6, 4, 1, Math.PI / 4),
   // 日向の雪面（SnowSurface の平地）とほぼ同じ色を無ライティングで出す
   new THREE.MeshBasicMaterial({ color: 0xf0f3fa }),
 )
 outer.rotation.x = -Math.PI / 2
 outer.position.y = 0.75 * WORLD.snowMaxHeight
 scene.add(outer)
+// 並木・バス・守衛所（建て直しの対象ではない景色）
+scene.add(createScenery())
 
 const playerView = new PlayerView()
 const scoop = new Scoop()
@@ -87,10 +100,10 @@ type BuildingView = {
   hold: number
 }
 const buildingViews = new Map<string, BuildingView>()
-state.buildings.forEach((b, i) => {
+state.buildings.forEach((b) => {
   // セーブから再開した場合、完成済みの建物は最初からカラーで建っている
   const view: BuildingView = {
-    monolith: new Monolith(b, i, sunDir),
+    monolith: new Monolith(b, sunDir),
     display: b.deposited / b.required,
     inFlight: 0,
     colorize: b.completed ? 1 : -1,
@@ -103,7 +116,7 @@ state.buildings.forEach((b, i) => {
 
 const labels = new BuildingLabels(scene, state.buildings)
 
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1200)
+const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 1500)
 const rig = new CameraRig(camera)
 try {
   rig.mode = (localStorage.getItem('snow-campus-view') as ViewMode | null) ?? 'top'
@@ -112,13 +125,13 @@ try {
 }
 const controls = isGodView ? new OrbitControls(camera, renderer.domElement) : null
 if (controls) {
-  camera.position.set(0, 70, 75)
-  controls.target.set(0, 2, 0)
+  camera.position.set(0, 120, 165)
+  controls.target.set(0, 8, 0)
   controls.autoRotate = true
   controls.autoRotateSpeed = 0.6
   controls.enableDamping = true
-  fog.near = 150
-  fog.far = 400
+  fog.near = 250
+  fog.far = 650
 }
 
 const input = new Input(renderer.domElement, !isGodView)
@@ -186,6 +199,8 @@ renderer.domElement.addEventListener('pointerdown', () => {
   if (rig.overview) toggleOverview()
   else if (rig.cinematic && rig.cinematicElapsed > 2.5) rig.skipCinematic()
 })
+
+const dashboard = isBalance ? new BalanceDashboard(document.body, state) : null
 
 if (params.has('debug')) {
   createDebugGui(state, {
@@ -261,8 +276,8 @@ function celebrationShots(b: Building): Shot[] {
     })
   } else {
     shots.push({
-      pos: new THREE.Vector3(0, 55, 70),
-      look: new THREE.Vector3(0, 4, 0),
+      pos: new THREE.Vector3(60, 150, 190),
+      look: new THREE.Vector3(0, 10, 0),
       duration: 4,
       onStart: () => hud.toast('キャンパスが全部復活した！', 3800),
     })
@@ -283,7 +298,11 @@ renderer.setAnimationLoop((now: number) => {
 
   if (!isGodView) rig.turn(-input.turn() * dt * 2)
   const move = rig.inputLocked ? { x: 0, z: 0 } : rig.toWorld(input.move())
-  const events = [...pendingEvents.splice(0), ...stepGame(state, move, dt)]
+  // ダッシュボードの早回しは stepGame を複数回まわす（dt を大きくすると除雪機や回収の挙動が変わるため）
+  const steps = dashboard?.timeScale ?? 1
+  const events = pendingEvents.splice(0)
+  for (let i = 0; i < steps; i++) events.push(...stepGame(state, move, dt))
+  dashboard?.record(events, dt * steps)
   const p = state.player
   const st = stats(state)
   const moving = Math.min(1, Math.hypot(move.x, move.z))
@@ -429,6 +448,7 @@ renderer.setAnimationLoop((now: number) => {
   // ブースト中・ダッシュ中は足元から雪煙
   if ((p.boostTime > 0 && moving > 0.1) || p.dashTime > 0) sparkles.burst(tmp.copy(playerView.group.position).setY(0.3), p.dashTime > 0 ? 4 : 1, 0xdff4ff, 2)
   minimap.update(dt, time, state, rig.mode === 'ground' && !rig.overview ? rig.yaw : null)
+  dashboard?.update(dt)
   document.body.classList.toggle('cinematic', rig.cinematic)
 
   if (controls) {
@@ -459,11 +479,17 @@ renderer.setAnimationLoop((now: number) => {
     fog.far = rig.fog.far
   }
 
+  // カメラとプレイヤーの間にある建物の部分を抜く（実寸の校舎は高いので、見下ろしでも隠れてしまう）
+  const occlude = !isGodView && !rig.cinematic && !rig.overview
+  occlusion.uOccl.value += ((occlude ? 1 : 0) - occlusion.uOccl.value) * Math.min(1, dt * 6)
+  occlusion.uCamPos.value.copy(camera.position)
+  occlusion.uFocus.value.copy(playerView.group.position).setY(playerView.group.position.y + 1)
+
   renderer.render(scene, camera)
   labels.render(scene, camera)
 })
 
 // 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890, buy('plow')）
 if (import.meta.env.DEV) {
-  Object.assign(window, { game: state, rig, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
+  Object.assign(window, { game: state, rig, camera, controls, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
 }
