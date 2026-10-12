@@ -159,7 +159,6 @@ export class BalanceDashboard {
 
   private rateSection(): HTMLElement {
     const plow = UPGRADE_EFFECT.plow
-    const machine = UPGRADE_EFFECT.snowMachine
     const th = () => theory(this.s)
     return section(
       'レート（SPS は雪が十分ある場所での上限）',
@@ -199,16 +198,6 @@ export class BalanceDashboard {
             'UPGRADE_EFFECT.plow.rate',
           ),
           this.text(() => `×${th().plows}台 = ${num(th().plows * th().plowEach)}`),
-        ],
-        [
-          '降雪機 SPS/台',
-          this.derivedInput(
-            () => diskYield(machine.radius, machine.rate),
-            (v) => TUNABLE.get('UPGRADE_EFFECT.snowMachine.rate')!.set(sig(rateForYield(machine.radius, v))),
-            1,
-            'UPGRADE_EFFECT.snowMachine.rate',
-          ),
-          this.text(() => `×${th().machines}台 = ${num(th().machines * th().machineEach)}`),
         ],
         ['雪1あたりのG', this.tuneInput(TUNABLE.get('ECONOMY.goldPerSnow')!), this.text(() => `回収 SPS 上限で ${num(th().collect * ECONOMY.goldPerSnow)} G/秒`)],
         ['価格の倍率', this.tuneInput(TUNABLE.get('ECONOMY.costScale')!), el('span', { class: 'bal-dim' }, 'アップグレード・アイテム全部')],
@@ -407,10 +396,6 @@ function effectText(s: GameState, id: UpgradeId): string {
       return `投げ込み SPS ${num(a.throwRate)} → ${num(b.throwRate)}`
     case 'plow':
       return `除雪機 ${a.plows} → ${b.plows}台・SPS ${num(a.plows * a.plowEach)} → ${num(b.plows * b.plowEach)}${perGold(b.plowEach)}`
-    case 'snowMachine': {
-      const delta = (b.machines - a.machines) * b.machineEach
-      return b.machines > a.machines ? `降雪機 ${a.machines} → ${b.machines}台・降雪 SPS +${num(delta)}${perGold(delta)}` : '設置場所が足りない（SNOW_MACHINE_SPOTS）'
-    }
     case 'cooldown':
       return `スキルの CD ×${num(a.cooldownMult)} → ×${num(b.cooldownMult)}`
   }

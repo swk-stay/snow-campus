@@ -1,8 +1,7 @@
 import * as THREE from 'three'
-import { UPGRADE_EFFECT } from '../config'
-import type { Plow, SnowMachine } from '../sim/game'
+import type { Plow } from '../sim/game'
 
-// 自動除雪機と降雪機の見た目。sim 側の配列と id で突き合わせて、増減に追従する。
+// 自動除雪機の見た目。sim 側の配列と id で突き合わせて、増減に追従する。
 
 function createPlowMesh(): THREE.Group {
   const g = new THREE.Group()
@@ -31,40 +30,9 @@ function createPlowMesh(): THREE.Group {
   return g
 }
 
-const FLAKES = 160
-
-function createMachineMesh(): THREE.Group {
-  const g = new THREE.Group()
-  const metal = new THREE.MeshStandardMaterial({ color: 0x8aa0b8, roughness: 0.5, metalness: 0.3 })
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 3, 10), metal)
-  pole.position.y = 1.5
-  const head = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.45, 0.7, 16), new THREE.MeshStandardMaterial({ color: 0x4a7fd6, roughness: 0.5 }))
-  head.position.y = 3.1
-  head.rotation.x = Math.PI / 2.6
-  head.name = 'head'
-  g.add(pole, head)
-
-  // 範囲内に舞う雪（Points）。ローカル座標で落下させて、下まで来たら上に戻す
-  const positions = new Float32Array(FLAKES * 3)
-  const r = UPGRADE_EFFECT.snowMachine.radius
-  for (let i = 0; i < FLAKES; i++) {
-    const a = Math.random() * Math.PI * 2
-    const d = r * Math.sqrt(Math.random())
-    positions.set([Math.cos(a) * d, Math.random() * 4, Math.sin(a) * d], i * 3)
-  }
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  const flakes = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, transparent: true, opacity: 0.9 }))
-  flakes.name = 'flakes'
-  flakes.frustumCulled = false
-  g.add(flakes)
-  return g
-}
-
 export class UnitsView {
   readonly group = new THREE.Group()
   private readonly plows = new Map<number, THREE.Group>()
-  private readonly machines = new Map<number, THREE.Group>()
 
   /** 除雪機の現在位置（雪玉の発射元）。存在しなければ null */
   plowPosition(id: number, out: THREE.Vector3): THREE.Vector3 | null {
@@ -72,9 +40,8 @@ export class UnitsView {
     return m ? out.copy(m.position).setY(1.2) : null
   }
 
-  update(dt: number, time: number, plows: Plow[], machines: SnowMachine[], onSpawn: (pos: THREE.Vector3) => void) {
+  update(dt: number, time: number, plows: Plow[], onSpawn: (pos: THREE.Vector3) => void) {
     sync(this.plows, plows, createPlowMesh, this.group, onSpawn)
-    sync(this.machines, machines, createMachineMesh, this.group, onSpawn)
 
     for (const p of plows) {
       const m = this.plows.get(p.id)!
@@ -84,20 +51,6 @@ export class UnitsView {
       m.rotation.y += dr * Math.min(1, dt * 6)
       m.position.y = Math.abs(Math.sin(time * 14 + p.id)) * 0.04
       ;(m.getObjectByName('lamp') as THREE.Mesh).visible = Math.sin(time * 8) > 0
-    }
-
-    for (const ms of machines) {
-      const m = this.machines.get(ms.id)!
-      m.position.set(ms.x, 0, ms.z)
-      m.getObjectByName('head')!.rotation.z = time * 2
-      const pos = (m.getObjectByName('flakes') as THREE.Points).geometry.getAttribute('position') as THREE.BufferAttribute
-      for (let i = 0; i < FLAKES; i++) {
-        let y = pos.getY(i) - dt * 1.2
-        if (y < 0) y += 4
-        pos.setY(i, y)
-        pos.setX(i, pos.getX(i) + Math.sin(time * 1.5 + i) * dt * 0.2)
-      }
-      pos.needsUpdate = true
     }
   }
 }

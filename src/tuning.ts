@@ -69,8 +69,6 @@ export const TUNABLES: Tunable[] = [
   prop('アップグレードの効果', UPGRADE_EFFECT.plow, 'UPGRADE_EFFECT.plow', 'rate', '除雪機: 削る速さ', 0.05),
   prop('アップグレードの効果', UPGRADE_EFFECT.plow, 'UPGRADE_EFFECT.plow', 'capacity', '除雪機: 積載量', 5),
   prop('アップグレードの効果', UPGRADE_EFFECT.plow, 'UPGRADE_EFFECT.plow', 'deliverChunk', '除雪機: 1回に投げる量', 1),
-  prop('アップグレードの効果', UPGRADE_EFFECT.snowMachine, 'UPGRADE_EFFECT.snowMachine', 'radius', '降雪機: 半径', 0.5),
-  prop('アップグレードの効果', UPGRADE_EFFECT.snowMachine, 'UPGRADE_EFFECT.snowMachine', 'rate', '降雪機: 降雪量', 0.01),
 
   ...ITEM_IDS.flatMap((id) => [
     prop('アイテム', ITEMS[id], `ITEMS.${id}`, 'cost', `${ITEMS[id].label}: 価格`, 10),

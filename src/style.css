@@ -14,6 +14,7 @@ canvas { display: block; touch-action: none; }
 .hud-value { font-variant-numeric: tabular-nums; text-align: right; }
 .bar { height: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
 .fill { height: 100%; width: 0; border-radius: 5px; transition: width 0.15s; }
+.fill.clear { background: linear-gradient(90deg, #7fe0b0, #c8ffe0); }
 .fill.snow { background: linear-gradient(90deg, #bfe3ff, #ffffff); }
 .fill.build { background: linear-gradient(90deg, #ffd36e, #ff9f43); }
 

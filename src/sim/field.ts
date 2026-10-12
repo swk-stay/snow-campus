@@ -13,7 +13,7 @@ export class SnowField {
   readonly data: Float32Array
   /** セル量 1.0 が何単位の雪に相当するか */
   readonly unitsPerCell: number
-  /** 雪が積もらないセル（建物の敷地や寄付ゾーン）。fill / add の対象外 */
+  /** 雪が積もらないセル（建物の敷地や寄付ゾーン）。fill の対象外 */
   readonly blocked: Uint8Array
   /** 描画側がテクスチャを再アップロードすべきか */
   dirty = true
@@ -125,24 +125,4 @@ export class SnowField {
     return sum * this.unitsPerCell
   }
 
-  /** (x, z) を中心に半径 radius へ雪を降らせる（降雪機）。中心ほど速く積もる */
-  add(x: number, z: number, radius: number, rate: number, dt: number) {
-    const { res, data, blocked } = this
-    const i0 = Math.max(0, this.toCell(x - radius))
-    const i1 = Math.min(res - 1, this.toCell(x + radius))
-    const j0 = Math.max(0, this.toCell(z - radius))
-    const j1 = Math.min(res - 1, this.toCell(z + radius))
-    const r2 = radius * radius
-    for (let j = j0; j <= j1; j++) {
-      const dz = this.cellCenter(j) - z
-      for (let i = i0; i <= i1; i++) {
-        const dx = this.cellCenter(i) - x
-        const d2 = dx * dx + dz * dz
-        const k = j * res + i
-        if (d2 > r2 || blocked[k]) continue
-        data[k] = Math.min(1, data[k] + rate * dt * (1 - d2 / r2))
-      }
-    }
-    this.dirty = true
-  }
 }

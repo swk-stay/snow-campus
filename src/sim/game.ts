@@ -10,7 +10,6 @@ import {
   RARE,
   SKILL_EFFECT,
   SKILLS,
-  SNOW_MACHINE_SPOTS,
   UPGRADE_EFFECT,
   UPGRADES,
   WORLD,
@@ -55,8 +54,6 @@ export type Plow = {
   retarget: number
 }
 
-export type SnowMachine = { id: number; x: number; z: number }
-
 export type RareCrystal = { id: number; x: number; z: number }
 
 export type Stats = {
@@ -84,8 +81,9 @@ export type GameState = {
   tier: number
   /** プレイヤーが累計で集めた雪の量（アイテムの解禁条件） */
   totalCollected: number
+  /** 初期状態の雪原の雪の合計。雪かき率の分母 */
+  initialSnow: number
   plows: Plow[]
-  machines: SnowMachine[]
   rares: RareCrystal[]
   rareTimer: number
 }
@@ -115,7 +113,7 @@ export function createGame(): GameState {
   const field = new SnowField(WORLD.fieldRes, WORLD.size)
   const buildings = BUILDINGS.map((def) => ({ ...def, required: requiredOf(def), deposited: 0, completed: false }))
   for (const b of buildings) {
-    // 建物の敷地と寄付ゾーンは雪をどけて、降雪機でも積もらないようにする
+    // 建物の敷地と寄付ゾーンは雪をどけて、以後も積もらないようにする
     field.blockRect(
       b.x - b.width / 2 - b.dropRange,
       b.z - b.depth / 2 - b.dropRange,
@@ -143,12 +141,13 @@ export function createGame(): GameState {
     cooldowns: Object.fromEntries(SKILL_IDS.map((id) => [id, 0])) as Record<SkillId, number>,
     tier: 0,
     totalCollected: 0,
+    initialSnow: 0,
     plows: [],
-    machines: [],
     rares: [],
     rareTimer: 2,
   }
   refillField(s)
+  s.initialSnow = s.field.total()
   return s
 }
 
@@ -314,19 +313,13 @@ function throwRares(s: GameState, b: Building, events: GameEvent[]) {
 
 let unitSeq = 0
 
-/** アップグレードのレベルと、除雪機・降雪機の台数を一致させる（GUI からレベルを直接いじった場合にも使う） */
+/** アップグレードのレベルと、除雪機の台数を一致させる（GUI からレベルを直接いじった場合にも使う） */
 export function syncOwnedUnits(s: GameState) {
   while (s.plows.length < s.upgrades.plow) {
     const p = s.player
     s.plows.push({ id: unitSeq++, x: p.x + 1, z: p.z + 1, facing: 0, load: 0, targetX: p.x, targetZ: p.z, retarget: 0 })
   }
   s.plows.length = Math.min(s.plows.length, s.upgrades.plow)
-  const spots = Math.min(s.upgrades.snowMachine, SNOW_MACHINE_SPOTS.length)
-  while (s.machines.length < spots) {
-    const spot = SNOW_MACHINE_SPOTS[s.machines.length]
-    s.machines.push({ id: unitSeq++, x: spot.x, z: spot.z })
-  }
-  s.machines.length = spots
 }
 
 /** いま建てている建物（BUILDINGS の順で最初の未完成）。全部完成していれば null */
@@ -384,7 +377,6 @@ export function stepGame(s: GameState, input: MoveInput, dt: number): GameEvent[
   }
 
   for (const plow of s.plows) stepPlow(s, plow, dt, events)
-  for (const m of s.machines) s.field.add(m.x, m.z, UPGRADE_EFFECT.snowMachine.radius, UPGRADE_EFFECT.snowMachine.rate, dt)
 
   return events
 }

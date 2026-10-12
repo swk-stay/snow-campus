@@ -436,12 +436,13 @@ renderer.setAnimationLoop((now: number) => {
   scoop.update(dt, packPos)
   sparkles.update(dt)
   projectiles.update(dt)
-  units.update(dt, time, state.plows, state.machines, (pos) => sparkles.burst(tmp.copy(pos).setY(1), 30, 0xbfe3ff, 5))
+  units.update(dt, time, state.plows, (pos) => sparkles.burst(tmp.copy(pos).setY(1), 30, 0xbfe3ff, 5))
   snow.update(time, p.x, p.z, st.collectRadius, p.facing, (PLAYER.collectArc * Math.PI) / 180)
 
   // HUD の進捗は「いま建てている建物」（全部完成したら最後の建物）
   const shown = shownCurrent ?? state.buildings[state.buildings.length - 1]
-  hud.update(dt, p.carried, p.capacity, shown.label, buildingViews.get(shown.id)!.display, state.gold, p.rare)
+  const clearRate = state.initialSnow > 0 ? Math.min(1, Math.max(0, 1 - state.field.total() / state.initialSnow)) : 0
+  hud.update(dt, clearRate, p.carried, p.capacity, shown.label, buildingViews.get(shown.id)!.display, state.gold, p.rare)
   shop?.update(state)
   skillBar?.update(state)
   rareView.update(time, state.rares, state.field)

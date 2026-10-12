@@ -77,7 +77,7 @@ export const ECONOMY = {
   requiredScale: 1,
 }
 
-export type UpgradeId = 'shovel' | 'power' | 'backpack' | 'throwing' | 'plow' | 'snowMachine' | 'cooldown'
+export type UpgradeId = 'shovel' | 'power' | 'backpack' | 'throwing' | 'plow' | 'cooldown'
 
 export type UpgradeDef = {
   label: string
@@ -95,7 +95,6 @@ export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
   backpack: { label: 'リュック', description: '持てる雪 +50%', baseCost: 25, growth: 1.45, maxLevel: [3, 5, 7, 9, 11, 13, 15] },
   throwing: { label: '雪玉投げ', description: '建物へ投げ込む速さ アップ', baseCost: 40, growth: 1.5, maxLevel: [3, 5, 7, 9, 11, 13, 15] },
   plow: { label: '自動除雪機', description: '雪を集めて勝手に寄付', baseCost: 120, growth: 1.8, maxLevel: [1, 2, 3, 4, 5, 6, 8] },
-  snowMachine: { label: '降雪機', description: '周りに雪を降らせる', baseCost: 80, growth: 1.6, maxLevel: [2, 3, 4, 5, 6, 7, 8] },
   cooldown: { label: 'クールダウン短縮', description: 'スキルの待ち時間 ダウン', baseCost: 150, growth: 1.6, maxLevel: [1, 2, 3, 4, 5, 6, 8] },
 }
 
@@ -108,7 +107,6 @@ export const UPGRADE_EFFECT = {
   throwChunkPerLevel: 0.5,
   throwIntervalPerLevel: 0.15,
   plow: { speed: 3.2, radius: 1.6, rate: 0.9, capacity: 30, deliverChunk: 10 },
-  snowMachine: { radius: 5, rate: 0.12 },
   /** クールダウン短縮：待ち時間 ÷(1 + cooldownPerLevel×Lv) */
   cooldownPerLevel: 0.12,
 }
@@ -176,18 +174,6 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   longThrow: { label: '遠投の書', description: 'スキル「遠投」を覚える', cost: 600, unlock: { tier: 2 } },
   blizzard: { label: 'ブリザードの書', description: '必殺技「ブリザード」を覚える', cost: 1500, unlock: { tier: 3 } },
 }
-
-/** 降雪機の設置場所（購入順）。中庭の芝生や構内道路など、建物の敷地にかからない場所 */
-export const SNOW_MACHINE_SPOTS = [
-  { x: 0, z: -15 },
-  { x: -30, z: -20 },
-  { x: 60, z: 8 },
-  { x: -50, z: -35 },
-  { x: 0, z: 85 },
-  { x: -60, z: 88 },
-  { x: -3, z: -105 },
-  { x: 105, z: -60 },
-]
 
 /** 演出パラメータ（sim には影響しない） */
 export const FX = {

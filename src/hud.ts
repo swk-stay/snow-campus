@@ -1,6 +1,8 @@
 // 画面上部のステータス表示とトースト。DOM で十分なので Three.js には載せない。
 
 export class Hud {
+  private readonly clearFill: HTMLDivElement
+  private readonly clearText: HTMLSpanElement
   private readonly snowFill: HTMLDivElement
   private readonly snowText: HTMLSpanElement
   private readonly buildFill: HTMLDivElement
@@ -16,6 +18,7 @@ export class Hud {
     const hud = document.createElement('div')
     hud.id = 'hud'
     hud.innerHTML = `
+      <div class="hud-row"><span class="hud-label">雪かき率</span><div class="bar"><div class="fill clear"></div></div><span class="hud-value" data-clear></span></div>
       <div class="hud-row"><span class="hud-label">雪</span><div class="bar"><div class="fill snow"></div></div><span class="hud-value" data-snow></span></div>
       <div class="hud-row"><span class="hud-label" data-build-label></span><div class="bar"><div class="fill build"></div></div><span class="hud-value" data-build></span></div>
       <div class="hud-gold"><span class="coin"></span><span data-gold>0</span> G<span class="hud-rare" data-rare hidden></span></div>
@@ -24,6 +27,8 @@ export class Hud {
     this.buildLabel = hud.querySelector('[data-build-label]')!
     this.goldText = hud.querySelector('[data-gold]')!
     this.rareText = hud.querySelector('[data-rare]')!
+    this.clearFill = hud.querySelector('.fill.clear')!
+    this.clearText = hud.querySelector('[data-clear]')!
     this.snowFill = hud.querySelector('.fill.snow')!
     this.snowText = hud.querySelector('[data-snow]')!
     this.buildFill = hud.querySelector('.fill.build')!
@@ -34,7 +39,8 @@ export class Hud {
     root.appendChild(this.toastEl)
   }
 
-  update(dt: number, carried: number, capacity: number, buildLabel: string, buildProgress: number, gold: number, rare: number) {
+  /** clearRate：雪原の初期積雪のうち、どけた割合 (0..1) */
+  update(dt: number, clearRate: number, carried: number, capacity: number, buildLabel: string, buildProgress: number, gold: number, rare: number) {
     this.rareText.hidden = rare === 0
     const rareLabel = `レア雪 ×${rare}`
     if (this.rareText.textContent !== rareLabel) this.rareText.textContent = rareLabel
@@ -43,6 +49,8 @@ export class Hud {
     if (Math.abs(gold - this.shownGold) < 0.5) this.shownGold = gold
     this.goldText.textContent = `${Math.floor(this.shownGold)}`
     this.buildLabel.textContent = buildLabel
+    this.clearFill.style.width = `${clearRate * 100}%`
+    this.clearText.textContent = `${(clearRate * 100).toFixed(1)}%`
     this.snowFill.style.width = `${(carried / capacity) * 100}%`
     this.snowText.textContent = `${Math.floor(carried)}/${capacity}`
     this.buildFill.style.width = `${buildProgress * 100}%`
