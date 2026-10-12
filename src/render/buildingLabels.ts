@@ -24,18 +24,22 @@ export class BuildingLabels {
   private readonly labels = new Map<string, Label>()
   private readonly arrowObj: CSS2DObject
   private readonly arrowEl: HTMLDivElement
-  private readonly arrowIcon: HTMLDivElement
+  private readonly arrowIcon: SVGElement
   private readonly arrowLabel: HTMLSpanElement
 
   constructor(scene: THREE.Scene, buildings: Building[]) {
     this.renderer.domElement.id = 'labels'
     document.body.appendChild(this.renderer.domElement)
 
-    // 光の柱が遠くて見えないとき用に、キャラクターの頭上に建設予定地の方向を示す矢印を出す
+    // 光の柱が遠くて見えないとき用に、キャラクターの頭上に建設予定地の方向を示す矢印を出す。
+    // 矢じり（頭）だけの三角形だと回転しても向きが分かりにくいので、軸（尾）付きの矢印にする
     this.arrowEl = document.createElement('div')
     this.arrowEl.className = 'site-arrow'
     this.arrowEl.hidden = true
-    this.arrowEl.innerHTML = '<div class="site-arrow-icon"></div><span class="site-arrow-label"></span>'
+    this.arrowEl.innerHTML = `
+      <svg class="site-arrow-icon" viewBox="0 0 24 24"><path d="M12 1 L21 12 L15 12 L15 23 L9 23 L9 12 L3 12 Z" /></svg>
+      <span class="site-arrow-label"></span>
+    `
     this.arrowIcon = this.arrowEl.querySelector('.site-arrow-icon')!
     this.arrowLabel = this.arrowEl.querySelector('.site-arrow-label')!
     this.arrowObj = new CSS2DObject(this.arrowEl)

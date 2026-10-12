@@ -142,9 +142,8 @@ body.cinematic #labels { opacity: 0; transition: opacity 0.4s; }
 .site-arrow { display: grid; justify-items: center; gap: 2px; }
 .site-arrow[hidden] { display: none; }
 .site-arrow-icon {
-  width: 0; height: 0; margin: 0 auto; border-left: 9px solid transparent; border-right: 9px solid transparent;
-  border-bottom: 16px solid #ffb020; filter: drop-shadow(0 0 4px rgba(255, 176, 32, 0.9));
-  transition: transform 0.15s;
+  width: 22px; height: 22px; fill: #ffb020; filter: drop-shadow(0 0 4px rgba(255, 176, 32, 0.9));
+  transform-box: fill-box; transform-origin: center; transition: transform 0.15s;
 }
 .site-arrow-label {
   font-size: 11px; font-weight: bold; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); white-space: nowrap;
