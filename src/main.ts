@@ -1,6 +1,6 @@
 import './style.css'
 import * as THREE from 'three'
-import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, UPGRADES, WORLD, type UpgradeId } from './config'
+import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, TIME_ATTACK, UPGRADES, WORLD, type UpgradeId } from './config'
 import {
   buyItem,
   buyUpgrade,
@@ -25,7 +25,8 @@ import { RareView } from './render/rareView'
 import { SkillBar } from './skillBar'
 import { Input } from './input'
 import { Hud } from './hud'
-import { Shop } from './shop'
+import { Shop, type ShopAction } from './shop'
+import { TimeAttack } from './timeAttack'
 import { Minimap } from './minimap'
 import { CameraRig, type Shot, type ViewMode } from './camera'
 import { GodCamera } from './godView'
@@ -35,10 +36,13 @@ import { loadTuning } from './tuning'
 import { clearStorage, loadFromStorage, saveToStorage, useSaveSlot } from './save'
 import { playCoin, playFanfare, unlockAudio } from './audio'
 
-// ?view=god で展示用の神視点（WASD で移動・自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード
+// ?view=god で展示用の神視点（WASD で移動・自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード、
+// ?mode=timeattack でタイムアタック（セーブを読まずに最初から始め、セーブもしない）
 const params = new URLSearchParams(location.search)
 const isGodView = params.get('view') === 'god'
 const isBalance = params.has('balance')
+// ダッシュボードの早回しや調整値が入るとタイムが比べられないので、?balance とは併用しない
+const isTimeAttack = !isGodView && !isBalance && params.get('mode') === 'timeattack'
 // 調整した値はダッシュボードを開いたときだけ使う（普段のプレイには持ち込まない）。建物の必要量に効くので createGame より前に。
 // セーブも本編とは別の枠にする
 if (isBalance) {
@@ -62,7 +66,7 @@ sun.position.copy(sunDir).multiplyScalar(30)
 scene.add(sun)
 
 const state = createGame()
-const resumed = loadFromStorage(state)
+const resumed = !isTimeAttack && loadFromStorage(state)
 
 const snow = new SnowSurface(state.field, sunDir)
 scene.add(snow.mesh)
@@ -139,16 +143,40 @@ function resetSave() {
   clearStorage()
   location.reload()
 }
+/** 通常モードとタイムアタックの切り替え。どちらもページを読み直す（通常モードのセーブは pagehide で保存される） */
+function switchMode(timeAttack: boolean) {
+  const url = new URL(location.href)
+  if (timeAttack) url.searchParams.set('mode', 'timeattack')
+  else url.searchParams.delete('mode')
+  location.href = url.href
+}
+const timeAttack = isTimeAttack
+  ? new TimeAttack(document.body, hud.el, state.buildings.slice(0, TIME_ATTACK.goal), {
+      retry: () => location.reload(),
+      quit: () => switchMode(false),
+    })
+  : null
+const shopActions: ShopAction[] = isTimeAttack
+  ? [
+      { label: '最初からやり直す', onClick: () => location.reload(), confirm: 'タイムアタックを最初からやり直しますか？' },
+      { label: 'タイムアタックをやめる', onClick: () => switchMode(false), confirm: 'タイムアタックをやめて通常モードに戻りますか？', danger: true },
+    ]
+  : [
+      { label: 'タイムアタックに挑戦', onClick: () => switchMode(true), confirm: '最初の状態からタイムアタックを始めますか？（いまのセーブはそのまま残ります）' },
+      // 学園祭で次の人に渡すときなどに使う
+      { label: 'セーブを消して最初から', onClick: resetSave, confirm: 'セーブデータを消して最初からやり直しますか？', danger: true },
+    ]
 const shop = isGodView
   ? null
   : new Shop(
       document.body,
       (id) => pendingEvents.push(...buyUpgrade(state, id)),
       (id) => pendingEvents.push(...buyItem(state, id)),
-      resetSave,
+      shopActions,
     )
-// 演出中・全体マップ中はスキルを使えない
-const skillBar = isGodView ? null : new SkillBar(document.body, (id) => !rig.inputLocked && pendingEvents.push(...useSkill(state, id)))
+/** 演出中・全体マップ中・タイムアタックのカウントダウン中は操作できない */
+const inputLocked = () => rig.inputLocked || !!timeAttack?.locked
+const skillBar = isGodView ? null : new SkillBar(document.body, (id) => !inputLocked() && pendingEvents.push(...useSkill(state, id)))
 const minimap = new Minimap(document.body, () => toggleOverview())
 unlockAudio()
 
@@ -183,16 +211,18 @@ function toggleOverview() {
 }
 refreshViewButton()
 
+// 完成演出をスキップできるまでの秒数。タイムアタック中は演出の間もタイムが進むので、すぐスキップできる
+const skipAfter = isTimeAttack ? 0.3 : 2.5
 addEventListener('keydown', (e) => {
   if (e.repeat || isGodView) return
-  if (rig.cinematic && rig.cinematicElapsed > 2.5) rig.skipCinematic()
+  if (rig.cinematic && rig.cinematicElapsed > skipAfter) rig.skipCinematic()
   else if (e.code === 'KeyV') toggleView()
   else if (e.code === 'KeyM') toggleOverview()
 })
 // 俯瞰中は画面タップで戻る。演出は少し見せてからタップでスキップできる
 renderer.domElement.addEventListener('pointerdown', () => {
   if (rig.overview) toggleOverview()
-  else if (rig.cinematic && rig.cinematicElapsed > 2.5) rig.skipCinematic()
+  else if (rig.cinematic && rig.cinematicElapsed > skipAfter) rig.skipCinematic()
 })
 
 const dashboard = isBalance ? new BalanceDashboard(document.body, state) : null
@@ -206,9 +236,9 @@ if (params.has('debug')) {
   })
 }
 
-// オートセーブ：10秒ごと、タブを離れたとき、購入・完成のとき。神視点（展示用）は保存しない
+// オートセーブ：10秒ごと、タブを離れたとき、購入・完成のとき。神視点（展示用）とタイムアタックは保存しない
 function save() {
-  if (!resetting && !isGodView) saveToStorage(state)
+  if (!resetting && !isGodView && !isTimeAttack) saveToStorage(state)
 }
 setInterval(save, 10_000)
 addEventListener('pagehide', save)
@@ -258,6 +288,7 @@ function celebrationShots(b: Building): Shot[] {
       pos: new THREE.Vector3(b.x + dist * 0.25, b.height * 0.5 + 2, b.z + b.depth / 2 + dist),
       look: new THREE.Vector3(b.x, b.height * 0.45, b.z),
       duration: 1 + FX.colorizeSeconds + 1.8,
+      subject: buildingBox(b),
     },
   ]
   const next = currentBuilding(state)
@@ -267,6 +298,7 @@ function celebrationShots(b: Building): Shot[] {
       pos: new THREE.Vector3(next.x + d * 0.3, d * 0.8, next.z + next.depth / 2 + d),
       look: new THREE.Vector3(next.x, next.height * 0.3, next.z),
       duration: 2.8,
+      subject: buildingBox(next),
       onStart: () => hud.toast(`次は「${next.label}」！ 光の柱が目印`, 2600),
     })
   } else {
@@ -280,6 +312,47 @@ function celebrationShots(b: Building): Shot[] {
   return shots
 }
 
+/** 完成形の外接箱 */
+function buildingBox(b: Building): THREE.Box3 {
+  return new THREE.Box3(
+    new THREE.Vector3(b.x - b.width / 2, 0, b.z - b.depth / 2),
+    new THREE.Vector3(b.x + b.width / 2, b.height, b.z + b.depth / 2),
+  )
+}
+
+/** 演出中、カメラから被写体（の箱の角と中心）への視線を遮る建物を薄くする */
+const fadeRay = new THREE.Ray()
+const fadeBox = new THREE.Box3()
+const fadeHit = new THREE.Vector3()
+const fadeCenter = new THREE.Vector3()
+const fadeSize = new THREE.Vector3()
+const fadeSamples = Array.from({ length: 9 }, () => new THREE.Vector3())
+function fadeOccluders(dt: number) {
+  const subject = rig.subject
+  if (subject) {
+    subject.getCenter(fadeCenter)
+    subject.getSize(fadeSize).multiplyScalar(0.42)
+    fadeSamples[0].copy(fadeCenter)
+    for (let k = 0; k < 8; k++) {
+      fadeSamples[k + 1].set(k & 1 ? 1 : -1, k & 2 ? 1 : -1, k & 4 ? 1 : -1).multiply(fadeSize).add(fadeCenter)
+    }
+  }
+  const cam = camera.position
+  for (const view of buildingViews.values()) {
+    const box = subject ? view.monolith.bounds(fadeBox) : null
+    let blocking = false
+    if (box && !box.containsPoint(fadeCenter)) {
+      fadeRay.origin.copy(cam)
+      blocking = fadeSamples.some((s) => {
+        fadeRay.direction.subVectors(s, cam).normalize()
+        const hit = fadeRay.intersectBox(box, fadeHit)
+        return hit !== null && hit.distanceToSquared(cam) < s.distanceToSquared(cam)
+      })
+    }
+    view.monolith.fade(blocking ? 0.15 : 1, dt)
+  }
+}
+
 const tmp = new THREE.Vector3()
 const packPos = new THREE.Vector3()
 const focusPos = new THREE.Vector3()
@@ -291,14 +364,17 @@ renderer.setAnimationLoop((now: number) => {
   last = now
   const time = now / 1000
 
+  timeAttack?.update(dt, rig.cinematic)
   if (!isGodView) rig.turn(-input.turn() * dt * 2)
   // 神視点では WASD はカメラの移動に使い、自機は動かさない
-  const move = isGodView || rig.inputLocked ? { x: 0, z: 0 } : rig.toWorld(input.move())
+  const move = isGodView || inputLocked() ? { x: 0, z: 0 } : rig.toWorld(input.move())
   // ダッシュボードの早回しは stepGame を複数回まわす（dt を大きくすると除雪機や回収の挙動が変わるため）
   const steps = dashboard?.timeScale ?? 1
   const events = pendingEvents.splice(0)
-  for (let i = 0; i < steps; i++) events.push(...stepGame(state, move, dt))
-  dashboard?.record(events, dt * steps)
+  // タイムアタックのカウントダウン中はゲームの時間を止める
+  const simDt = timeAttack?.locked ? 0 : dt
+  for (let i = 0; i < steps; i++) events.push(...stepGame(state, move, simDt))
+  dashboard?.record(events, simDt * steps)
   const p = state.player
   const st = stats(state)
   const moving = Math.min(1, Math.hypot(move.x, move.z))
@@ -402,6 +478,7 @@ renderer.setAnimationLoop((now: number) => {
       // 完成！ カメラを建物へ飛ばして、着いた頃にカラー化を始める
       view.celebrated = true
       view.hold = isGodView ? 0 : 1
+      timeAttack?.complete(b.id)
       input.release()
       if (!isGodView) rig.play(celebrationShots(b))
     } else if (view.celebrated && view.colorize < 0) {
@@ -413,7 +490,7 @@ renderer.setAnimationLoop((now: number) => {
           sparkles.burst(tmp, 8, n % 2 ? 0xffd36e : 0xfff4c2, 5)
         }
         playFanfare()
-        hud.toast(`てってれ～！ ${b.label} 完成！`, 3000)
+        hud.toast(`${b.label} 完成！`, 3000)
       }
     } else if (view.colorize >= 0 && view.colorize < 1) {
       view.colorize = Math.min(1, view.colorize + dt / FX.colorizeSeconds)
@@ -480,6 +557,7 @@ renderer.setAnimationLoop((now: number) => {
   occlusion.uOccl.value += ((occlude ? 1 : 0) - occlusion.uOccl.value) * Math.min(1, dt * 6)
   occlusion.uCamPos.value.copy(camera.position)
   occlusion.uFocus.value.copy(playerView.group.position).setY(playerView.group.position.y + 1)
+  fadeOccluders(dt)
 
   renderer.render(scene, camera)
   labels.render(scene, camera)
