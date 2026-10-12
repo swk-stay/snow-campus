@@ -20,6 +20,11 @@ export const occlusion = {
   uOccl: { value: 0 },
 }
 
+/** 全建物で共有する断面の高さ。これより上（ワールド y）は描かない。Editor で建物の中を見るときに使う */
+export const section = {
+  uClipY: { value: 1e6 },
+}
+
 const vertexShader = /* glsl */ `
   varying vec3 vColor;
   varying vec3 vLocal;
@@ -46,6 +51,7 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uCamPos;
   uniform vec3 uFocus;
   uniform float uOccl;
+  uniform float uClipY;
   uniform float uFade; // 1: そのまま, 0: 完全に消える
   varying vec3 vColor;
   varying vec3 vLocal;
@@ -79,7 +85,7 @@ const fragmentShader = /* glsl */ `
   }
 
   void main() {
-    if (vWorld.y < 0.0) discard;
+    if (vWorld.y < 0.0 || vWorld.y > uClipY) discard;
     if (bayer(gl_FragCoord.xy) > uFade) discard;
 
     // カメラ→プレイヤーの線分に近い部分を抜く（カメラ側ほど太く）
@@ -159,7 +165,7 @@ export type BuildingUniforms = {
 }
 
 export function createBuildingMaterials(u: BuildingUniforms): Record<Slot, THREE.ShaderMaterial> {
-  const uniforms = { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...u, ...occlusion }
+  const uniforms = { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...u, ...occlusion, ...section }
   const make = (slot: Slot) =>
     new THREE.ShaderMaterial({
       uniforms,
