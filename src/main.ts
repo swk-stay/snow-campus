@@ -1,7 +1,7 @@
 import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { FX, ITEMS, SKILL_EFFECT, SKILLS, UPGRADES, WORLD, type UpgradeId } from './config'
+import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, UPGRADES, WORLD, type UpgradeId } from './config'
 import {
   buyItem,
   buyUpgrade,
@@ -17,7 +17,7 @@ import {
 import { SnowSurface } from './render/snowSurface'
 import { Monolith } from './render/monolith'
 import { PlayerView } from './render/playerView'
-import { Projectiles, Sparkles, Suction } from './render/effects'
+import { Projectiles, Scoop, Sparkles } from './render/effects'
 import { UnitsView } from './render/units'
 import { BuildingLabels } from './render/buildingLabels'
 import { RareView } from './render/rareView'
@@ -75,12 +75,12 @@ outer.position.y = 0.75 * WORLD.snowMaxHeight
 scene.add(outer)
 
 const playerView = new PlayerView()
-const suction = new Suction()
+const scoop = new Scoop()
 const sparkles = new Sparkles()
 const projectiles = new Projectiles()
 const units = new UnitsView()
 const rareView = new RareView()
-scene.add(playerView.group, suction.mesh, sparkles.mesh, projectiles.mesh, units.group, rareView.group)
+scene.add(playerView.group, scoop.mesh, sparkles.mesh, projectiles.mesh, units.group, rareView.group)
 
 type BuildingView = {
   monolith: Monolith
@@ -243,7 +243,7 @@ function playSkillEffect(id: keyof typeof SKILLS, amount?: number) {
       const a = (n / 60) * Math.PI * 2
       tmp.set(pos.x + Math.cos(a) * r * Math.sqrt(Math.random()), 0.5, pos.z + Math.sin(a) * r * Math.sqrt(Math.random()))
       sparkles.burst(tmp, 3, 0xffffff, 6)
-      suction.spawn(tmp)
+      scoop.spawn(tmp, packPos, Math.random() * 0.4)
     }
     playFanfare()
     hud.toast(`ブリザード！！ +${Math.floor(amount ?? 0)}`, 2000)
@@ -285,7 +285,7 @@ const tmp = new THREE.Vector3()
 const packPos = new THREE.Vector3()
 const focusPos = new THREE.Vector3()
 let last = performance.now()
-let suckBudget = 0
+let scoopBudget = 0
 
 renderer.setAnimationLoop((now: number) => {
   const dt = Math.min((now - last) / 1000, 0.05)
@@ -308,7 +308,7 @@ renderer.setAnimationLoop((now: number) => {
 
   for (const e of events) {
     if (e.type === 'collect') {
-      suckBudget += e.amount * FX.suctionPerSnow
+      scoopBudget += e.amount * FX.scoopPerSnow
     } else if (e.type === 'upgrade') {
       hud.toast(`${UPGRADES[e.id].label} Lv${e.level}！`, 1200)
       sparkles.burst(packPos, 24, 0xffd36e, 4)
@@ -348,15 +348,26 @@ renderer.setAnimationLoop((now: number) => {
     }
   }
 
-  // 削った場所から雪の粒を湧かせる
-  for (let n = 0; suckBudget >= 1 && n < 40; n++, suckBudget--) {
-    const a = Math.random() * Math.PI * 2
-    const r = st.collectRadius * Math.sqrt(Math.random())
-    tmp.set(p.x + Math.cos(a) * r, 0, p.z + Math.sin(a) * r)
-    tmp.y = state.field.amountAt(tmp.x, tmp.z) * WORLD.snowMaxHeight + 0.05
-    suction.spawn(tmp)
+  // 削った場所（前方の扇形）から雪をすくい上げ、肩越しに背中へ放り込む。
+  // 1か所から数粒ずつ時間差で出して「ひとすくい」の塊に見せる
+  const halfArc = (Math.min(360, PLAYER.collectArc) * Math.PI) / 360
+  scoopBudget = Math.min(scoopBudget, 40)
+  while (scoopBudget >= 1) {
+    const a = p.facing + (Math.random() * 2 - 1) * halfArc
+    // 手前ほど多く削れるので、粒も手前寄りに出す
+    const r = st.collectRadius * (0.25 + 0.75 * Math.random() ** 1.5)
+    const x = p.x + Math.sin(a) * r
+    const z = p.z + Math.cos(a) * r
+    const clump = Math.min(Math.floor(scoopBudget), 3 + Math.floor(Math.random() * 3))
+    scoopBudget -= clump
+    for (let k = 0; k < clump; k++) {
+      tmp.set(x + (Math.random() - 0.5) * 0.3, 0, z + (Math.random() - 0.5) * 0.3)
+      tmp.y = state.field.amountAt(tmp.x, tmp.z) * WORLD.snowMaxHeight + 0.03
+      scoop.spawn(tmp, packPos, k * 0.03)
+    }
+    // すくった跡に小さな雪しぶき
+    sparkles.burst(tmp, 1, 0xf4f8ff, 1.5)
   }
-  suckBudget = Math.min(suckBudget, 40)
 
   const current = currentBuilding(state)
   // 見た目上の「いま建てている建物」。sim は雪玉を投げた瞬間に加算・完成判定するが、
@@ -418,11 +429,11 @@ renderer.setAnimationLoop((now: number) => {
     labels.update(b, stage, view.display, view.monolith.topY, camera)
   }
 
-  suction.update(dt, packPos)
+  scoop.update(dt, packPos)
   sparkles.update(dt)
   projectiles.update(dt)
   units.update(dt, time, state.plows, state.machines, (pos) => sparkles.burst(tmp.copy(pos).setY(1), 30, 0xbfe3ff, 5))
-  snow.update(time, p.x, p.z, st.collectRadius)
+  snow.update(time, p.x, p.z, st.collectRadius, p.facing, (PLAYER.collectArc * Math.PI) / 180)
 
   // HUD の進捗は「いま建てている建物」（全部完成したら最後の建物）
   const shown = shownCurrent ?? state.buildings[state.buildings.length - 1]

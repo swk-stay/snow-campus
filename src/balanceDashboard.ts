@@ -168,12 +168,12 @@ export class BalanceDashboard {
         [
           '回収 SPS',
           this.derivedInput(
-            () => diskYield(PLAYER.collectRadius, PLAYER.collectRate),
-            (v) => TUNABLE.get('PLAYER.collectRate')!.set(sig(rateForYield(PLAYER.collectRadius, v))),
+            () => diskYield(PLAYER.collectRadius, PLAYER.collectRate, PLAYER.collectArc),
+            (v) => TUNABLE.get('PLAYER.collectRate')!.set(sig(rateForYield(PLAYER.collectRadius, v, PLAYER.collectArc))),
             1,
             'PLAYER.collectRate',
           ),
-          this.text(() => `${num(th().collect)}（半径 ${num(th().collectRadius)}m）`),
+          this.text(() => `${num(th().collect)}（半径 ${num(th().collectRadius)}m・${PLAYER.collectArc}°）`),
         ],
         [
           '投げ込み SPS',

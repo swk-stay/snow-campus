@@ -1,21 +1,22 @@
 // バランスの理論値。雪が十分ある場所で削り続けたときの上限など、移動や雪の偏りを無視した目安を出す。
 // 実測（調整画面の「実測」）と並べて見て、どこがボトルネックかを判断するのに使う。
 
-import { SNOW_MACHINE_SPOTS, UPGRADE_EFFECT, type UpgradeId } from '../config'
+import { PLAYER, SNOW_MACHINE_SPOTS, UPGRADE_EFFECT, type UpgradeId } from '../config'
 import { UNIT_AREA } from './field'
 import { stats, type GameState } from './game'
 
 /**
  * 半径 radius・速さ rate で満タンの雪原を削った（または降らせた）ときの 1 秒あたりの量。
  * セルごとの量は中心ほど多い 1-(d/r)² の重みなので、円の面積の半分 × rate になる。
+ * arc（度）を渡すと、その扇形の割合だけに減らす（プレイヤーの前方回収）。
  */
-export function diskYield(radius: number, rate: number): number {
-  return ((Math.PI * radius * radius) / 2) * rate / UNIT_AREA
+export function diskYield(radius: number, rate: number, arc = 360): number {
+  return ((((Math.PI * radius * radius) / 2) * rate) / UNIT_AREA) * (Math.min(arc, 360) / 360)
 }
 
 /** diskYield の逆算：1 秒あたり sps を得るのに必要な rate */
-export function rateForYield(radius: number, sps: number): number {
-  return sps / diskYield(radius, 1)
+export function rateForYield(radius: number, sps: number, arc = 360): number {
+  return sps / diskYield(radius, 1, arc)
 }
 
 export type Theory = {
@@ -41,7 +42,7 @@ export type Theory = {
 /** upgrades を渡すと、そのレベルだった場合の値を返す（アップグレードの効果の比較用） */
 export function theory(s: GameState, upgrades: Record<UpgradeId, number> = s.upgrades): Theory {
   const st = stats({ ...s, upgrades })
-  const collect = diskYield(st.collectRadius, st.collectRate)
+  const collect = diskYield(st.collectRadius, st.collectRate, PLAYER.collectArc)
   const throwRate = st.throwChunk / st.throwInterval
   const plow = UPGRADE_EFFECT.plow
   const machine = UPGRADE_EFFECT.snowMachine

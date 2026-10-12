@@ -39,6 +39,7 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uSunDir;
   uniform float uTime;
   uniform vec3 uPlayer; // xy = プレイヤーの xz, z = 回収半径
+  uniform vec3 uFacing; // xy = 向きの単位ベクトル (x, z), z = 回収の扇形の半角
   varying float vH;
   varying vec3 vNormal;
   varying vec3 vWorld;
@@ -72,9 +73,17 @@ const fragmentShader = /* glsl */ `
     // プレイヤーの影と回収範囲リング
     float d = distance(vWorld.xz, uPlayer.xy);
     col *= 1.0 - 0.35 * smoothstep(0.6, 0.0, d);
-    float ring = smoothstep(0.09, 0.0, abs(d - uPlayer.z));
+    // 回収範囲は向いている方向の扇形（既定は前方の半円）。弧と両端の半径の線を描く
+    vec2 rel = vWorld.xz - uPlayer.xy;
+    float ang = acos(clamp(dot(rel / max(d, 1e-4), uFacing.xy), -1.0, 1.0));
+    float inArc = step(ang, uFacing.z);
+    float inside = step(d, uPlayer.z) * inArc;
+    float arcLine = smoothstep(0.09, 0.0, abs(d - uPlayer.z)) * inArc;
+    float edgeLine = smoothstep(0.09, 0.0, d * sin(min(abs(ang - uFacing.z), 1.57))) * step(d, uPlayer.z)
+      * step(uFacing.z, 3.13);
+    float ring = max(arcLine, edgeLine);
     col = mix(col, vec3(0.25, 0.55, 1.0), ring * 0.55);
-    col = mix(col, vec3(0.6, 0.8, 1.0), step(d, uPlayer.z) * 0.06);
+    col = mix(col, vec3(0.6, 0.8, 1.0), inside * 0.06);
 
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
@@ -106,6 +115,7 @@ export class SnowSurface {
       uSunDir: { value: sunDir.clone().normalize() },
       uTime: { value: 0 },
       uPlayer: { value: new THREE.Vector3() },
+      uFacing: { value: new THREE.Vector3(0, 1, Math.PI) },
     }
 
     // 頂点はセルと1対1（320×320 で約10万頂点）。スマホでも問題ない量
@@ -115,7 +125,8 @@ export class SnowSurface {
     this.mesh.frustumCulled = false
   }
 
-  update(time: number, playerX: number, playerZ: number, collectRadius: number) {
+  /** facing: プレイヤーの向き（+Z 方向が 0）、arc: 回収の扇形の角度（ラジアン） */
+  update(time: number, playerX: number, playerZ: number, collectRadius: number, facing: number, arc: number) {
     if (this.field.dirty) {
       const src = this.field.data
       for (let k = 0; k < src.length; k++) this.texData[k] = Math.round(Math.min(1, src[k]) * 255)
@@ -125,5 +136,6 @@ export class SnowSurface {
     this.uniforms.uTime.value = time
     this.uniforms.uMaxH.value = WORLD.snowMaxHeight
     this.uniforms.uPlayer.value.set(playerX, playerZ, collectRadius)
+    this.uniforms.uFacing.value.set(Math.sin(facing), Math.cos(facing), Math.min(Math.PI, arc / 2))
   }
 }

@@ -40,6 +40,7 @@ const SKILL_IDS = Object.keys(SKILLS) as SkillId[]
 export const TUNABLES: Tunable[] = [
   prop('プレイヤー', PLAYER, 'PLAYER', 'speed', '移動速度 (m/s)', 0.5),
   prop('プレイヤー', PLAYER, 'PLAYER', 'collectRadius', '回収半径 (m)', 0.1),
+  prop('プレイヤー', PLAYER, 'PLAYER', 'collectArc', '回収の角度（度）', 10),
   prop('プレイヤー', PLAYER, 'PLAYER', 'collectRate', '削る速さ', 0.05),
   prop('プレイヤー', PLAYER, 'PLAYER', 'capacity', '所持上限', 10),
   prop('プレイヤー', PLAYER, 'PLAYER', 'throwInterval', '投げる間隔 (s)', 0.01),

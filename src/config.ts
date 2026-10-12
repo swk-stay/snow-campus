@@ -14,6 +14,8 @@ export const PLAYER = {
   bodyRadius: 0.45,
   /** 自動回収の半径 (m)。スコップ系アップグレードで伸びる想定 */
   collectRadius: 2.5,
+  /** 自動回収の扇形の角度（度）。向いている方向を中心に、この角度の範囲だけ削る。180 = 前方の半円 */
+  collectArc: 180,
   /** 中心での1秒あたりの削り量（セルの雪の量 0..1 に対する割合） */
   collectRate: 0.8,
   /** 背負える雪の上限 */
@@ -177,8 +179,8 @@ export const SNOW_MACHINE_SPOTS = [
 
 /** 演出パラメータ（sim には影響しない） */
 export const FX = {
-  /** 雪1単位あたりに湧かせる吸い込みの粒の数 */
-  suctionPerSnow: 2.5,
+  /** 雪1単位あたりに湧かせる、すくい上げる雪の粒の数 */
+  scoopPerSnow: 2.5,
   /** 完成時のカラー化にかかる秒数 */
   colorizeSeconds: 2.5,
 }
