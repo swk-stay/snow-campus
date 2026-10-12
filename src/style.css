@@ -8,7 +8,9 @@ canvas { display: block; touch-action: none; }
   padding: 8px 12px; border-radius: 12px; background: rgba(20, 30, 50, 0.45); color: #fff;
   font-size: 14px; backdrop-filter: blur(4px);
 }
-.hud-row { display: grid; grid-template-columns: 3.5em 120px 4.5em; align-items: center; gap: 8px; }
+.hud-row { display: grid; grid-template-columns: 7.2em 120px 4.5em; align-items: center; gap: 8px; }
+/* 建物名（「先進技術研究所」など）が長いので折り返さず、入りきらなければ省略 */
+.hud-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hud-value { font-variant-numeric: tabular-nums; text-align: right; }
 .bar { height: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
 .fill { height: 100%; width: 0; border-radius: 5px; transition: width 0.15s; }
@@ -38,7 +40,7 @@ canvas { display: block; touch-action: none; }
 .coin { display: inline-block; width: 14px; height: 14px; margin-right: 6px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff3b0, #f2b01e 60%, #b97c00); vertical-align: -1px; }
 @media (max-width: 480px) {
   #hud { font-size: 12px; padding: 6px 10px; gap: 4px; }
-  .hud-row { grid-template-columns: 3.5em 90px 4em; }
+  .hud-row { grid-template-columns: 6.4em 72px 4em; }
 }
 
 #shop-button {

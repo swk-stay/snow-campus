@@ -6,6 +6,7 @@ import {
   ECONOMY,
   ITEMS,
   PLAYER,
+  PLAYER_START,
   RARE,
   SKILL_EFFECT,
   SKILLS,
@@ -125,9 +126,9 @@ export function createGame(): GameState {
   const s: GameState = {
     field,
     player: {
-      x: 0,
-      z: 6,
-      facing: Math.PI,
+      x: PLAYER_START.x,
+      z: PLAYER_START.z,
+      facing: PLAYER_START.facing,
       carried: 0,
       capacity: PLAYER.capacity,
       throwCooldown: 0,

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { WORLD } from '../config'
 import type { SnowField } from '../sim/field'
+import { paintGround } from './campusGround'
 
 // 雪原の描画。SnowField を R8 テクスチャに詰め、頂点シェーダーで高さに変換する。
 // 法線は高さマップの差分から求めるので、削った跡の縁にちゃんと陰影が付く。
@@ -39,6 +40,8 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uSunDir;
   uniform float uTime;
   uniform vec3 uPlayer; // xy = プレイヤーの xz, z = 回収半径
+  uniform sampler2D uGround;
+  uniform float uSize;
   varying float vH;
   varying vec3 vNormal;
   varying vec3 vWorld;
@@ -52,11 +55,9 @@ const fragmentShader = /* glsl */ `
     vec3 n = normalize(vNormal);
     float diff = max(dot(n, uSunDir), 0.0);
 
-    // 雪の下の地面（キャンパスの舗装っぽいタイル）
-    vec3 ground = vec3(0.035, 0.04, 0.05);
-    vec2 g = fract(vWorld.xz / 2.0);
-    ground *= 1.0 - 0.35 * step(0.96, max(g.x, g.y));
-    vec3 groundLit = ground * (0.6 + 0.4 * diff);
+    // 雪の下の地面（芝生・園路・構内道路。campusGround.ts で描いたもの）
+    vec3 ground = texture2D(uGround, vWorld.xz / uSize + 0.5).rgb;
+    vec3 groundLit = ground * (0.55 + 0.45 * diff);
 
     vec3 snow = mix(vec3(0.42, 0.52, 0.78), vec3(1.0), diff);
     float cover = smoothstep(0.02, 0.18, vH);
@@ -106,9 +107,10 @@ export class SnowSurface {
       uSunDir: { value: sunDir.clone().normalize() },
       uTime: { value: 0 },
       uPlayer: { value: new THREE.Vector3() },
+      uGround: { value: createGroundTexture() },
     }
 
-    // 頂点はセルと1対1（320×320 で約10万頂点）。スマホでも問題ない量
+    // 頂点はセルと1対1（480×480 で約23万頂点）
     const geo = new THREE.PlaneGeometry(field.size, field.size, field.res - 1, field.res - 1)
     geo.rotateX(-Math.PI / 2)
     this.mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader, fragmentShader, fog: true }))
@@ -126,4 +128,13 @@ export class SnowSurface {
     this.uniforms.uMaxH.value = WORLD.snowMaxHeight
     this.uniforms.uPlayer.value.set(playerX, playerZ, collectRadius)
   }
+}
+
+function createGroundTexture(): THREE.Texture {
+  const tex = new THREE.CanvasTexture(paintGround(2048))
+  tex.colorSpace = THREE.SRGBColorSpace
+  // Canvas の上端が -Z。雪原のテクスチャ（行 0 が -Z）と向きをそろえる
+  tex.flipY = false
+  tex.anisotropy = 8
+  return tex
 }

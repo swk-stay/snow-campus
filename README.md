@@ -1,6 +1,6 @@
 # snow-campus_poc
 
-消えた大学の校舎を、積もった雪で建て直すブラウザゲームのPoC。
+消えた大学の校舎を、積もった雪で建て直すブラウザゲームのPoC。舞台は神奈川工科大学の中庭まわり（実寸）。
 
 - Stack: TypeScript + Vite + Three.js (+ lil-gui)
 - 対応: PC / スマホ縦持ち

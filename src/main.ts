@@ -16,6 +16,8 @@ import {
 } from './sim/game'
 import { SnowSurface } from './render/snowSurface'
 import { Monolith } from './render/monolith'
+import { occlusion } from './render/buildings/material'
+import { createScenery } from './render/scenery'
 import { PlayerView } from './render/playerView'
 import { Projectiles, Sparkles, Suction } from './render/effects'
 import { UnitsView } from './render/units'
@@ -42,7 +44,7 @@ app.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0xb9cbe0)
-const fog = new THREE.Fog(0xb9cbe0, 55, 140)
+const fog = new THREE.Fog(0xb9cbe0, 90, 260)
 scene.fog = fog
 const sunDir = new THREE.Vector3(0.45, 0.8, 0.35).normalize()
 scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.3))
@@ -57,13 +59,15 @@ const snow = new SnowSurface(state.field, sunDir)
 scene.add(snow.mesh)
 // 雪原の外側（回収できない背景の雪面）。高さは雪原外周の初期値 0.75 に合わせる
 const outer = new THREE.Mesh(
-  new THREE.RingGeometry(WORLD.size * 0.7, 400, 4, 1, Math.PI / 4),
+  new THREE.RingGeometry(WORLD.size * 0.7, WORLD.size * 6, 4, 1, Math.PI / 4),
   // 日向の雪面（SnowSurface の平地）とほぼ同じ色を無ライティングで出す
   new THREE.MeshBasicMaterial({ color: 0xf0f3fa }),
 )
 outer.rotation.x = -Math.PI / 2
 outer.position.y = 0.75 * WORLD.snowMaxHeight
 scene.add(outer)
+// 並木・バス・守衛所（建て直しの対象ではない景色）
+scene.add(createScenery())
 
 const playerView = new PlayerView()
 const suction = new Suction()
@@ -87,10 +91,10 @@ type BuildingView = {
   hold: number
 }
 const buildingViews = new Map<string, BuildingView>()
-state.buildings.forEach((b, i) => {
+state.buildings.forEach((b) => {
   // セーブから再開した場合、完成済みの建物は最初からカラーで建っている
   const view: BuildingView = {
-    monolith: new Monolith(b, i, sunDir),
+    monolith: new Monolith(b, sunDir),
     display: b.deposited / b.required,
     inFlight: 0,
     colorize: b.completed ? 1 : -1,
@@ -103,7 +107,7 @@ state.buildings.forEach((b, i) => {
 
 const labels = new BuildingLabels(scene, state.buildings)
 
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1200)
+const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 1500)
 const rig = new CameraRig(camera)
 try {
   rig.mode = (localStorage.getItem('snow-campus-view') as ViewMode | null) ?? 'top'
@@ -112,13 +116,13 @@ try {
 }
 const controls = isGodView ? new OrbitControls(camera, renderer.domElement) : null
 if (controls) {
-  camera.position.set(0, 70, 75)
-  controls.target.set(0, 2, 0)
+  camera.position.set(0, 120, 165)
+  controls.target.set(0, 8, 0)
   controls.autoRotate = true
   controls.autoRotateSpeed = 0.6
   controls.enableDamping = true
-  fog.near = 150
-  fog.far = 400
+  fog.near = 250
+  fog.far = 650
 }
 
 const input = new Input(renderer.domElement, !isGodView)
@@ -261,8 +265,8 @@ function celebrationShots(b: Building): Shot[] {
     })
   } else {
     shots.push({
-      pos: new THREE.Vector3(0, 55, 70),
-      look: new THREE.Vector3(0, 4, 0),
+      pos: new THREE.Vector3(60, 150, 190),
+      look: new THREE.Vector3(0, 10, 0),
       duration: 4,
       onStart: () => hud.toast('キャンパスが全部復活した！', 3800),
     })
@@ -448,11 +452,17 @@ renderer.setAnimationLoop((now: number) => {
     fog.far = rig.fog.far
   }
 
+  // カメラとプレイヤーの間にある建物の部分を抜く（実寸の校舎は高いので、見下ろしでも隠れてしまう）
+  const occlude = !isGodView && !rig.cinematic && !rig.overview
+  occlusion.uOccl.value += ((occlude ? 1 : 0) - occlusion.uOccl.value) * Math.min(1, dt * 6)
+  occlusion.uCamPos.value.copy(camera.position)
+  occlusion.uFocus.value.copy(playerView.group.position).setY(playerView.group.position.y + 1)
+
   renderer.render(scene, camera)
   labels.render(scene, camera)
 })
 
 // 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890, buy('plow')）
 if (import.meta.env.DEV) {
-  Object.assign(window, { game: state, rig, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
+  Object.assign(window, { game: state, rig, camera, controls, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
 }
