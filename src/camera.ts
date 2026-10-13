@@ -9,9 +9,38 @@ export type ViewMode = 'top' | 'ground'
 
 /**
  * 演出カット。pos から look を見る。duration 秒たったら次のカットへ。
- * subject を渡すと、カメラとその箱の間に被る建物を main が薄くする
+ * subject を渡すと、カメラとその箱の間に被る建物や木を main が薄くする。
+ * fog を渡さなければ、建物を映すくらいの距離に合わせたフォグにする
  */
-export type Shot = { pos: THREE.Vector3; look: THREE.Vector3; duration: number; subject?: THREE.Box3; onStart?: () => void }
+export type Shot = {
+  pos: THREE.Vector3
+  look: THREE.Vector3
+  duration: number
+  subject?: THREE.Box3
+  fog?: { near: number; far: number }
+  onStart?: () => void
+}
+
+/**
+ * 雪原全体が画面に収まる、斜め上からのカメラ位置と注視点。全体マップと、全部完成したときの演出で使う。
+ * 返り値はその距離に合わせたフォグ
+ */
+export function overviewPose(
+  camera: THREE.PerspectiveCamera,
+  worldSize: number,
+  worldCenter: { x: number; z: number },
+  pos: THREE.Vector3,
+  look: THREE.Vector3,
+): { near: number; far: number } {
+  // フィールド全体が画面に収まる距離（縦持ちは横幅で決まるので遠くなる）
+  const halfFov = THREE.MathUtils.degToRad(camera.fov / 2)
+  const fit = (worldSize * 0.66) / (Math.tan(halfFov) * Math.min(camera.aspect, 1.3))
+  const { x: cx, z: cz } = worldCenter
+  // 斜めに見下ろすので手前（+Z）が画面からはみ出しやすい。注視点を少し手前へずらす
+  pos.set(cx, fit * 0.86, cz + fit * 0.5 + worldSize * 0.08)
+  look.set(cx, 0, cz + worldSize * 0.08)
+  return { near: fit * 3, far: fit * 4 }
+}
 
 export type RigContext = {
   player: THREE.Vector3
@@ -120,17 +149,11 @@ export class CameraRig {
       tmp.copy(shot.pos)
       tmp2.copy(shot.look)
       speed = 2.2
-      this.setFog(150, 480, dt)
+      this.setFog(shot.fog?.near ?? 150, shot.fog?.far ?? 480, dt)
     } else if (this.overview) {
-      // フィールド全体が画面に収まる距離（縦持ちは横幅で決まるので遠くなる）
-      const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2)
-      const fit = (ctx.worldSize * 0.66) / (Math.tan(halfFov) * Math.min(this.camera.aspect, 1.3))
-      const { x: cx, z: cz } = ctx.worldCenter
-      // 斜めに見下ろすので手前（+Z）が画面からはみ出しやすい。注視点を少し手前へずらす
-      tmp.set(cx, fit * 0.86, cz + fit * 0.5 + ctx.worldSize * 0.08)
-      tmp2.set(cx, 0, cz + ctx.worldSize * 0.08)
+      const fog = overviewPose(this.camera, ctx.worldSize, ctx.worldCenter, tmp, tmp2)
       speed = 3
-      this.setFog(fit * 3, fit * 4, dt)
+      this.setFog(fog.near, fog.far, dt)
     } else if (this.mode === 'top') {
       // 縦持ちでは少し引く。建物に近づいたら引きつつ注視点を建物へ寄せる
       tmp.set(0, portrait ? 19 : 12, portrait ? 16 : 13).multiplyScalar(1 + ctx.near * (portrait ? 0.6 : 0.45))
