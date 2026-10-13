@@ -110,7 +110,7 @@ body.cinematic #hud, body.cinematic #minimap, body.cinematic #view-bar, body.cin
 #hud, #minimap, #view-bar, #shop-button, #shop { z-index: 2; }
 body.overview #hud, body.overview #shop-button { opacity: 0.3; }
 body.god-view #view-bar, body.god-view #minimap { display: none; }
-/* 神視点（?view=god）の右下パネル：自動回転の ON/OFF・移動速度・建物の当たり方 */
+/* 神視点（?view=god）の右下パネル：自動回転の ON/OFF・移動速度・建物の当たり方・感度と視野角 */
 #god-bar { position: fixed; right: 12px; bottom: max(16px, env(safe-area-inset-bottom)); display: flex; gap: 8px; z-index: 2; }
 #god-bar button {
   padding: 10px 14px; border: none; border-radius: 999px; background: rgba(20, 30, 50, 0.6); color: #fff;
@@ -119,6 +119,10 @@ body.god-view #view-bar, body.god-view #minimap { display: none; }
 #god-bar button.active { background: rgba(47, 95, 179, 0.85); }
 #god-bar kbd { font: inherit; font-size: 11px; opacity: 0.7; border: 1px solid rgba(255,255,255,0.5); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
 @media (pointer: coarse) { #god-bar kbd { display: none; } }
+#god-bar .fly-settings {
+  padding: 6px 12px; border-radius: 14px; background: rgba(20, 30, 50, 0.6); color: #fff; backdrop-filter: blur(4px);
+}
+@media (max-width: 720px) { #god-bar { flex-wrap: wrap; justify-content: flex-end; left: 12px; } }
 
 /* 建物の上の進捗ラベル（CSS2DRenderer） */
 #labels { position: fixed; inset: 0; pointer-events: none; }

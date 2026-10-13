@@ -1,6 +1,5 @@
 import './editor.css'
 import * as THREE from 'three'
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import { WORLD } from '../config'
 import { createGame, refillField } from '../sim/game'
@@ -8,11 +7,14 @@ import { SnowSurface } from '../render/snowSurface'
 import { Monolith } from '../render/monolith'
 import { section } from '../render/buildings/material'
 import { createScenery } from '../render/scenery'
+import { FlyCamera } from '../flyCamera'
 import { NOTE_KINDS, fmt, loadNotes, notesToJson, notesToMarkdown, parseNotes, saveNotes, type Note, type NoteKind } from './notes'
 
 // 任意の座標に「ここに〇〇を置いて」「この木を消して」を書き込む Editor（issue #26）。
 // 全棟完成の状態のキャンパスを自由に見回し、クリックした場所（建物・木・地面）の 3 軸の座標にテキストを置く。
 // 建物の中に置くときは「断面」で上の階を消して、床をクリックする。書き出した Markdown / JSON を実装する人に渡す。
+// カメラは神視点と共通の FPS 風（flyCamera.ts、issue #42）。Ctrl で「選択モード（カーソルでクリック）」と
+// 「視点モード（Pointer Lock でマウス見回し、クリックで画面中央を選ぶ）」を切り替える。
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -54,12 +56,27 @@ const monoliths = state.buildings.map((b) => {
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 2000)
 camera.position.set(WORLD.centerX + 120, 230, WORLD.centerZ + 300)
-const controls = new OrbitControls(camera, renderer.domElement)
-controls.target.set(WORLD.centerX, 0, WORLD.centerZ)
-controls.enableDamping = true
-// 地図のように、パンは地面と平行に動かす
-controls.screenSpacePanning = false
-controls.maxPolarAngle = Math.PI * 0.495
+// 建物の中にも入れるように当たり判定はしない。断面で消した上の階をくぐって床に近寄れる
+const fly = new FlyCamera(camera, renderer.domElement, {
+  area: { x: WORLD.centerX, z: WORLD.centerZ, half: WORLD.size / 2 + 80 },
+  minY: 0.3,
+  maxY: 400,
+  clickToLock: false,
+})
+fly.lookAt(new THREE.Vector3(WORLD.centerX, 0, WORLD.centerZ))
+
+// いまの操作モードの表示（左上）
+const modeBadge = document.createElement('div')
+modeBadge.id = 'editor-mode'
+document.body.appendChild(modeBadge)
+function refreshMode(locked: boolean) {
+  modeBadge.classList.toggle('locked', locked)
+  modeBadge.innerHTML = locked
+    ? '<b>視点モード</b> マウスで見回す ／ クリックで画面中央を選ぶ ／ <kbd>Ctrl</kbd> か <kbd>Esc</kbd> で選択モードへ'
+    : '<b>選択モード</b> ドラッグで見回す ／ クリックで場所を選ぶ ／ <kbd>Ctrl</kbd> で視点モードへ'
+}
+fly.onLockChange = refreshMode
+refreshMode(false)
 
 // ---------- カーソル（次に置く場所） ----------
 
@@ -165,6 +182,7 @@ panel.innerHTML = `
     <div class="ep-row"><input type="range" min="0.5" max="60" step="0.5" data-clip><output data-clip-out></output></div>
     <label class="ep-row"><input type="checkbox" data-glass checked> ガラスを無視してクリック（窓の向こうの床や家具に置ける）</label>
     <label class="ep-row"><input type="checkbox" data-snow> 雪をどけて地面（芝生・園路）を見る</label>
+    <div class="ep-actions"><button data-speed></button></div>
   </section>
   <section class="ep-list-wrap">
     <div class="ep-list-head"><b>リクエスト一覧</b><span data-count></span></div>
@@ -177,7 +195,7 @@ panel.innerHTML = `
     </div>
     <input type="file" accept="application/json,.json" data-file hidden>
   </section>
-  <small class="ep-hint">左ドラッグ：回転 ／ 右ドラッグ：移動 ／ ホイール：ズーム ／ クリック：場所を選ぶ</small>
+  <small class="ep-hint">WASD・矢印：移動 ／ E・Q：上下 ／ ホイール：前後 ／ Shift：速度 ／ Ctrl：視点モード（マウスで見回す）と選択モードの切り替え</small>
 `
 document.body.appendChild(panel)
 const q = <T extends HTMLElement>(sel: string) => panel.querySelector<T>(sel)!
@@ -194,6 +212,13 @@ const glassCheck = q<HTMLInputElement>('[data-glass]')
 const snowCheck = q<HTMLInputElement>('[data-snow]')
 const list = q<HTMLOListElement>('[data-list]')
 const fileInput = q<HTMLInputElement>('[data-file]')
+const speedButton = q<HTMLButtonElement>('[data-speed]')
+// 感度・視野角のスライダーは移動速度のボタンの下に
+speedButton.parentElement!.after(fly.settingsPanel)
+const refreshSpeed = () => (speedButton.innerHTML = `移動速度 ${fly.speedLabel} <kbd>Shift</kbd>`)
+speedButton.addEventListener('click', () => fly.cycleSpeed())
+fly.onSpeedChange(refreshSpeed)
+refreshSpeed()
 // パネルの操作がカメラやクリック判定に漏れないように
 panel.addEventListener('pointerdown', (e) => e.stopPropagation())
 
@@ -316,12 +341,11 @@ function renderList() {
   )
 }
 
-/** カメラの向きはそのままで、注視点だけリクエストの場所へ動かす */
+/** カメラの向きはそのままで、リクエストの場所が画面の中央に来るところへ動かす */
 function lookAt(n: Note) {
-  const offset = camera.position.clone().sub(controls.target)
-  if (offset.length() > 60) offset.setLength(60)
-  controls.target.set(n.x, n.y, n.z)
-  camera.position.copy(controls.target).add(offset)
+  const p = new THREE.Vector3(n.x, n.y, n.z)
+  const dist = Math.min(60, camera.position.distanceTo(p))
+  camera.position.copy(p).addScaledVector(fly.getDirection(new THREE.Vector3()), -dist)
   select(n.id)
 }
 
@@ -415,7 +439,9 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   // ドラッグ（カメラ操作）はクリックとみなさない
   if (e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return
   const rect = renderer.domElement.getBoundingClientRect()
-  ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1)
+  // 視点モード（Pointer Lock 中）は画面中央の照準の場所を選ぶ
+  if (fly.locked) ndc.set(0, 0)
+  else ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1)
   pick()
 })
 
@@ -478,6 +504,8 @@ function describe(hit: THREE.Intersection): string {
 addEventListener('keydown', (e) => {
   const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
   if (e.key === 'Escape') {
+    // Esc で視点モードを抜けたときは、選択は残す
+    if (fly.locked || performance.now() - fly.unlockedAt < 200) return
     if (typing) (e.target as HTMLElement).blur()
     select(null)
   } else if (!typing && (e.key === 'Delete' || e.key === 'Backspace')) {
@@ -506,8 +534,10 @@ renderList()
 
 const scaleAt = (p: THREE.Vector3) => Math.min(3, Math.max(0.15, camera.position.distanceTo(p) * 0.012))
 
+let last = performance.now()
 renderer.setAnimationLoop((now: number) => {
-  controls.update()
+  fly.update(Math.min(0.1, (now - last) / 1000))
+  last = now
   // 印とカーソルは、近寄っても遠ざかっても画面上でだいたい同じ大きさに
   for (const m of markers.values()) m.ball.scale.setScalar(m.ball.userData.size * scaleAt(m.ball.position))
   cursor.scale.setScalar(scaleAt(cursor.position))
@@ -517,4 +547,4 @@ renderer.setAnimationLoop((now: number) => {
   labelRenderer.render(scene, camera)
 })
 
-if (import.meta.env.DEV) Object.assign(window, { notes: () => notes, camera, controls })
+if (import.meta.env.DEV) Object.assign(window, { notes: () => notes, camera, fly })
