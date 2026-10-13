@@ -17,6 +17,7 @@ import { SnowSurface } from './render/snowSurface'
 import { Monolith } from './render/monolith'
 import { occlusion } from './render/buildings/material'
 import { createScenery } from './render/scenery'
+import { applySubjectCut, subjectCut } from './render/subjectCut'
 import { PlayerView } from './render/playerView'
 import { Projectiles, Scoop, Sparkles } from './render/effects'
 import { UnitsView } from './render/units'
@@ -28,7 +29,7 @@ import { Hud } from './hud'
 import { Shop, type ShopAction } from './shop'
 import { TimeAttack } from './timeAttack'
 import { Minimap } from './minimap'
-import { CameraRig, type Shot, type ViewMode } from './camera'
+import { CameraRig, overviewPose, type Shot, type ViewMode } from './camera'
 import { GodCamera } from './godView'
 import { createDebugGui } from './debugGui'
 import { BalanceDashboard } from './balanceDashboard'
@@ -79,8 +80,10 @@ const outer = new THREE.Mesh(
 outer.rotation.x = -Math.PI / 2
 outer.position.set(WORLD.centerX, 0.75 * WORLD.snowMaxHeight, WORLD.centerZ)
 scene.add(outer)
-// 並木・バス・守衛所（建て直しの対象ではない景色）
-scene.add(createScenery())
+// 並木・バス・守衛所（建て直しの対象ではない景色）。被写体やプレイヤーに被る部分は抜く
+const scenery = createScenery()
+applySubjectCut(scenery)
+scene.add(scenery)
 
 const playerView = new PlayerView()
 const scoop = new Scoop()
@@ -295,11 +298,11 @@ function playSkillEffect(id: keyof typeof SKILLS, amount?: number) {
 /** 完成演出のカット割り：完成した建物を正面から → 次の建物（なければキャンパス全体） */
 function celebrationShots(b: Building): Shot[] {
   const portrait = camera.aspect < 1
-  const dist = (Math.max(b.width, b.height) * 1.1 + 5) * (portrait ? 1.7 : 1)
   const look = new THREE.Vector3(b.x, b.height * 0.45, b.z)
+  const frame = framing(b, look)
   const shots: Shot[] = [
     {
-      pos: clearViewpoint(b, look, dist, b.height * 0.5 + 2),
+      pos: clearViewpoint(b, look, frame.dist, frame.height),
       look,
       duration: 1 + FX.colorizeSeconds + 1.8,
       subject: buildingBox(b),
@@ -317,10 +320,15 @@ function celebrationShots(b: Building): Shot[] {
       onStart: () => hud.toast(`次は「${next.label}」！ 光の柱が目印`, 2600),
     })
   } else {
+    // 全体マップと同じ構図。遠くから撮るとフォグに沈んで雲の中のように見えるので、フォグも合わせる
+    const pos = new THREE.Vector3()
+    const lookAll = new THREE.Vector3()
+    const fog = overviewPose(camera, WORLD.size, { x: WORLD.centerX, z: WORLD.centerZ }, pos, lookAll)
     shots.push({
-      pos: new THREE.Vector3(WORLD.centerX + 120, 300, WORLD.centerZ + 380),
-      look: new THREE.Vector3(WORLD.centerX, 10, WORLD.centerZ),
+      pos,
+      look: lookAll,
       duration: 4,
+      fog,
       onStart: () => hud.toast('キャンパスが全部復活した！', 3800),
     })
   }
@@ -328,9 +336,26 @@ function celebrationShots(b: Building): Shot[] {
 }
 
 /**
+ * 完成した建物を映す距離（カメラに向いた面から水平に）と高さ。
+ * 建物の横幅と高さが画面に収まる距離にし、平たい建物ほど上から見下ろす
+ * （KAIT広場のような高さ 3m の大屋根を目の高さから撮ると、線にしか見えず手前の木しか映らないため）
+ */
+function framing(b: Building, look: THREE.Vector3): { dist: number; height: number } {
+  const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+  // 縦持ちは横の画角が狭い。そのまま収めると遠くなりすぎるので、横は少しはみ出してもよいことにする
+  const tanH = tanV * Math.max(camera.aspect, 0.75)
+  const wide = Math.max(b.width, b.depth) / 2
+  const fit = Math.max(wide / tanH, (b.height * 0.55) / tanV, 14) * 1.1
+  const flat = THREE.MathUtils.clamp(1 - b.height / wide, 0, 1)
+  const elevation = THREE.MathUtils.degToRad(14 + 18 * flat)
+  return { dist: fit * Math.cos(elevation), height: look.y + fit * Math.sin(elevation) }
+}
+
+/**
  * 建物を映すカメラの位置。西（見下ろしと同じ側）から順に 8 方向を試し、視線が他の建物に
  * さえぎられない方向を選ぶ。どの方向もふさがっていれば、カメラを持ち上げて探し直す。
- * キャンパス全体だと建物が密集していて、決め打ちの方向だと隣の棟の中に入ってしまうため
+ * キャンパス全体だと建物が密集していて、決め打ちの方向だと隣の棟の中に入ってしまうため。
+ * 視線を遮る棟は演出中に薄くするが、カメラ自体が棟の中にあると画面全体がディザで覆われるので、それは強く避ける
  */
 function clearViewpoint(b: Building, look: THREE.Vector3, dist: number, height: number): THREE.Vector3 {
   let best: THREE.Vector3 | null = null
@@ -345,8 +370,12 @@ function clearViewpoint(b: Building, look: THREE.Vector3, dist: number, height: 
       let hits = 0
       for (let k = 0; k <= 12; k++) {
         tmp.lerpVectors(pos, look, k / 12)
+        // カメラの位置そのものは、壁のすぐ外でも画面の半分が薄めた棟で埋まるので広めに見る
+        const margin = k === 0 ? 6 : 1
         for (const o of state.buildings) {
-          if (o !== b && Math.abs(tmp.x - o.x) < o.width / 2 + 1 && Math.abs(tmp.z - o.z) < o.depth / 2 + 1 && tmp.y < o.height + 1) hits++
+          if (o !== b && Math.abs(tmp.x - o.x) < o.width / 2 + margin && Math.abs(tmp.z - o.z) < o.depth / 2 + margin && tmp.y < o.height + margin) {
+            hits += k === 0 ? 100 : 1
+          }
         }
       }
       if (hits === 0) return pos
@@ -402,6 +431,29 @@ function fadeOccluders(dt: number) {
     if (inside && view === buildingViews.get(inside.id)) blocking = true
     view.monolith.fade(blocking ? 0.15 : 1, dt)
   }
+}
+
+/**
+ * 演出中は被写体の建物、ふだんはプレイヤーに被る木・景色・除雪機を抜く（建物は fadeOccluders と uOccl が受け持つ）。
+ * 建物を薄くするだけだと、完成演出で手前の並木に建物が隠れてしまうため。
+ * キャラクター（プレイヤー）は抜かない。完成演出で自分が建物の手前に映り込んでもそのまま見せる
+ */
+function cutScenery(dt: number) {
+  const subject = rig.subject
+  let target = 0
+  if (subject) {
+    subjectCut.uSubjMin.value.copy(subject.min)
+    subjectCut.uSubjMax.value.copy(subject.max)
+    target = 0.85
+  } else if (!isGodView && !rig.cinematic && !rig.overview) {
+    // キャラクターより一回り大きい箱にする（ぴったりだと、抜けた跡が体の形の四角い穴に見えるため）
+    const q = playerView.group.position
+    subjectCut.uSubjMin.value.set(q.x - 1, q.y, q.z - 1)
+    subjectCut.uSubjMax.value.set(q.x + 1, q.y + 2.4, q.z + 1)
+    target = 0.85
+  }
+  const u = subjectCut.uSubjCut
+  u.value += (target - u.value) * Math.min(1, dt * 6)
 }
 
 /** これより遠い建物は室内を描かない (m)。キャンパス全体だと全棟の家具で頂点が多くなりすぎるため */
@@ -614,6 +666,7 @@ renderer.setAnimationLoop((now: number) => {
   occlusion.uCamPos.value.copy(camera.position)
   occlusion.uFocus.value.copy(playerView.group.position).setY(playerView.group.position.y + 1)
   fadeOccluders(dt)
+  cutScenery(dt)
 
   renderer.render(scene, camera)
   labels.render(scene, camera)
