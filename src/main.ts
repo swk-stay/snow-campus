@@ -434,8 +434,9 @@ function fadeOccluders(dt: number) {
 }
 
 /**
- * 演出中は被写体の建物、ふだんはプレイヤーに被る木や景色を抜く（建物は fadeOccluders と uOccl が受け持つ）。
- * 建物を薄くするだけだと、完成演出で手前の並木に建物が隠れてしまうため
+ * 演出中は被写体の建物、ふだんはプレイヤーに被る木・景色・除雪機を抜く（建物は fadeOccluders と uOccl が受け持つ）。
+ * 建物を薄くするだけだと、完成演出で手前の並木に建物が隠れてしまうため。
+ * キャラクター（プレイヤー）は抜かない。完成演出で自分が建物の手前に映り込んでもそのまま見せる
  */
 function cutScenery(dt: number) {
   const subject = rig.subject
@@ -445,9 +446,10 @@ function cutScenery(dt: number) {
     subjectCut.uSubjMax.value.copy(subject.max)
     target = 0.85
   } else if (!isGodView && !rig.cinematic && !rig.overview) {
+    // キャラクターより一回り大きい箱にする（ぴったりだと、抜けた跡が体の形の四角い穴に見えるため）
     const q = playerView.group.position
-    subjectCut.uSubjMin.value.set(q.x - 0.6, q.y, q.z - 0.6)
-    subjectCut.uSubjMax.value.set(q.x + 0.6, q.y + 2, q.z + 0.6)
+    subjectCut.uSubjMin.value.set(q.x - 1, q.y, q.z - 1)
+    subjectCut.uSubjMax.value.set(q.x + 1, q.y + 2.4, q.z + 1)
     target = 0.85
   }
   const u = subjectCut.uSubjCut

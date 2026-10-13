@@ -4,6 +4,8 @@ import * as THREE from 'three'
 // 建物は棟ごとに薄くする（buildings/material.ts の uFade）が、木は数が多く InstancedMesh なので、
 // フラグメントごとに「カメラからこの点を通る視線が、この点より奥で被写体の箱に当たるか」で判定する。
 // 被写体に被っている部分だけが抜けるので、画面の端の木はそのまま残る。
+// キャラクター（プレイヤー。将来のマルチプレイでは他の人も）には使わない。完成演出に自分が映り込むのは良いことで、
+// 他の人もなるべく見えているほうがよいため。抜くのは景色や除雪機など、キャラクター以外のものだけ。
 
 /** 全マテリアルで共有する uniform。main が毎フレーム更新する */
 export const subjectCut = {
@@ -67,11 +69,12 @@ function patch(material: THREE.Material) {
   }
 }
 
-/** object 以下のメッシュのマテリアルに、被写体の手前を抜く処理を足す */
-export function applySubjectCut(object: THREE.Object3D) {
+/** object 以下のメッシュのマテリアルに、被写体の手前を抜く処理を足す。キャラクターには使わないこと */
+export function applySubjectCut<T extends THREE.Object3D>(object: T): T {
   object.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
     const list = Array.isArray(o.material) ? o.material : [o.material]
     for (const m of list) patch(m)
   })
+  return object
 }

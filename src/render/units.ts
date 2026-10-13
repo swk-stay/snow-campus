@@ -1,8 +1,10 @@
 import * as THREE from 'three'
 import { UPGRADE_EFFECT } from '../config'
 import type { Plow, SnowMachine } from '../sim/game'
+import { applySubjectCut } from './subjectCut'
 
 // 自動除雪機と降雪機の見た目。sim 側の配列と id で突き合わせて、増減に追従する。
+// キャラクターではないので、被写体（演出中の建物やプレイヤー）に被る部分は抜く（render/subjectCut.ts）。
 
 function createPlowMesh(): THREE.Group {
   const g = new THREE.Group()
@@ -117,7 +119,7 @@ function sync<T extends { id: number; x: number; z: number }>(
   }
   for (const u of units) {
     if (views.has(u.id)) continue
-    const m = create()
+    const m = applySubjectCut(create())
     m.position.set(u.x, 0, u.z)
     parent.add(m)
     views.set(u.id, m)
