@@ -3,7 +3,7 @@ import { car, GLASS, h3, levels, OFFWHITE, ORANGE, roof, rooftop, WHITE, WOOD, t
 
 // 中庭の外側の 17 棟（C・E 系統、A 系統、KAIT TOWN、KAIT広場、KAIT ERIM、E7号館）。
 // 寸法は OSM（PLATEAU 由来）の外形と高さ、外観は大学公式のキャンパスマップの写真を見て作った。
-// KAIT ERIM と E7号館は OSM に外形が無いので、写真と公式マップのイラストから大きさを推定している。
+// KAIT ERIM は OSM に外形が無いので、写真と公式マップのイラストから大きさを推定している（E7号館は航空写真で測った）。
 // 座標は建物ローカル（原点 = 敷地の外接矩形の中心、+X 南・+Z 西）。
 
 type Cell = CellKind | ({ kind: 'window' } & WindowSize)
@@ -634,9 +634,11 @@ const e7: Model = (k, b) => {
     furnish: (kk, f, y) => {
       if (f === 0) {
         // 風洞：青い大きなダクト（ラッパ状の吹き出し口と、それを支える鉄骨）
-        kk.box(-3.4, y + 0.6, -Z + 1.5, -0.4, y + 3.2, Z - 6, 0x2a7bd6)
-        kk.box(-3.9, y + 0.3, Z - 6, 0.1, y + 3.4, Z - 4, 0x2a7bd6)
-        for (let z = -Z + 2; z < Z - 6; z += 3) for (const x of [-3.5, -0.3]) kk.box(x - 0.08, y, z - 0.08, x + 0.08, y + 0.6, z + 0.08, 0x1f5fb0)
+        // 長さは棟の長さによらず 18m（西の端の寄り）
+        const t0 = Z - 24, t1 = Z - 6
+        kk.box(-3.4, y + 0.6, t0, -0.4, y + 3.2, t1, 0x2a7bd6)
+        kk.box(-3.9, y + 0.3, t1, 0.1, y + 3.4, t1 + 2, 0x2a7bd6)
+        for (let z = t0 + 0.5; z < t1; z += 3) for (const x of [-3.5, -0.3]) kk.box(x - 0.08, y, z - 0.08, x + 0.08, y + 0.6, z + 0.08, 0x1f5fb0)
         kk.box(0.3, y, Z - 3.5, 1.4, y + 0.75, Z - 1.5, 0xe9e6df)
       } else {
         for (let z = -Z + 3; z < Z - 2; z += 4) deskIsland(kk, -0.8, y, z, 3.0, 1.0, 0xe8e6e0, 0x4a5a6a)
