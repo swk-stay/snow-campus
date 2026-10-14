@@ -5,6 +5,7 @@ import {
   BUILDINGS,
   ECONOMY,
   ITEMS,
+  OBSTACLES,
   PLAYER,
   PLAYER_START,
   RARE,
@@ -123,6 +124,8 @@ export function createGame(): GameState {
       b.z + b.depth / 2 + b.dropRange,
     )
   }
+  // 景色の建物（旧第三食堂など）の中にも雪は積もらない
+  for (const o of OBSTACLES) field.blockRect(o.x0, o.z0, o.x1, o.z1)
   const s: GameState = {
     field,
     player: {
@@ -494,16 +497,16 @@ function movePlayer(s: GameState, input: MoveInput, dt: number) {
   pushOutOfBuildings(s, p, PLAYER.bodyRadius)
 }
 
-/** 雪原の外と建物（未完成でも敷地）から押し出す。建物はめり込みの浅い軸へ */
+/** 雪原の外と建物（未完成でも敷地）・景色の建物から押し出す。めり込みの浅い軸へ */
 function pushOutOfBuildings(s: GameState, o: { x: number; z: number }, radius: number) {
   s.field.clamp(o, 1)
-  for (const b of s.buildings) {
-    const hw = b.width / 2 + radius
-    const hd = b.depth / 2 + radius
-    const dx = o.x - b.x
-    const dz = o.z - b.z
-    if (Math.abs(dx) >= hw || Math.abs(dz) >= hd) continue
-    if (hw - Math.abs(dx) < hd - Math.abs(dz)) o.x = b.x + Math.sign(dx || 1) * hw
-    else o.z = b.z + Math.sign(dz || 1) * hd
+  const push = (cx: number, cz: number, hw: number, hd: number) => {
+    const dx = o.x - cx
+    const dz = o.z - cz
+    if (Math.abs(dx) >= hw || Math.abs(dz) >= hd) return
+    if (hw - Math.abs(dx) < hd - Math.abs(dz)) o.x = cx + Math.sign(dx || 1) * hw
+    else o.z = cz + Math.sign(dz || 1) * hd
   }
+  for (const b of s.buildings) push(b.x, b.z, b.width / 2 + radius, b.depth / 2 + radius)
+  for (const r of OBSTACLES) push((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, (r.x1 - r.x0) / 2 + radius, (r.z1 - r.z0) / 2 + radius)
 }
