@@ -122,8 +122,20 @@ export function ballparkEdge(a: number): number {
   return best
 }
 
-/** トラックの内側のサッカー場（ラインを引く範囲）。トラックの直線部分に合わせている */
-export const SOCCER = { x0: 84, x1: 133, z0: -287, z1: -190 }
+/**
+ * トラックの内側のサッカー場。トラックの外形の 2 本の直線（OSM）は Z 軸から約 4.4° 傾いているので、
+ * フィールドも同じ向きにする（以前は軸にそろえた長方形で、ラインがトラックに対して斜めに見えていた）。
+ * cx/cz は 2 本の直線の中点の中間、halfW はタッチラインまで（トラックの内側の縁から 1m 内側）、halfL はゴールラインまで
+ */
+export const SOCCER = { cx: 108.9, cz: -240.0, angle: 0.0764, halfW: 23, halfL: 48 }
+/** トラックの外側の縁の、中心線からの距離（直線部分） */
+export const TRACK_HALF_WIDTH = 33.8
+
+/** サッカー場のローカル座標（u：タッチライン方向に +＝南、v：長手方向に +＝東）からワールド座標へ */
+export function soccerAt(u: number, v: number): Pt {
+  const c = Math.cos(SOCCER.angle), s = Math.sin(SOCCER.angle)
+  return [SOCCER.cx + u * c + v * s, SOCCER.cz + u * s - v * c]
+}
 
 /**
  * 渡り廊下（高いガラスの屋根を細い柱で支えただけの、壁のない通路）。屋根は建物から少し離れている。
@@ -188,8 +200,9 @@ export function treeSpots(): TreeSpot[] {
     if (OBSTACLES.some((o) => x > o.x0 - 2 && x < o.x1 + 2 && z > o.z0 - 2 && z < o.z1 + 2)) return
     if (WALKWAYS.some((w) => x > w.x0 - 2.5 && x < w.x1 + 2.5 && z > w.z0 - 2.5 && z < w.z1 + 2.5)) return
     if (Math.abs(x - WORLD.centerX) > WORLD.size / 2 - 1 || Math.abs(z - WORLD.centerZ) > WORLD.size / 2 - 1) return
-    if (ROADS.some((r) => distToLine(r, x, z) < 4.5)) return
-    if ([BALLPARK, TRACK, TENNIS_AREA].some((a) => insidePoly(a, x, z))) return
+    // 道路・グラウンド・駐車場には植えない。縁からも離す（樹冠がフェンスや白線、駐車区画に被らないように）
+    if (ROADS.some((r) => distToLine(r, x, z) < 5.5)) return
+    if ([BALLPARK, TRACK, TENNIS_AREA, PARKING, PRACTICE_PITCH].some((a) => insidePoly(a, x, z) || distToLine([...a, a[0]], x, z) < 4)) return
     const h = hash(x * 0.37 + z * 1.13)
     out.push({ x, z, kind: sakura ? 'sakura' : h < 0.2 ? 'conifer' : 'round', scale: 0.8 + 0.45 * hash(x * 1.7 - z * 0.3) })
   }
@@ -413,8 +426,13 @@ function paintSports(g: CanvasRenderingContext2D, poly: PolyFn, line: LineFn) {
   g.clip()
   g.fillStyle = '#4c8a38'
   g.fill()
+  // 芝の刈り込みの縞（フィールドの向きにそろえる）
+  g.save()
+  g.translate(SOCCER.cx, SOCCER.cz)
+  g.rotate(SOCCER.angle)
   g.fillStyle = '#56953f'
-  for (let z = SOCCER.z0; z < SOCCER.z1; z += 10) g.fillRect(SOCCER.x0 - 10, z, SOCCER.x1 - SOCCER.x0 + 20, 5)
+  for (let z = -SOCCER.halfL; z < SOCCER.halfL; z += 10) g.fillRect(-SOCCER.halfW - 10, z, 2 * SOCCER.halfW + 20, 5)
+  g.restore()
   // 外周から内側へ 1.22m ごとのレーン。広い線から順に、白→青で塗り重ねて白線だけ残す
   for (let lane = 8; lane >= 1; lane--) {
     g.strokeStyle = '#f0f2f4'
@@ -426,20 +444,24 @@ function paintSports(g: CanvasRenderingContext2D, poly: PolyFn, line: LineFn) {
     g.stroke()
   }
   g.restore()
-  // サッカー場のライン（タッチライン・ハーフウェーライン・センターサークル・ペナルティエリア）
-  const { x0, x1, z0, z1 } = SOCCER
-  const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2
+  // サッカー場のライン（タッチライン・ハーフウェーライン・センターサークル・ペナルティエリア）。
+  // フィールドの中心へ移して回し、ローカル座標（x：タッチライン方向、z：長手方向）で描く
+  g.save()
+  g.translate(SOCCER.cx, SOCCER.cz)
+  g.rotate(SOCCER.angle)
+  const w = SOCCER.halfW, l = SOCCER.halfL
   g.strokeStyle = '#f0f2f4'
   g.lineWidth = 0.15
-  g.strokeRect(x0, z0, x1 - x0, z1 - z0)
-  line([[x0, mz], [x1, mz]], 0.15)
+  g.strokeRect(-w, -l, 2 * w, 2 * l)
+  line([[-w, 0], [w, 0]], 0.15)
   g.beginPath()
-  g.arc(mx, mz, 9.15, 0, Math.PI * 2)
+  g.arc(0, 0, 9.15, 0, Math.PI * 2)
   g.stroke()
-  for (const [z, dir] of [[z0, 1], [z1, -1]] as const) {
-    g.strokeRect(mx - 15, Math.min(z, z + dir * 14), 30, 14)
-    g.strokeRect(mx - 7, Math.min(z, z + dir * 5), 14, 5)
+  for (const [z, dir] of [[-l, 1], [l, -1]] as const) {
+    g.strokeRect(-15, Math.min(z, z + dir * 14), 30, 14)
+    g.strokeRect(-7, Math.min(z, z + dir * 5), 14, 5)
   }
+  g.restore()
 
   // ---- テニスコート：赤茶の舗装に緑のコート 4 面 ----
   g.fillStyle = '#9c5a43'

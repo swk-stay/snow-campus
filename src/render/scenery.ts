@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { BUILDINGS } from '../config'
-import { BALLPARK, BALLPARK_AXIS, ballparkAt, ballparkEdge, HOME_PLATE, SOCCER, TENNIS_AREA, TENNIS_COURTS, treeSpots, type TreeSpot } from './campusGround'
+import { BALLPARK, BALLPARK_AXIS, ballparkAt, ballparkEdge, HOME_PLATE, SOCCER, soccerAt, TENNIS_AREA, TRACK_HALF_WIDTH, TENNIS_COURTS, treeSpots, type TreeSpot } from './campusGround'
 import { createCampusProps } from './campusProps'
 
 // 建て直しの対象ではない景色：雪をかぶった並木、構内バス停と神奈中バス、正門の守衛所、
@@ -102,15 +102,18 @@ function sportsFacilities(): THREE.Group {
     lightTower(x, z, 26, cx - x, cz - z)
   }
 
-  // ---- サッカー場：ゴール 2 つ、照明塔 4 本 ----
-  const mx = (SOCCER.x0 + SOCCER.x1) / 2
-  for (const [z, dir] of [[SOCCER.z0, -1], [SOCCER.z1, 1]] as const) {
-    for (const dx of [-3.66, 3.66]) post(white, mx + dx, z, 2.44, 0.07)
-    white.push(new THREE.BoxGeometry(7.46, 0.14, 0.14).translate(mx, 2.44, z))
-    panel(nets, [mx - 3.66, z + dir * 1.8], [mx + 3.66, z + dir * 1.8], 0, 2.2)
+  // ---- サッカー場：ゴール 2 つ、照明塔 4 本（トラックの外側に立てる） ----
+  for (const dir of [-1, 1]) {
+    const v = dir * SOCCER.halfL
+    for (const u of [-3.66, 3.66]) post(white, ...soccerAt(u, v), 2.44, 0.07)
+    panel(white, soccerAt(-3.73, v), soccerAt(3.73, v), 2.37, 0.14, 0.14)
+    panel(nets, soccerAt(-3.66, v + dir * 1.8), soccerAt(3.66, v + dir * 1.8), 0, 2.2)
   }
-  for (const [x, z] of [[SOCCER.x0 - 12, SOCCER.z0 + 20], [SOCCER.x1 + 12, SOCCER.z0 + 20], [SOCCER.x0 - 12, SOCCER.z1 - 20], [SOCCER.x1 + 12, SOCCER.z1 - 20]]) {
-    lightTower(x, z, 22, mx - x, (SOCCER.z0 + SOCCER.z1) / 2 - z)
+  for (const u of [-1, 1]) {
+    for (const v of [-1, 1]) {
+      const [x, z] = soccerAt(u * (TRACK_HALF_WIDTH + 4), v * (SOCCER.halfL - 20))
+      lightTower(x, z, 22, SOCCER.cx - x, SOCCER.cz - z)
+    }
   }
 
   // ---- テニスコート：囲いのフェンスと、各コートのネット ----
