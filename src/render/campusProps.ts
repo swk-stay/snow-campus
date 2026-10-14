@@ -244,7 +244,7 @@ function machineShed(p: Props, x0: number, z0: number, x1: number, z1: number, f
   const face = front - 0.1 * facing
   if (kind === 'laundry') {
     // 縦型の洗濯機が 3 台、真ん中に寄せて並ぶ（両端は空いている）。上にふた、奥に操作パネル
-    const n = 3, uw = 0.62, gap = 0.08
+    const n = 3, uw = 0.95, gap = 0.12
     const start = (z0 + z1) / 2 - (n * uw + (n - 1) * gap) / 2
     for (let i = 0; i < n; i++) {
       const z = start + i * (uw + gap)
