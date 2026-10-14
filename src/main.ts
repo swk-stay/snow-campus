@@ -37,7 +37,7 @@ import { loadTuning } from './tuning'
 import { clearStorage, loadFromStorage, saveToStorage, useSaveSlot } from './save'
 import { playCoin, playFanfare, unlockAudio } from './audio'
 
-// ?view=god で展示用の神視点（WASD で移動・自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード、
+// ?view=god で展示用の神視点（マウスで見回し・WASD で移動・自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード、
 // ?mode=timeattack でタイムアタック（セーブを読まずに最初から始め、セーブもしない）
 const params = new URLSearchParams(location.search)
 const isGodView = params.get('view') === 'god'
@@ -638,7 +638,7 @@ renderer.setAnimationLoop((now: number) => {
   document.body.classList.toggle('cinematic', rig.cinematic)
 
   if (god) {
-    god.update(dt, input.move())
+    god.update(dt)
   } else {
     // 見下ろしで、いま建てている建物に近づいたら引きのアングルにする
     let near = 0
@@ -674,5 +674,5 @@ renderer.setAnimationLoop((now: number) => {
 
 // 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890, buy('plow')）
 if (import.meta.env.DEV) {
-  Object.assign(window, { game: state, rig, camera, controls: god?.controls, scene, renderer, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
+  Object.assign(window, { game: state, rig, camera, god, scene, renderer, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
 }
