@@ -99,9 +99,9 @@ export function createCampusProps(): THREE.Group {
 
   const laundry = OBSTACLES.find((o) => o.label === '洗濯機')!
   const vending = OBSTACLES.find((o) => o.label === '自販機')!
-  // 2 つの小屋のあいだの通路に向かって、機械が並ぶ
-  machineShed(p, laundry.x0, laundry.z0, laundry.x1, laundry.z1, 1, 'laundry')
-  machineShed(p, vending.x0, vending.z0, vending.x1, vending.z1, -1, 'vending')
+  // 2 つの小屋のあいだの通路に向かって、機械が並ぶ（北が自販機、南が洗濯機）
+  machineShed(p, vending.x0, vending.z0, vending.x1, vending.z1, 1, 'vending')
+  machineShed(p, laundry.x0, laundry.z0, laundry.x1, laundry.z1, -1, 'laundry')
   p.flush('洗濯機と自販機')
 
   bbq(p, 111.3, -69.9)
@@ -230,7 +230,7 @@ function picnicTable(p: Props, x: number, z: number, angle: number) {
 
 /**
  * 屋根付きの機械置き場（OSM の 1.4m × 4.8m・高さ 3m の小屋）。facing は機械の前面の向き（+1 で +X）。
- * 洗濯機は乾燥機を上に重ねた白い箱、自販機は赤・青・白の箱に光る見本の窓
+ * 洗濯機は縦型（上にふた）が 3 台、自販機は赤・青・白の箱に光る見本の窓
  */
 function machineShed(p: Props, x0: number, z0: number, x1: number, z1: number, facing: 1 | -1, kind: 'laundry' | 'vending') {
   const back = facing > 0 ? x0 : x1
@@ -243,12 +243,16 @@ function machineShed(p: Props, x0: number, z0: number, x1: number, z1: number, f
   p.box('snow', Math.min(back, front + 0.4 * facing), 2.95, z0 - 0.05, Math.max(back, front + 0.4 * facing), 3.1, z1 + 0.05)
   const face = front - 0.1 * facing
   if (kind === 'laundry') {
-    for (let z = z0 + 0.2; z + 0.7 <= z1 - 0.1; z += 0.74) {
-      const zc = z + 0.35
-      p.box('white', back + 0.1 * facing, 0, z, face, 1.9, z + 0.7)
-      for (const y of [0.55, 1.45]) {
-        p.add('dark', new THREE.CylinderGeometry(0.2, 0.2, 0.04, 14).rotateZ(Math.PI / 2).translate(face + 0.02 * facing, y, zc))
-      }
+    // 縦型の洗濯機が 3 台、真ん中に寄せて並ぶ（両端は空いている）。上にふた、奥に操作パネル
+    const n = 3, uw = 0.62, gap = 0.08
+    const start = (z0 + z1) / 2 - (n * uw + (n - 1) * gap) / 2
+    for (let i = 0; i < n; i++) {
+      const z = start + i * (uw + gap)
+      const inner = back + 0.1 * facing
+      p.box('white', inner, 0, z, face, 0.95, z + uw)
+      p.box('steel', inner + 0.08 * facing, 0.95, z + 0.05, face - 0.03 * facing, 0.98, z + uw - 0.05)
+      p.box('white', inner, 0.95, z, inner + 0.15 * facing, 1.15, z + uw)
+      p.box('dark', inner + 0.15 * facing, 1.0, z + 0.12, inner + 0.16 * facing, 1.1, z + uw - 0.12)
     }
   } else {
     const colors: (keyof Lists)[] = ['red', 'white', 'blue', 'red']

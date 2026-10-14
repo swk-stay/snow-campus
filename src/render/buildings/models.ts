@@ -500,9 +500,9 @@ const k4: Model = (k, b) => {
 // K3号館 講義棟：7 階建て。1 階は柱の奥にガラス、2 階から上は白い縦フィンで区切った柱間に、
 // 窓が左上・右下と互い違いに並ぶ。西の妻面は白い大壁に「神奈川工科大学」のサイン、ガラスの階段室のスリット。
 // 西側の大きな庇の下が構内バス停。2 階が学生食堂（赤とオレンジの椅子）、上は講義室。
-// 北東の角（K1号館・K4号館の側）は 1・2 階が抜けたピロティで、天井は 3 階の床。その中に折り返しの外階段があり、
-// 北（K2号館の側）の踊り場で折り返して、南（KAIT HALL の側）の 2 階の食堂の入口に着く。
-// 1 階の入口は階段の脇の奥で、北（K2号館の側）から入る。
+// 北東の角（K1号館・K4号館の側）は 1・2 階が抜けたピロティで、天井は 3 階の床。その中に 2 回折り返す外階段があり、
+// K1号館の側（北）から上がって K3 の壁に突き当たり、壁沿いの通路の先に 2 階の食堂の入口（東向きの面）がある。
+// 1 階の入口は階段の脇の奥の北向きの面で、北（K2号館の側）から入る。
 // ピロティの大きさは、東へ K2号館の東の面より出ている分（約 6.8m）に少し足したくらい（入口の写真と Editor のリクエスト）。
 const k3: Model = (k, b) => {
   const X = b.width / 2, Z = b.depth / 2
@@ -573,7 +573,7 @@ const k3: Model = (k, b) => {
   for (const [a, bb] of [[[-X, nz], [nx, nz]], [[nx, nz], [nx, -Z]]] as [Pt, Pt][]) {
     facade(k, { a, b: bb, levels: [lv[1], lv[2]], bays: 4, cell: () => 'curtain', wall: WHITE, glass: 0x3e4c55, frame: 0x6f777c, depth: 0.15 })
   }
-  k3Stairs(k, X, Z, nx, nz, lv[1], lv[2] - 0.42)
+  k3Stairs(k, Z, nx, nz, lv[1])
 
   // サイン「神奈川工科大学」：青い K のマークと濃紺の文字（西の妻面）
   k.sign('神奈川工科大学', -5.5, lv[1] + 2.0, Z + 0.33, 8.4, 1.2, 0, '#1d2a44', true)
@@ -627,47 +627,60 @@ const k3: Model = (k, b) => {
 }
 
 /**
- * K3号館のピロティの中の外階段と入口。東（K4号館の側）の縁に沿って 2 本の階段を並べる：
- * 外側の 1 本目は北へ上がって、北の端の踊り場（ガラスの手すり）で折り返し、内側の 2 本目で南へ上がって
- * 2 階の食堂の入口に着く。1 階の入口は、階段の脇（ピロティの奥の、北＝K2号館の側を向いたガラス面）
+ * K3号館のピロティの中の外階段と入口。東（K4号館の側）の縁に沿って、2 回折り返す階段を 2 列で作る：
+ *   1 本目（外側の列）：北の足元（K1号館の側から入る）から南の踊り場へ
+ *   2 本目（内側の列）：南の踊り場から北の踊り場（ガラスの手すり）へ
+ *   3 本目（外側の列、1 本目の真上）：北の踊り場から南へ上がり、K3 の壁（ピロティの奥の北向きの面）に突き当たる
+ * そこから壁沿いの通路を西へ進んだ突き当たり（東向きの面）が 2 階の食堂の入口。1 階の入口は北向きの面なので、面が違う
  */
-function k3Stairs(k: Kit, X: number, Z: number, nx: number, nz: number, floor2: number, soffit: number) {
+function k3Stairs(k: Kit, Z: number, nx: number, nz: number, floor2: number) {
   const CONC = 0xe4e5e3
   const RAIL = 0x9fc3cf
-  const half = floor2 / 2
-  const run = 4.5
+  const y1 = floor2 / 3, y2 = (floor2 * 2) / 3
+  const land = 1.6
+  const run = 2.8
   const w = 1.5
-  // 踊り場（北の端）と、各段の z の範囲
-  const lx0 = -X + 0.3, lx1 = lx0 + 1.8
+  // 踊り場と階段の x の範囲（南の踊り場は壁に接する）
+  const sx1 = nx, sx0 = nx - land
+  const fx1 = sx0, fx0 = sx0 - run
+  const nx1 = fx0, nx0 = fx0 - land
+  // 外側の列（1・3 本目）と内側の列（2 本目）の z の範囲
   const zA: [number, number] = [-Z + 1.1, -Z + 1.1 + w]
   const zB: [number, number] = [zA[1] + 0.1, zA[1] + 0.1 + w]
-  k.box(lx0, half - 0.25, zA[0], lx1, half, zB[1], CONC)
-  // 1 本目（外側）：南の足元から北の踊り場へ。2 本目（内側）：踊り場から南の 2 階へ
-  flight(k, lx1 + run, 0, lx1, half, zA, CONC)
-  flight(k, lx1, half, lx1 + run, floor2, zB, CONC)
-  // 2 階の入口の前の床（ピロティの奥のガラス面まで）
-  k.box(lx1 + run, floor2 - 0.25, zB[0], nx, floor2, zB[1], CONC)
-  // ガラスの手すり：踊り場の北と東、1 本目の東、2 本目と上の床の西
-  const rail = (x0: number, y0: number, x1: number, y1: number, z: number) => {
-    k.quad([x0, y0, z], [x1, y1, z], [x1, y1 + 1.0, z], [x0, y0 + 1.0, z], RAIL, 'glass')
-    k.quad([x1, y1 + 1.0, z - 0.03], [x0, y0 + 1.0, z - 0.03], [x0, y0 + 1.06, z], [x1, y1 + 1.06, z + 0.03], 0x8a9399)
+  k.box(sx0, y1 - 0.25, zA[0], sx1, y1, zB[1], CONC)
+  k.box(nx0, y2 - 0.25, zA[0], nx1, y2, zB[1], CONC)
+  flight(k, fx0, 0, fx1, y1, zA, CONC)
+  flight(k, fx1, y1, fx0, y2, zB, CONC)
+  flight(k, fx0, y2, fx1, floor2, zA, CONC)
+  // 3 本目の上の床と、壁沿いの通路（西へ、東向きの面まで）
+  k.box(sx0, floor2 - 0.25, zA[0], sx1, floor2, nz, CONC)
+  // ガラスの手すり
+  const rail = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) => {
+    k.quad([ax, ay, az], [bx, by, bz], [bx, by + 1.0, bz], [ax, ay + 1.0, az], RAIL, 'glass')
+    k.quad([bx, by + 1.0, bz], [ax, ay + 1.0, az], [ax, ay + 1.06, az], [bx, by + 1.06, bz], 0x8a9399)
   }
-  rail(lx0, half, lx1, half, zA[0])
-  rail(lx1, half, lx1 + run, 0, zA[0])
-  rail(lx1, half, lx1 + run, floor2, zB[1])
-  rail(lx1 + run, floor2, nx, floor2, zB[1])
-  k.quad([lx0, half, zB[1]], [lx0, half, zA[0]], [lx0, half + 1.0, zA[0]], [lx0, half + 1.0, zB[1]], RAIL, 'glass')
-  // 2 階の食堂の入口（ピロティの奥のガラス面の扉）と、1 階の入口（階段の脇の奥。どちらも北＝K2号館の側を向く）
-  door(k, nx, (zB[0] + zB[1]) / 2, floor2, 1.4)
+  const e = zA[0], wz = zB[1]
+  rail(fx0, 0, e, fx1, y1, e)
+  rail(sx0, y1, e, sx1, y1, e)
+  rail(nx0, y2, e, nx1, y2, e)
+  rail(nx0, y2, e, nx0, y2, wz)
+  rail(fx0, y2, e, fx1, floor2, e)
+  rail(sx0, floor2, e, sx1, floor2, e)
+  rail(fx1, y1, wz, fx0, y2, wz)
+  rail(sx0, y1, wz, sx1, y1, wz)
+  rail(nx0, y2, wz, nx1, y2, wz)
+  rail(sx0, floor2, zA[1], sx0, floor2, nz)
+  // 2 階の食堂の入口（通路の突き当たりの東向きの面）と、1 階の入口（階段の脇の奥の北向きの面）
+  doorEast(k, (sx0 + sx1) / 2, nz, floor2, 1.3)
   door(k, nx, nz - 2.2, 0, 2.8)
-  // 1 階の入口の上の照明
-  k.quad([nx - 3, soffit, nz - 0.6], [nx, soffit, nz - 0.6], [nx, soffit, nz - 3.8], [nx - 3, soffit, nz - 3.8], WARM_LIGHT, 'light')
+  // 1 階の入口の上の照明（2 階の通路の下）
+  k.quad([nx - 1.4, floor2 - 0.27, nz - 0.6], [nx, floor2 - 0.27, nz - 0.6], [nx, floor2 - 0.27, nz - 3.8], [nx - 1.4, floor2 - 0.27, nz - 3.8], WARM_LIGHT, 'light')
 }
 
-/** 階段 1 本：(x0, y0) から (x1, y1) へ、16 段。段は箱、裏は斜めの板（白いコンクリートの裏面） */
+/** 階段 1 本：(x0, y0) から (x1, y1) へ（蹴上げ約 17cm）。段は箱、裏は斜めの板（白いコンクリートの裏面） */
 function flight(k: Kit, x0: number, y0: number, x1: number, y1: number, [z0, z1]: [number, number], color: number) {
   const [xb, yb, xt, yt] = y0 < y1 ? [x0, y0, x1, y1] : [x1, y1, x0, y0]
-  const n = 16
+  const n = Math.max(2, Math.round((yt - yb) / 0.17))
   const rise = (yt - yb) / n
   for (let i = 0; i < n; i++) {
     const xa = xb + ((xt - xb) * i) / n, xc = xb + ((xt - xb) * (i + 1)) / n
@@ -677,6 +690,15 @@ function flight(k: Kit, x0: number, y0: number, x1: number, y1: number, [z0, z1]
   // 裏面と両脇の側板
   k.quad([xb, yb, z0], [xt, yt - 0.3, z0], [xt, yt - 0.3, z1], [xb, yb, z1], color)
   for (const z of [z0, z1]) k.quad([xb, yb, z], [xt, yt - 0.3, z], [xt, yt + 0.05, z], [xb, yb + rise + 0.05, z], 0xd0d2d1)
+}
+
+/** ガラスの扉（z 一定の面に、東 = -Z を向けて付ける）。中心 xc、床 y、幅 w */
+function doorEast(k: Kit, xc: number, z: number, y: number, w: number) {
+  const FR = 0x4a5258
+  k.box(xc - w / 2 - 0.08, y, z - 0.12, xc - w / 2, y + 2.4, z, FR)
+  k.box(xc + w / 2, y, z - 0.12, xc + w / 2 + 0.08, y + 2.4, z, FR)
+  k.box(xc - w / 2 - 0.08, y + 2.4, z - 0.12, xc + w / 2 + 0.08, y + 2.5, z, FR)
+  k.wall([xc + w / 2, z - 0.06], [xc - w / 2, z - 0.06], y, y + 2.4, 0x5b6f7a, 'glass')
 }
 
 /** ガラスの扉（x 一定の面に、北 = -X を向けて付ける）。中心 zc、床 y、幅 w */

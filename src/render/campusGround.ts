@@ -138,13 +138,14 @@ export function soccerAt(u: number, v: number): Pt {
 }
 
 /**
- * 渡り廊下（高いガラスの屋根を細い柱で支えただけの、壁のない通路）。屋根は建物から少し離れている。
- * K2→K1 は OSM の外形（高さ 8.3m）。K1→K3 は Editor のリクエストの位置で、形は K2→K1 と同じにした
+ * 渡り廊下（ガラスの屋根を細い柱で支えただけの、壁のない通路）。屋根は建物から少し離れている。
+ * K2→K1 は OSM の外形、K1→K3 は Editor のリクエストの位置。屋根の高さは 2 階の床（4.8〜5.5m）より少し上
+ * （ユーザーの指摘。OSM の高さ 8.3m は高すぎた）
  */
 export type Walkway = { x0: number; z0: number; x1: number; z1: number; height: number }
 export const WALKWAYS: Walkway[] = [
-  { x0: -6.4, z0: 22.4, x1: 16.8, z1: 25.9, height: 8.3 },
-  { x0: 54.9, z0: 15.6, x1: 62.9, z1: 19.1, height: 8.3 },
+  { x0: -6.4, z0: 22.4, x1: 16.8, z1: 25.9, height: 6.3 },
+  { x0: 54.9, z0: 15.6, x1: 62.9, z1: 19.1, height: 6.3 },
 ]
 
 /** 学生専用駐車場（トラックの南、敷地の南端に沿った細長い区画） */
