@@ -6,6 +6,7 @@ import type { Building } from '../sim/game'
 // CSS2DRenderer で DOM を 3D 座標に追従させる（文字がくっきり出て、日本語フォントもそのまま使える）。
 // 建設中の建物はせり上がる屋上の少し上に付いていく（縦持ちの見下ろしで画面外に出にくいように）。
 // それ以外は完成形の高さの上に固定。
+// 全体マップ（引き）では、自分の位置がキャラクターの小ささに埋もれないよう「現在地」マーカーを重ねる。
 
 export type LabelStage = 'locked' | 'current' | 'done'
 
@@ -26,6 +27,8 @@ export class BuildingLabels {
   private readonly arrowEl: HTMLDivElement
   private readonly arrowIcon: SVGElement
   private readonly arrowLabel: HTMLSpanElement
+  private readonly markerObj: CSS2DObject
+  private readonly markerEl: HTMLDivElement
 
   constructor(scene: THREE.Scene, buildings: Building[]) {
     this.renderer.domElement.id = 'labels'
@@ -44,6 +47,14 @@ export class BuildingLabels {
     this.arrowLabel = this.arrowEl.querySelector('.site-arrow-label')!
     this.arrowObj = new CSS2DObject(this.arrowEl)
     scene.add(this.arrowObj)
+
+    // 現在地マーカー：足元で脈打つ輪と、その上の「現在地」
+    this.markerEl = document.createElement('div')
+    this.markerEl.className = 'player-marker'
+    this.markerEl.hidden = true
+    this.markerEl.innerHTML = '<span class="pm-label">現在地</span>'
+    this.markerObj = new CSS2DObject(this.markerEl)
+    scene.add(this.markerObj)
 
     for (const b of buildings) {
       const el = document.createElement('div')
@@ -108,6 +119,12 @@ export class BuildingLabels {
     const deg = (Math.atan2(screenX, screenY) * 180) / Math.PI
     this.arrowIcon.style.transform = `rotate(${deg}deg)`
     setText(this.arrowLabel, target.label)
+  }
+
+  /** 全体マップ中だけ、プレイヤーの位置に現在地マーカーを出す */
+  updateMarker(playerPos: THREE.Vector3, visible: boolean) {
+    this.markerEl.hidden = !visible
+    if (visible) this.markerObj.position.copy(playerPos)
   }
 
   render(scene: THREE.Scene, camera: THREE.Camera) {

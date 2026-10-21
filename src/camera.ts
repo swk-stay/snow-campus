@@ -21,24 +21,25 @@ export type Shot = {
   onStart?: () => void
 }
 
+/** 全体マップで映す範囲（ワールド座標の中心と、X・Z 方向の幅） */
+export type MapArea = { x: number; z: number; width: number; depth: number }
+
+/** 全体マップで映す範囲。route は自分と次の建物が収まる範囲、all は雪原全体 */
+export type OverviewScope = 'route' | 'all'
+
 /**
- * 雪原全体が画面に収まる、斜め上からのカメラ位置と注視点。全体マップと、全部完成したときの演出で使う。
+ * 範囲 area が画面に収まる、斜め上からのカメラ位置と注視点。全体マップと、全部完成したときの演出で使う。
  * 返り値はその距離に合わせたフォグ
  */
-export function overviewPose(
-  camera: THREE.PerspectiveCamera,
-  worldSize: number,
-  worldCenter: { x: number; z: number },
-  pos: THREE.Vector3,
-  look: THREE.Vector3,
-): { near: number; far: number } {
-  // フィールド全体が画面に収まる距離（縦持ちは横幅で決まるので遠くなる）
-  const halfFov = THREE.MathUtils.degToRad(camera.fov / 2)
-  const fit = (worldSize * 0.66) / (Math.tan(halfFov) * Math.min(camera.aspect, 1.3))
-  const { x: cx, z: cz } = worldCenter
+export function overviewPose(camera: THREE.PerspectiveCamera, area: MapArea, pos: THREE.Vector3, look: THREE.Vector3): { near: number; far: number } {
+  // 横幅と奥行きのそれぞれが画面に収まる距離のうち、遠いほう（縦持ちは横幅で決まるので遠くなる）。
+  // 奥行きは斜めに見下ろすぶん縮んで見えるので、係数を小さめにする
+  const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+  const fit = Math.max((area.width * 0.66) / (tan * camera.aspect), (area.depth * 0.51) / tan)
   // 斜めに見下ろすので手前（+Z）が画面からはみ出しやすい。注視点を少し手前へずらす
-  pos.set(cx, fit * 0.86, cz + fit * 0.5 + worldSize * 0.08)
-  look.set(cx, 0, cz + worldSize * 0.08)
+  const shift = area.depth * 0.08
+  pos.set(area.x, fit * 0.86, area.z + fit * 0.5 + shift)
+  look.set(area.x, 0, area.z + shift)
   return { near: fit * 3, far: fit * 4 }
 }
 
@@ -53,9 +54,10 @@ export type RigContext = {
   near: number
   /** その点が建物の中なら true（グランドレベルでカメラが建物にめり込まないように） */
   blocked: (p: THREE.Vector3) => boolean
-  /** 雪原（全体マップで映す範囲）の一辺と中心 */
-  worldSize: number
-  worldCenter: { x: number; z: number }
+  /** 雪原全体（全体マップの「全体」で映す範囲） */
+  world: MapArea
+  /** 自分と次の建物が収まる範囲（全体マップの「自分と目標」で映す）。全部完成していれば null */
+  route: MapArea | null
 }
 
 const tmp = new THREE.Vector3()
@@ -66,6 +68,8 @@ export class CameraRig {
   /** カメラの水平方向の向き。0 で -Z を見る（見下ろしは常に 0） */
   yaw = 0
   overview = false
+  /** 全体マップで映す範囲。最初は次の建物への向かい方が分かる「自分と目標」 */
+  overviewScope: OverviewScope = 'route'
   /** フォグの距離（俯瞰では遠くまで見せる）。main が scene.fog に反映する */
   readonly fog = { near: 90, far: 260 }
 
@@ -151,7 +155,8 @@ export class CameraRig {
       speed = 2.2
       this.setFog(shot.fog?.near ?? 150, shot.fog?.far ?? 480, dt)
     } else if (this.overview) {
-      const fog = overviewPose(this.camera, ctx.worldSize, ctx.worldCenter, tmp, tmp2)
+      const area = this.overviewScope === 'route' && ctx.route ? ctx.route : ctx.world
+      const fog = overviewPose(this.camera, area, tmp, tmp2)
       speed = 3
       this.setFog(fog.near, fog.far, dt)
     } else if (this.mode === 'top') {

@@ -141,6 +141,34 @@ body.god-view #view-bar, body.god-view #minimap { display: none; }
 .building-label[data-stage='locked'] .bl-value { color: #b8c0cc; font-size: 11px; }
 .building-label[data-stage='done'] .bl-value { color: #9fe0a0; font-size: 11px; }
 body.cinematic #labels { opacity: 0; transition: opacity 0.4s; }
+/* 全体マップ（引き）では目標のラベルを小さくして、地図を隠さないようにする（進捗は HUD にある） */
+body.overview .building-label[data-stage='current'] { padding: 3px 10px; font-size: 11px; }
+body.overview .building-label[data-stage='current'] .bl-value { font-size: 11px; }
+body.overview .building-label[data-stage='current'] .bl-bar { display: none; }
+body.overview .building-label[data-stage='locked'] { display: none; }
+
+/* 全体マップ中の現在地マーカー：足元で脈打つ輪と、その上の「現在地」 */
+.player-marker {
+  width: 22px; height: 22px; border-radius: 50%; background: #d9443a; border: 3px solid #fff;
+  box-shadow: 0 0 0 0 rgba(217, 68, 58, 0.7); animation: pm-pulse 1.4s ease-out infinite;
+}
+.player-marker[hidden] { display: none; }
+.pm-label {
+  position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%);
+  padding: 2px 8px; border-radius: 999px; background: #d9443a; color: #fff;
+  font-size: 12px; font-weight: bold; white-space: nowrap; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+@keyframes pm-pulse { to { box-shadow: 0 0 0 18px rgba(217, 68, 58, 0); } }
+
+/* 全体マップ中だけ出す、映す範囲の切り替えボタン（下中央） */
+#overview-scope {
+  position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 3;
+  padding: 10px 16px; border: none; border-radius: 999px; background: rgba(20, 30, 50, 0.75); color: #fff;
+  font-size: 14px; font-weight: bold; cursor: pointer; backdrop-filter: blur(4px); white-space: nowrap;
+}
+#overview-scope kbd { font: inherit; font-size: 10px; opacity: 0.75; border: 1px solid rgba(255,255,255,0.5); border-radius: 3px; padding: 0 3px; margin-left: 4px; }
+body:not(.overview) #overview-scope, #overview-scope[hidden] { display: none; }
+@media (pointer: coarse) { #overview-scope kbd { display: none; } }
 
 /* キャラクターの頭上に出す、建設予定地の方向を示す矢印（光の柱が遠くて見えないとき用） */
 .site-arrow { display: grid; justify-items: center; gap: 2px; }
