@@ -60,6 +60,9 @@ export function serialize(s: GameState): SaveData {
 export function apply(s: GameState, d: SaveData) {
   s.gold = d.gold
   for (const id of Object.keys(UPGRADES) as UpgradeId[]) s.upgrades[id] = d.upgrades[id] ?? 0
+  // 「腕力」はスコップに統合した（v0.2.0）。古いセーブは高いほうのレベルを引き継ぐ。降雪機（購入制）は完成した建物から置き直す
+  const old = d.upgrades as Record<string, number | undefined>
+  s.upgrades.shovel = Math.max(s.upgrades.shovel, old.power ?? 0)
   s.player.x = d.player.x
   s.player.z = d.player.z
   s.player.carried = d.player.carried

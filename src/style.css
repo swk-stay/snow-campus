@@ -20,7 +20,7 @@ canvas { display: block; touch-action: none; }
 #toast {
   position: fixed; left: 50%; top: 28%; transform: translate(-50%, -50%) scale(0.9);
   padding: 14px 24px; border-radius: 16px; background: rgba(255, 255, 255, 0.92); color: #7a4b00;
-  font-size: 22px; font-weight: bold; pointer-events: none; opacity: 0; transition: opacity 0.3s, transform 0.3s;
+  font-size: 22px; font-weight: bold; white-space: pre-line; text-align: center; max-width: 90vw; pointer-events: none; opacity: 0; transition: opacity 0.3s, transform 0.3s;
   box-shadow: 0 6px 30px rgba(255, 190, 60, 0.6);
 }
 #toast.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }

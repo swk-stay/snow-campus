@@ -11,7 +11,7 @@ import {
   RARE,
   SKILL_EFFECT,
   SKILLS,
-  SNOW_MACHINE_SPOTS,
+  SNOW_MACHINE,
   UPGRADE_EFFECT,
   UPGRADES,
   WORLD,
@@ -25,6 +25,8 @@ import { SnowField } from './field'
 export type Building = BuildingDef & {
   deposited: number
   completed: boolean
+  /** 完成したら降雪機が置かれる場所 */
+  machine: { x: number; z: number }
 }
 
 export type Player = {
@@ -61,6 +63,8 @@ export type SnowMachine = { id: number; x: number; z: number }
 export type RareCrystal = { id: number; x: number; z: number }
 
 export type Stats = {
+  /** 移動速度（完成した建物のごほうび込み。ブーストは含まない） */
+  moveSpeed: number
   collectRadius: number
   collectRate: number
   capacity: number
@@ -114,7 +118,7 @@ const SKILL_IDS = Object.keys(SKILLS) as SkillId[]
 
 export function createGame(): GameState {
   const field = new SnowField(WORLD.fieldRes, WORLD.size, WORLD.centerX, WORLD.centerZ)
-  const buildings = BUILDINGS.map((def) => ({ ...def, required: requiredOf(def), deposited: 0, completed: false }))
+  const buildings = BUILDINGS.map((def) => ({ ...def, required: requiredOf(def), deposited: 0, completed: false, machine: machineSpot(def, field) }))
   for (const b of buildings) {
     // 建物の敷地と寄付ゾーンは雪をどけて、降雪機でも積もらないようにする
     field.blockRect(
@@ -155,6 +159,35 @@ export function createGame(): GameState {
   return s
 }
 
+/**
+ * 降雪機の置き場所：建物の外壁のうち中庭を向いた面の前（入口から少し離れた所のつもり）。面に沿った位置も中庭の方へ寄せる。
+ * ほかの建物の寄付ゾーン・景色の建物・雪原の外にかかる面は避けて、次に中庭を向いている面にする
+ */
+function machineSpot(b: BuildingDef, field: SnowField): { x: number; z: number } {
+  const { offset, radius, towardX, towardZ } = SNOW_MACHINE
+  const tx = towardX - b.x
+  const tz = towardZ - b.z
+  const hw = b.width / 2
+  const hd = b.depth / 2
+  const along = (t: number, h: number) => Math.max(-h / 2, Math.min(h / 2, t))
+  const sides = [
+    { n: tx, x: b.x + hw + offset, z: b.z + along(tz, hd) },
+    { n: -tx, x: b.x - hw - offset, z: b.z + along(tz, hd) },
+    { n: tz, x: b.x + along(tx, hw), z: b.z + hd + offset },
+    { n: -tz, x: b.x + along(tx, hw), z: b.z - hd - offset },
+  ].sort((p, q) => q.n - p.n)
+  const free = ({ x, z }: { x: number; z: number }) => {
+    const q = { x, z }
+    field.clamp(q, radius)
+    if (q.x !== x || q.z !== z) return false
+    const rect = (cx: number, cz: number, w: number, d: number) => Math.hypot(Math.max(Math.abs(x - cx) - w / 2, 0), Math.max(Math.abs(z - cz) - d / 2, 0))
+    // 降らせる範囲がほかの建物の敷地に少しかかるのはよい（そこには積もらないだけ）。本体が寄付ゾーンに入らなければ
+    if (BUILDINGS.some((o) => o !== b && rect(o.x, o.z, o.width, o.depth) < o.dropRange + 1.5)) return false
+    return OBSTACLES.every((o) => rect((o.x0 + o.x1) / 2, (o.z0 + o.z1) / 2, o.x1 - o.x0, o.z1 - o.z0) > 2)
+  }
+  return sides.find(free) ?? sides[0]
+}
+
 /** 建物の完成に必要な量（全体倍率込み） */
 export function requiredOf(def: BuildingDef): number {
   return Math.max(1, Math.round(def.required * ECONOMY.requiredScale))
@@ -188,12 +221,14 @@ export function refillField(s: GameState) {
   })
 }
 
-/** アップグレード込みのプレイヤー性能。PLAYER（基礎値）は書き換えない */
+/** アップグレード（と完成した建物のごほうび）込みのプレイヤー性能。PLAYER（基礎値）は書き換えない */
 export function stats(s: GameState): Stats {
-  const { shovel, power, backpack, throwing, cooldown } = s.upgrades
+  const { shovel, backpack, throwing, cooldown } = s.upgrades
+  const speed = s.buildings.reduce((m, b) => (b.completed ? m * (b.reward?.speed ?? 1) : m), 1)
   return {
+    moveSpeed: PLAYER.speed * speed,
     collectRadius: PLAYER.collectRadius * (1 + UPGRADE_EFFECT.shovelRadiusPerLevel * shovel),
-    collectRate: PLAYER.collectRate * (1 + UPGRADE_EFFECT.powerRatePerLevel * power),
+    collectRate: PLAYER.collectRate * (1 + UPGRADE_EFFECT.shovelRatePerLevel * Math.min(shovel, UPGRADE_EFFECT.shovelRateMaxLevel)),
     capacity: Math.round(PLAYER.capacity * (1 + UPGRADE_EFFECT.backpackCapacityPerLevel * backpack)),
     throwChunk: PLAYER.throwChunk * (1 + UPGRADE_EFFECT.throwChunkPerLevel * throwing),
     throwInterval: PLAYER.throwInterval / (1 + UPGRADE_EFFECT.throwIntervalPerLevel * throwing),
@@ -317,19 +352,28 @@ function throwRares(s: GameState, b: Building, events: GameEvent[]) {
 
 let unitSeq = 0
 
-/** アップグレードのレベルと、除雪機・降雪機の台数を一致させる（GUI からレベルを直接いじった場合にも使う） */
+/** レア雪が湧くか（ごほうびが rare の建物が完成しているか） */
+export function rareUnlocked(s: GameState): boolean {
+  return s.buildings.some((b) => b.completed && b.reward?.rare)
+}
+
+/**
+ * 除雪機の台数をアップグレードのレベルに、降雪機を完成した建物に一致させる
+ * （GUI からレベルを直接いじった場合や、ロードしたときにも使う）
+ */
 export function syncOwnedUnits(s: GameState) {
   while (s.plows.length < s.upgrades.plow) {
     const p = s.player
     s.plows.push({ id: unitSeq++, x: p.x + 1, z: p.z + 1, facing: 0, load: 0, targetX: p.x, targetZ: p.z, retarget: 0 })
   }
   s.plows.length = Math.min(s.plows.length, s.upgrades.plow)
-  const spots = Math.min(s.upgrades.snowMachine, SNOW_MACHINE_SPOTS.length)
-  while (s.machines.length < spots) {
-    const spot = SNOW_MACHINE_SPOTS[s.machines.length]
+  // 建物は順番に完成するので、完成した建物の並びと降雪機の並びは一致する
+  const spots = s.buildings.filter((b) => b.completed).map((b) => b.machine)
+  while (s.machines.length < spots.length) {
+    const spot = spots[s.machines.length]
     s.machines.push({ id: unitSeq++, x: spot.x, z: spot.z })
   }
-  s.machines.length = spots
+  s.machines.length = spots.length
 }
 
 /** いま建てている建物（BUILDINGS の順で最初の未完成）。全部完成していれば null */
@@ -353,7 +397,7 @@ export function stepGame(s: GameState, input: MoveInput, dt: number): GameEvent[
 
   for (const id of SKILL_IDS) s.cooldowns[id] = Math.max(0, s.cooldowns[id] - dt)
   p.boostTime = Math.max(0, p.boostTime - dt)
-  movePlayer(s, input, dt)
+  movePlayer(s, st, input, dt)
 
   // 掘っている感じを出すため、向いている方向の扇形（既定は前方の半円）だけを削る
   const collected = s.field.collect(p.x, p.z, st.collectRadius, st.collectRate, dt, p.capacity - p.carried, {
@@ -387,12 +431,12 @@ export function stepGame(s: GameState, input: MoveInput, dt: number): GameEvent[
   }
 
   for (const plow of s.plows) stepPlow(s, plow, dt, events)
-  for (const m of s.machines) s.field.add(m.x, m.z, UPGRADE_EFFECT.snowMachine.radius, UPGRADE_EFFECT.snowMachine.rate, dt)
+  for (const m of s.machines) s.field.add(m.x, m.z, SNOW_MACHINE.radius, SNOW_MACHINE.rate, dt)
 
   return events
 }
 
-/** レア雪：レーダー所持中は一定間隔で雪の多い場所に湧き、回収半径に入ると拾う */
+/** レア雪：解禁後（先進技術研究所の完成後）は一定間隔で雪の多い場所に湧き、回収半径に入ると拾う */
 function stepRares(s: GameState, st: Stats, dt: number, events: GameEvent[]) {
   const p = s.player
   for (let i = s.rares.length - 1; i >= 0; i--) {
@@ -402,7 +446,7 @@ function stepRares(s: GameState, st: Stats, dt: number, events: GameEvent[]) {
     p.rare++
     events.push({ type: 'rarePickup', id: r.id, x: r.x, z: r.z })
   }
-  if (!s.items.rareRadar) return
+  if (!rareUnlocked(s)) return
   s.rareTimer -= dt
   if (s.rareTimer > 0 || s.rares.length >= RARE.maxOnField) return
   s.rareTimer = RARE.spawnInterval
@@ -428,6 +472,8 @@ function deposit(s: GameState, b: Building, amount: number, events: GameEvent[],
 function complete(s: GameState, b: Building, events: GameEvent[]) {
   b.completed = true
   s.tier = s.buildings.filter((x) => x.completed).length
+  // ごほうびの降雪機を建物の前に置く
+  syncOwnedUnits(s)
   events.push({ type: 'complete', buildingId: b.id })
 }
 
@@ -476,7 +522,7 @@ function stepPlow(s: GameState, plow: Plow, dt: number, events: GameEvent[]) {
   }
 }
 
-function movePlayer(s: GameState, input: MoveInput, dt: number) {
+function movePlayer(s: GameState, st: Stats, input: MoveInput, dt: number) {
   const p = s.player
   if (p.dashTime > 0) {
     // ダッシュ中は入力を無視して向いている方向へ
@@ -487,7 +533,7 @@ function movePlayer(s: GameState, input: MoveInput, dt: number) {
   } else {
     const len = Math.hypot(input.x, input.z)
     if (len > 0.01) {
-      const speed = PLAYER.speed * (p.boostTime > 0 ? SKILL_EFFECT.boostSpeedMult : 1)
+      const speed = st.moveSpeed * (p.boostTime > 0 ? SKILL_EFFECT.boostSpeedMult : 1)
       const k = Math.min(len, 1) / len
       p.x += input.x * k * speed * dt
       p.z += input.z * k * speed * dt

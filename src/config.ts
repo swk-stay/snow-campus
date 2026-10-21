@@ -42,10 +42,19 @@ export type BuildingDef = {
   required: number
   /** 建物の外周からこの距離以内が寄付ゾーン */
   dropRange: number
+  /** 完成したときのごほうび（降雪機はどの建物でも 1 台ずつ届く） */
+  reward?: BuildingReward
 }
 
-const b = (id: string, label: string, x: number, z: number, width: number, depth: number, height: number, required: number): BuildingDef => ({
-  id, label, x, z, width, depth, height, required, dropRange: 3,
+export type BuildingReward = {
+  /** 移動速度の倍率（複数あれば掛け合わせる） */
+  speed?: number
+  /** レア雪が雪原に現れるようになる */
+  rare?: boolean
+}
+
+const b = (id: string, label: string, x: number, z: number, width: number, depth: number, height: number, required: number, reward?: BuildingReward): BuildingDef => ({
+  id, label, x, z, width, depth, height, required, dropRange: 3, reward,
 })
 
 // ---- キャンパス（神奈川工科大学の全体） ----
@@ -61,11 +70,14 @@ const b = (id: string, label: string, x: number, z: number, width: number, depth
 
 /**
  * 建てる順番に並べる。前の建物が完成すると次が解放される。
- * 中庭から始めて、西（C 系統）→ 北東（E 系統・グラウンド側）→ 南（A 系統）と広げ、最後は中庭に戻って K 系統。
+ * 最初はスタート地点に近い正門の守衛所（小さいのでチュートリアル代わり。完成すると移動速度が上がる）。
+ * 次に中庭から始めて、西（C 系統）→ 北東（E 系統・グラウンド側）→ 南（A 系統）と広げ、最後は中庭に戻って K 系統。
  * 一番高い K1号館が締めくくり。小さい棟（C7・E7 など）は途中の息抜きとして必要量を少なめにしている
  */
 export const BUILDINGS: BuildingDef[] = [
-  b('d2', '先進技術研究所', 38.2, -12.2, 27.0, 31.0, 8.3, 900),
+  // 守衛所の寸法は、かまぼこ屋根の庇（長さ 8m・幅 5.2m）を含めたもの
+  b('guard', '守衛所', 43, 65.6, 8.0, 5.2, 4.6, 300, { speed: 1.15 }),
+  b('d2', '先進技術研究所', 38.2, -12.2, 27.0, 31.0, 8.3, 900, { rare: true }),
   b('d1', 'KAIT工房', -31.8, -72.0, 44.1, 46.6, 5.0, 1400),
   b('c1', '附属図書館', -83.8, -11.5, 34.4, 47.9, 17.4, 2000),
   b('town', 'KAIT TOWN', -95.8, -73.2, 16.7, 37.1, 8.9, 2200),
@@ -120,7 +132,7 @@ export const ECONOMY = {
   requiredScale: 1,
 }
 
-export type UpgradeId = 'shovel' | 'power' | 'backpack' | 'throwing' | 'plow' | 'snowMachine' | 'cooldown'
+export type UpgradeId = 'shovel' | 'backpack' | 'throwing' | 'plow' | 'cooldown'
 
 export type UpgradeDef = {
   label: string
@@ -142,26 +154,30 @@ function maxLevels(head: number[], every: number): number[] {
   )
 }
 
+// 先頭の Tier 0 と 1 は同じ上限（守衛所はチュートリアル代わりで、ごほうびは移動速度なので上限は上げない）
 export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
-  shovel: { label: 'スコップ', description: '回収半径 アップ', baseCost: 30, growth: 1.5, maxLevel: maxLevels([3, 5, 7, 9, 11, 13, 15], 2) },
-  power: { label: '腕力', description: '雪を削る速さ アップ', baseCost: 30, growth: 1.5, maxLevel: maxLevels([3, 5, 7, 9, 11, 13, 15], 2) },
-  backpack: { label: 'リュック', description: '持てる雪 +50%', baseCost: 25, growth: 1.45, maxLevel: maxLevels([3, 5, 7, 9, 11, 13, 15], 2) },
-  throwing: { label: '雪玉投げ', description: '建物へ投げ込む速さ アップ', baseCost: 40, growth: 1.5, maxLevel: maxLevels([3, 5, 7, 9, 11, 13, 15], 2) },
-  plow: { label: '自動除雪機', description: '雪を集めて勝手に寄付', baseCost: 120, growth: 1.8, maxLevel: maxLevels([1, 2, 3, 4, 5, 6, 8], 3) },
-  snowMachine: { label: '降雪機', description: '周りに雪を降らせる', baseCost: 80, growth: 1.6, maxLevel: maxLevels([2, 3, 4, 5, 6, 7, 8], 3) },
-  cooldown: { label: 'クールダウン短縮', description: 'スキルの待ち時間 ダウン', baseCost: 150, growth: 1.6, maxLevel: maxLevels([1, 2, 3, 4, 5, 6, 8], 3) },
+  shovel: { label: 'スコップ', description: '回収半径・削る速さ アップ', baseCost: 45, growth: 1.5, maxLevel: maxLevels([3, 3, 5, 7, 9, 11, 13, 15], 2) },
+  backpack: { label: 'リュック', description: '持てる雪 +50%', baseCost: 25, growth: 1.45, maxLevel: maxLevels([3, 3, 5, 7, 9, 11, 13, 15], 2) },
+  throwing: { label: '雪玉投げ', description: '建物へ投げ込む速さ アップ', baseCost: 40, growth: 1.5, maxLevel: maxLevels([3, 3, 5, 7, 9, 11, 13, 15], 2) },
+  plow: { label: '自動除雪機', description: '雪を集めて勝手に寄付', baseCost: 120, growth: 1.8, maxLevel: maxLevels([1, 1, 2, 3, 4, 5, 6, 8], 3) },
+  cooldown: { label: 'クールダウン短縮', description: 'スキルの待ち時間 ダウン', baseCost: 150, growth: 1.6, maxLevel: maxLevels([1, 1, 2, 3, 4, 5, 6, 8], 3) },
 }
 
 /** アップグレードの効果量。lil-gui から調整できるようにまとめて持つ */
 export const UPGRADE_EFFECT = {
+  /** スコップ：回収半径 ×(1 + radius×Lv)、削る速さ ×(1 + rate×min(Lv, rateMaxLevel)) */
   shovelRadiusPerLevel: 0.2,
-  powerRatePerLevel: 0.25,
+  shovelRatePerLevel: 0.25,
+  /**
+   * 削る速さが伸びるのはこのレベルまで。それ以上削る速さを上げても、移動速度に対して雪を削り切ってしまうので意味が薄い
+   * （以前の「腕力」がそうなっていた）。3〜4 棟目あたりで届く
+   */
+  shovelRateMaxLevel: 8,
   backpackCapacityPerLevel: 0.5,
   /** 雪玉投げ：1個あたりの量 ×(1 + chunk×Lv)、投げる間隔 ÷(1 + interval×Lv) */
   throwChunkPerLevel: 0.5,
   throwIntervalPerLevel: 0.15,
   plow: { speed: 3.2, radius: 1.6, rate: 0.9, capacity: 30, deliverChunk: 10 },
-  snowMachine: { radius: 5, rate: 0.12 },
   /** クールダウン短縮：待ち時間 ÷(1 + cooldownPerLevel×Lv) */
   cooldownPerLevel: 0.12,
 }
@@ -200,8 +216,22 @@ export const SKILL_EFFECT = {
   blizzardRadius: 14,
 }
 
+/**
+ * 降雪機（issue #22）。買うものではなく、建物が完成するたびにその建物の前（中庭側、入口から少し離れた所）に 1 台ずつ置かれる。
+ * 置き場所は sim/game.ts の machineSpot で建物の外形から決める
+ */
+export const SNOW_MACHINE = {
+  radius: 5,
+  rate: 0.12,
+  /** 建物の外壁から降雪機の中心までの距離 (m)。寄付ゾーン（dropRange）＋降らせる半径より外に置く */
+  offset: 10,
+  /** 中庭（中央緑地公園）の中心。建物のどちら側に置くかの目安 */
+  towardX: 2,
+  towardZ: -13,
+}
+
 // ---- レア雪 ----
-// アイテム「レア雪レーダー」を買うと雪原に現れる。普通の雪とは別枠で持てて（所持上限なし）、建物への貢献が大きい。
+// 先進技術研究所（reward.rare の建物）が完成すると雪原に現れる。普通の雪とは別枠で持てて（所持上限なし）、建物への貢献が大きい。
 
 export const RARE = {
   /** 1個あたりの建物への貢献（普通の雪の量に換算） */
@@ -213,7 +243,7 @@ export const RARE = {
 // ---- アイテム ----
 // 一度買えばずっと有効な解禁型。建物の完成数（Tier）や累計で集めた雪の量で、ショップに並ぶ。
 
-export type ItemId = 'rareRadar' | SkillId
+export type ItemId = SkillId
 
 export type ItemDef = {
   label: string
@@ -224,34 +254,10 @@ export type ItemDef = {
 
 export const ITEMS: Record<ItemId, ItemDef> = {
   dash: { label: 'ダッシュの書', description: 'スキル「ダッシュ」を覚える', cost: 80, unlock: { collected: 300 } },
-  rareRadar: { label: 'レア雪レーダー', description: '光るレア雪が雪原に現れる（1個で雪60ぶん）', cost: 250, unlock: { tier: 1 } },
-  boost: { label: 'ブーストの書', description: 'スキル「ブースト」を覚える', cost: 200, unlock: { tier: 1, collected: 1500 } },
-  longThrow: { label: '遠投の書', description: 'スキル「遠投」を覚える', cost: 600, unlock: { tier: 2 } },
-  blizzard: { label: 'ブリザードの書', description: '必殺技「ブリザード」を覚える', cost: 1500, unlock: { tier: 3 } },
+  boost: { label: 'ブーストの書', description: 'スキル「ブースト」を覚える', cost: 200, unlock: { tier: 2, collected: 1500 } },
+  longThrow: { label: '遠投の書', description: 'スキル「遠投」を覚える', cost: 600, unlock: { tier: 3 } },
+  blizzard: { label: 'ブリザードの書', description: '必殺技「ブリザード」を覚える', cost: 1500, unlock: { tier: 4 } },
 }
-
-/**
- * 降雪機の設置場所（購入順）。中庭の芝生や構内道路など、建物の敷地にかからない場所。
- * 前半は中庭まわり、後半は建物が増えていく外側（C・E 系統、グラウンド側、A 系統）へ広げる
- */
-export const SNOW_MACHINE_SPOTS = [
-  { x: 0, z: -15 },
-  { x: -30, z: -20 },
-  { x: 60, z: 8 },
-  { x: -50, z: -35 },
-  { x: 0, z: 85 },
-  { x: -60, z: 88 },
-  { x: -3, z: -105 },
-  { x: 105, z: -60 },
-  { x: -110, z: -20 },
-  { x: -150, z: -80 },
-  { x: -110, z: -205 },
-  { x: -15, z: -190 },
-  { x: 70, z: -170 },
-  { x: 90, z: -98 },
-  { x: -140, z: 85 },
-  { x: 150, z: -250 },
-]
 
 /** 演出パラメータ（sim には影響しない） */
 export const FX = {
@@ -280,19 +286,15 @@ export const TIME_ATTACK = {
  */
 const COURTYARD = {
   world: { size: 224, centerX: 0, centerZ: 0, fieldRes: 480 },
-  buildings: { d2: 900, d1: 1400, c1: 2000, d3: 2600, k2: 3200, c6: 3800, b5: 4400, k4: 5000, k3: 6000, k1: 8000 } as Record<string, number>,
-  /** Tier ごとの最大レベル（10 棟ぶん。配列を超えた Tier は最後の値） */
+  buildings: { guard: 300, d2: 900, d1: 1400, c1: 2000, d3: 2600, k2: 3200, c6: 3800, b5: 4400, k4: 5000, k3: 6000, k1: 8000 } as Record<string, number>,
+  /** Tier ごとの最大レベル（守衛所＋10 棟ぶん。配列を超えた Tier は最後の値） */
   maxLevel: {
-    shovel: [3, 5, 7, 9, 11, 13, 15],
-    power: [3, 5, 7, 9, 11, 13, 15],
-    backpack: [3, 5, 7, 9, 11, 13, 15],
-    throwing: [3, 5, 7, 9, 11, 13, 15],
-    plow: [1, 2, 3, 4, 5, 6, 8],
-    snowMachine: [2, 3, 4, 5, 6, 7, 8],
-    cooldown: [1, 2, 3, 4, 5, 6, 8],
+    shovel: [3, 3, 5, 7, 9, 11, 13, 15],
+    backpack: [3, 3, 5, 7, 9, 11, 13, 15],
+    throwing: [3, 3, 5, 7, 9, 11, 13, 15],
+    plow: [1, 1, 2, 3, 4, 5, 6, 8],
+    cooldown: [1, 1, 2, 3, 4, 5, 6, 8],
   } as Record<UpgradeId, number[]>,
-  /** 降雪機の設置場所は先頭（中庭まわり）の 8 か所だけ */
-  snowMachineSpots: 8,
 }
 
 /**
@@ -304,7 +306,6 @@ export function useCourtyardCourse() {
   const kept = Object.entries(COURTYARD.buildings).map(([id, required]) => ({ ...BUILDINGS.find((b) => b.id === id)!, required }))
   BUILDINGS.splice(0, BUILDINGS.length, ...kept)
   for (const id of Object.keys(UPGRADES) as UpgradeId[]) UPGRADES[id].maxLevel = COURTYARD.maxLevel[id]
-  SNOW_MACHINE_SPOTS.length = COURTYARD.snowMachineSpots
   // 減らしてあればそのまま（学園祭で回転を早くする設定を消さない）
   TIME_ATTACK.goal = Math.min(TIME_ATTACK.goal, BUILDINGS.length)
   TIME_ATTACK.course = 'courtyard'

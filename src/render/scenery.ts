@@ -4,7 +4,7 @@ import { BUILDINGS } from '../config'
 import { BALLPARK, BALLPARK_AXIS, ballparkAt, ballparkEdge, HOME_PLATE, SOCCER, soccerAt, TENNIS_AREA, TRACK_HALF_WIDTH, TENNIS_COURTS, treeSpots, type TreeSpot } from './campusGround'
 import { createCampusProps } from './campusProps'
 
-// 建て直しの対象ではない景色：雪をかぶった並木、構内バス停と神奈中バス、正門の守衛所、
+// 建て直しの対象ではない景色：雪をかぶった並木、構内バス停と神奈中バス、
 // グラウンドの設備（野球場のバックネット・外野フェンス・照明塔、サッカーゴール、テニスコートのフェンス）、
 // 構内の小物と小さな建物（campusProps.ts：渡り廊下・旧第三食堂・銅像・ベンチなど）。
 // 雪原の上に置くだけ。当たり判定と雪に関わるのは、中に入れない小さな建物（config の OBSTACLES）だけ。
@@ -16,7 +16,6 @@ export function createScenery(): THREE.Group {
   group.add(trees(treeSpots()))
   group.add(named(bus(85, 69.5, 0), 'バス'))
   group.add(named(busStopSign(94.5, 72.4), 'バス停の標識'))
-  group.add(named(guardHouse(43, 65.6), '守衛所'))
   group.add(named(sportsFacilities(), 'グラウンドの設備'))
   group.add(createCampusProps())
   return group
@@ -239,24 +238,3 @@ function busStopSign(x: number, z: number): THREE.Group {
   return g
 }
 
-/** 正門の守衛所：グレーの小屋に、緑のかまぼこ屋根の庇 */
-function guardHouse(x: number, z: number): THREE.Group {
-  const g = new THREE.Group()
-  const hut = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 4.5), new THREE.MeshStandardMaterial({ color: 0x6c6f73, roughness: 0.8 }))
-  hut.position.y = 1.5
-  const win = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.2, 4.55), new THREE.MeshStandardMaterial({ color: 0x3a4a56, roughness: 0.2 }))
-  win.position.y = 1.9
-  const roof = new THREE.Mesh(
-    new THREE.CylinderGeometry(2.6, 2.6, 8, 20, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).scale(1, 0.55, 1),
-    new THREE.MeshStandardMaterial({ color: 0x3e9e93, roughness: 0.5, side: THREE.DoubleSide }),
-  )
-  roof.position.set(0, 3.1, 0)
-  const snow = new THREE.Mesh(
-    new THREE.CylinderGeometry(2.62, 2.62, 7.8, 20, 1, false, Math.PI / 6, (Math.PI * 2) / 3).rotateZ(Math.PI / 2).scale(1, 0.56, 1),
-    snowMat,
-  )
-  snow.position.set(0, 3.12, 0)
-  g.add(hut, win, roof, snow)
-  g.position.set(x, 0, z)
-  return g
-}

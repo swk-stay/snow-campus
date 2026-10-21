@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { UPGRADE_EFFECT } from '../config'
+import { SNOW_MACHINE } from '../config'
 import type { Plow, SnowMachine } from '../sim/game'
 import { applySubjectCut } from './subjectCut'
 
@@ -48,7 +48,7 @@ function createMachineMesh(): THREE.Group {
 
   // 範囲内に舞う雪（Points）。ローカル座標で落下させて、下まで来たら上に戻す
   const positions = new Float32Array(FLAKES * 3)
-  const r = UPGRADE_EFFECT.snowMachine.radius
+  const r = SNOW_MACHINE.radius
   for (let i = 0; i < FLAKES; i++) {
     const a = Math.random() * Math.PI * 2
     const d = r * Math.sqrt(Math.random())
