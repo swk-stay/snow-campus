@@ -1,4 +1,4 @@
-import { BUILDINGS, ECONOMY, ITEMS, PLAYER, RARE, SKILL_EFFECT, SKILLS, UPGRADE_EFFECT, UPGRADES, type ItemId, type SkillId, type UpgradeId } from './config'
+import { BUILDINGS, ECONOMY, ITEMS, PLAYER, RARE, SKILL_EFFECT, SKILLS, SNOW_MACHINE, UPGRADE_EFFECT, UPGRADES, type ItemId, type SkillId, type UpgradeId } from './config'
 
 // バランス調整画面（?balance）で触れる値の一覧。config のオブジェクトを直接読み書きする。
 // 初期値（config.ts に書いてある値）との差分を localStorage に保存し、config.ts へ書き戻すためのテキストにもする。
@@ -51,6 +51,7 @@ export const TUNABLES: Tunable[] = [
   prop('経済', ECONOMY, 'ECONOMY', 'requiredScale', '必要量の倍率', 0.05),
 
   ...BUILDINGS.map((b) => prop('建物', b, `BUILDINGS.${b.id}`, 'required', b.label, 50)),
+  ...BUILDINGS.filter((b) => b.reward?.speed).map((b) => prop('建物', b.reward!, `BUILDINGS.${b.id}.reward`, 'speed', `${b.label}: 完成で移動速度 ×`, 0.05)),
 
   ...UPGRADE_IDS.flatMap((id) => [
     prop('アップグレード', UPGRADES[id], `UPGRADES.${id}`, 'baseCost', `${UPGRADES[id].label}: 基本価格`, 5),
@@ -59,7 +60,8 @@ export const TUNABLES: Tunable[] = [
   ]),
 
   prop('アップグレードの効果', UPGRADE_EFFECT, 'UPGRADE_EFFECT', 'shovelRadiusPerLevel', 'スコップ: 半径/Lv', 0.05),
-  prop('アップグレードの効果', UPGRADE_EFFECT, 'UPGRADE_EFFECT', 'powerRatePerLevel', '腕力: 速さ/Lv', 0.05),
+  prop('アップグレードの効果', UPGRADE_EFFECT, 'UPGRADE_EFFECT', 'shovelRatePerLevel', 'スコップ: 速さ/Lv', 0.05),
+  prop('アップグレードの効果', UPGRADE_EFFECT, 'UPGRADE_EFFECT', 'shovelRateMaxLevel', 'スコップ: 速さが伸びるLvまで', 1),
   prop('アップグレードの効果', UPGRADE_EFFECT, 'UPGRADE_EFFECT', 'backpackCapacityPerLevel', 'リュック: 容量/Lv', 0.1),
   prop('アップグレードの効果', UPGRADE_EFFECT, 'UPGRADE_EFFECT', 'throwChunkPerLevel', '雪玉投げ: 量/Lv', 0.05),
   prop('アップグレードの効果', UPGRADE_EFFECT, 'UPGRADE_EFFECT', 'throwIntervalPerLevel', '雪玉投げ: 間隔短縮/Lv', 0.05),
@@ -69,8 +71,8 @@ export const TUNABLES: Tunable[] = [
   prop('アップグレードの効果', UPGRADE_EFFECT.plow, 'UPGRADE_EFFECT.plow', 'rate', '除雪機: 削る速さ', 0.05),
   prop('アップグレードの効果', UPGRADE_EFFECT.plow, 'UPGRADE_EFFECT.plow', 'capacity', '除雪機: 積載量', 5),
   prop('アップグレードの効果', UPGRADE_EFFECT.plow, 'UPGRADE_EFFECT.plow', 'deliverChunk', '除雪機: 1回に投げる量', 1),
-  prop('アップグレードの効果', UPGRADE_EFFECT.snowMachine, 'UPGRADE_EFFECT.snowMachine', 'radius', '降雪機: 半径', 0.5),
-  prop('アップグレードの効果', UPGRADE_EFFECT.snowMachine, 'UPGRADE_EFFECT.snowMachine', 'rate', '降雪機: 降雪量', 0.01),
+  prop('降雪機（建物の完成ごとに1台）', SNOW_MACHINE, 'SNOW_MACHINE', 'radius', '降雪機: 半径', 0.5),
+  prop('降雪機（建物の完成ごとに1台）', SNOW_MACHINE, 'SNOW_MACHINE', 'rate', '降雪機: 降雪量', 0.01),
 
   ...ITEM_IDS.flatMap((id) => [
     prop('アイテム', ITEMS[id], `ITEMS.${id}`, 'cost', `${ITEMS[id].label}: 価格`, 10),

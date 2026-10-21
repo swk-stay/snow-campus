@@ -1,7 +1,7 @@
 // バランスの理論値。雪が十分ある場所で削り続けたときの上限など、移動や雪の偏りを無視した目安を出す。
 // 実測（調整画面の「実測」）と並べて見て、どこがボトルネックかを判断するのに使う。
 
-import { PLAYER, SNOW_MACHINE_SPOTS, UPGRADE_EFFECT, type UpgradeId } from '../config'
+import { PLAYER, SNOW_MACHINE, UPGRADE_EFFECT, type UpgradeId } from '../config'
 import { UNIT_AREA } from './field'
 import { stats, type GameState } from './game'
 
@@ -33,6 +33,7 @@ export type Theory = {
   plows: number
   /** 除雪機 1 台の回収 SPS の上限（移動時間は含まない） */
   plowEach: number
+  /** 降雪機の台数（＝完成した建物の数） */
   machines: number
   /** 降雪機 1 台の降雪 SPS の上限（雪が満タンになるとそれ以上は積もらない） */
   machineEach: number
@@ -45,7 +46,7 @@ export function theory(s: GameState, upgrades: Record<UpgradeId, number> = s.upg
   const collect = diskYield(st.collectRadius, st.collectRate, PLAYER.collectArc)
   const throwRate = st.throwChunk / st.throwInterval
   const plow = UPGRADE_EFFECT.plow
-  const machine = UPGRADE_EFFECT.snowMachine
+  const machine = SNOW_MACHINE
   return {
     collectRadius: st.collectRadius,
     collect,
@@ -55,7 +56,7 @@ export function theory(s: GameState, upgrades: Record<UpgradeId, number> = s.upg
     dumpTime: st.capacity / throwRate,
     plows: upgrades.plow,
     plowEach: diskYield(plow.radius, plow.rate),
-    machines: Math.min(upgrades.snowMachine, SNOW_MACHINE_SPOTS.length),
+    machines: s.machines.length,
     machineEach: diskYield(machine.radius, machine.rate),
     cooldownMult: st.cooldownMult,
   }

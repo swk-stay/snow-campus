@@ -83,7 +83,7 @@ const outer = new THREE.Mesh(
 outer.rotation.x = -Math.PI / 2
 outer.position.set(WORLD.centerX, 0.75 * WORLD.snowMaxHeight, WORLD.centerZ)
 scene.add(outer)
-// 並木・バス・守衛所（建て直しの対象ではない景色）。被写体やプレイヤーに被る部分は抜く
+// 並木・バス（建て直しの対象ではない景色）。被写体やプレイヤーに被る部分は抜く
 const scenery = createScenery()
 applySubjectCut(scenery)
 scene.add(scenery)
@@ -296,6 +296,12 @@ function playSkillEffect(id: keyof typeof SKILLS, amount?: number) {
     playFanfare()
     hud.toast(`ブリザード！！ +${Math.floor(amount ?? 0)}`, 2000)
   }
+}
+
+/** 完成のごほうびの説明（降雪機はどの建物でも届く） */
+function rewardText(b: Building): string {
+  const r = b.reward
+  return [r?.speed && '移動速度アップ', r?.rare && 'レア雪が現れるように', '降雪機が届いた'].filter(Boolean).join('・')
 }
 
 /** 完成演出のカット割り：完成した建物を正面から → 次の建物（なければキャンパス全体） */
@@ -599,7 +605,7 @@ renderer.setAnimationLoop((now: number) => {
           sparkles.burst(tmp, 8, n % 2 ? 0xffd36e : 0xfff4c2, 5)
         }
         playFanfare()
-        hud.toast(`${b.label} 完成！`, 3000)
+        hud.toast(`${b.label} 完成！\n${rewardText(b)}`, 3600)
       }
     } else if (view.colorize >= 0 && view.colorize < 1) {
       view.colorize = Math.min(1, view.colorize + dt / FX.colorizeSeconds)

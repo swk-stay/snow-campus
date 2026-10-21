@@ -1,5 +1,5 @@
 import GUI from 'lil-gui'
-import { ECONOMY, FX, ITEMS, PLAYER, RARE, SKILL_EFFECT, SKILLS, UPGRADE_EFFECT, UPGRADES, WORLD, type ItemId, type SkillId, type UpgradeId } from './config'
+import { ECONOMY, FX, ITEMS, PLAYER, RARE, SKILL_EFFECT, SKILLS, SNOW_MACHINE, UPGRADE_EFFECT, UPGRADES, WORLD, type ItemId, type SkillId, type UpgradeId } from './config'
 import { maxLevel, refillField, syncOwnedUnits, type GameState } from './sim/game'
 
 // ?debug のときだけ出す調整パネル。config のオブジェクトを直接書き換えるので即座に反映される。
@@ -37,13 +37,14 @@ export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
       .onChange(() => syncOwnedUnits(s))
   }
   up.add(UPGRADE_EFFECT, 'shovelRadiusPerLevel', 0, 1, 0.05).name('スコップ: 半径/Lv')
-  up.add(UPGRADE_EFFECT, 'powerRatePerLevel', 0, 1, 0.05).name('腕力: 速さ/Lv')
+  up.add(UPGRADE_EFFECT, 'shovelRatePerLevel', 0, 1, 0.05).name('スコップ: 速さ/Lv')
+  up.add(UPGRADE_EFFECT, 'shovelRateMaxLevel', 0, 30, 1).name('スコップ: 速さが伸びるLvまで')
   up.add(UPGRADE_EFFECT, 'backpackCapacityPerLevel', 0, 2, 0.1).name('リュック: 容量/Lv')
   up.add(UPGRADE_EFFECT, 'throwChunkPerLevel', 0, 2, 0.05).name('雪玉投げ: 量/Lv')
   up.add(UPGRADE_EFFECT, 'throwIntervalPerLevel', 0, 1, 0.05).name('雪玉投げ: 間隔短縮/Lv')
   up.add(UPGRADE_EFFECT.plow, 'speed', 0.5, 10, 0.1).name('除雪機: 速度')
   up.add(UPGRADE_EFFECT.plow, 'radius', 0.5, 5, 0.1).name('除雪機: 半径')
-  up.add(UPGRADE_EFFECT.snowMachine, 'rate', 0, 1, 0.01).name('降雪機: 降雪量')
+  up.add(SNOW_MACHINE, 'rate', 0, 1, 0.01).name('降雪機: 降雪量')
 
   const sk = gui.addFolder('スキル・レア雪').close()
   for (const id of Object.keys(SKILLS) as SkillId[]) sk.add(SKILLS[id], 'cooldown', 0.5, 300, 0.5).name(`${SKILLS[id].label}: CD (s)`)

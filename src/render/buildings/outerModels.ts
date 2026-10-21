@@ -1,7 +1,7 @@
 import { cw, deskIsland, facade, interior, pcRow, plant, rectSides, rng, shelfRow, type CellKind, type Kit, type WindowSize } from './kit'
 import { car, GLASS, h3, levels, OFFWHITE, ORANGE, roof, rooftop, WHITE, WOOD, type Model, type Pt } from './parts'
 
-// 中庭の外側の 17 棟（C・E 系統、A 系統、KAIT TOWN、KAIT広場、KAIT ERIM、E7号館）。
+// 中庭の外側の 18 棟（C・E 系統、A 系統、KAIT TOWN、KAIT広場、KAIT ERIM、E7号館、正門の守衛所）。
 // 寸法は OSM（PLATEAU 由来）の外形と高さ、外観は大学公式のキャンパスマップの写真を見て作った。
 // KAIT ERIM は OSM に外形が無いので、写真と公式マップのイラストから大きさを推定している（E7号館は航空写真で測った）。
 // 座標は建物ローカル（原点 = 敷地の外接矩形の中心、+X 南・+Z 西）。
@@ -901,4 +901,40 @@ const a1: Model = (k, b) => {
   })
 }
 
-export const OUTER_MODELS: Record<string, Model> = { town, c7, c5, c2, plaza, e6, e3, e4, e1, e2, erim, e7, a2, a3, a5, a6, a1 }
+// ---------------------------------------------------------------------------
+// 正門の守衛所：最初に建てる小さな建物。グレーの小屋（四方に窓）に、緑のかまぼこ屋根の庇が長く張り出す。
+// 敷地（8m × 5.2m）は庇の大きさで、小屋は 5m × 4.5m
+const guard: Model = (k) => {
+  const GRAY = 0x6c6f73
+  const X = 2.5, Z = 2.25, H = 3
+  for (const s of rectSides(-X, -Z, X, Z)) {
+    const long = s.side === 'e' || s.side === 'w'
+    facade(k, {
+      a: s.a, b: s.b, levels: [0, H], bays: long ? 2 : 1,
+      cell: () => 'window',
+      wall: GRAY, glass: GLASS, win: long ? { w: 0.8, h: 0.42, sill: 0.4 } : { w: 0.6, h: 0.42, sill: 0.4 },
+    })
+  }
+  k.box(-X, H - 0.15, -Z, X, H + 0.1, Z, GRAY)
+  // かまぼこ屋根：X 方向に長い半円柱を、高さだけ潰したもの（端は開いたまま）
+  const R = 2.6, RY = 1.43, Y = H + 0.1, L = 4, N = 16
+  for (let i = 0; i < N; i++) {
+    const a0 = (i / N) * Math.PI, a1 = ((i + 1) / N) * Math.PI
+    const y0 = Y + RY * Math.sin(a0), z0 = R * Math.cos(a0)
+    const y1 = Y + RY * Math.sin(a1), z1 = R * Math.cos(a1)
+    k.quad([-L, y0, z0], [L, y0, z0], [L, y1, z1], [-L, y1, z1], 0x3e9e93)
+  }
+  k.sign('守衛所', 0, 2.72, Z + 0.37, 1.5, 0.34, 0, '#2c3a44')
+  interior(k, {
+    x0: -X, z0: -Z, x1: X, z1: Z, levels: [0, H], seed: 31,
+    furnish: (kk, _f, y) => {
+      // 窓に向いたカウンターとモニター、奥に鍵の棚
+      kk.box(-2, y + 0.75, Z - 1.1, 2, y + 0.8, Z - 0.5, 0xd9d4c8)
+      kk.box(-1.2, y + 0.8, Z - 1, -0.6, y + 1.2, Z - 0.95, 0x22272c)
+      kk.box(0.6, y + 0.8, Z - 1, 1.2, y + 1.2, Z - 0.95, 0x22272c)
+      kk.box(-1.5, y, -Z + 0.5, 1.5, y + 1.8, -Z + 0.9, 0x9aa1a6)
+    },
+  })
+}
+
+export const OUTER_MODELS: Record<string, Model> = { guard, town, c7, c5, c2, plaza, e6, e3, e4, e1, e2, erim, e7, a2, a3, a5, a6, a1 }

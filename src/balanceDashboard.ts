@@ -1,4 +1,4 @@
-import { ECONOMY, ITEMS, PLAYER, UPGRADE_EFFECT, UPGRADES, type ItemId, type UpgradeId } from './config'
+import { ECONOMY, ITEMS, PLAYER, SNOW_MACHINE, UPGRADE_EFFECT, UPGRADES, type ItemId, type UpgradeId } from './config'
 import { diskYield, rateForYield, theory } from './sim/balance'
 import { canBuyItem, currentBuilding, itemCost, maxLevel, upgradeCost, type GameEvent, type GameState } from './sim/game'
 import { diffText, isChanged, resetTuning, saveTuning, TUNABLE, TUNABLES, type Tunable, type TuneValue } from './tuning'
@@ -159,7 +159,7 @@ export class BalanceDashboard {
 
   private rateSection(): HTMLElement {
     const plow = UPGRADE_EFFECT.plow
-    const machine = UPGRADE_EFFECT.snowMachine
+    const machine = SNOW_MACHINE
     const th = () => theory(this.s)
     return section(
       'レート（SPS は雪が十分ある場所での上限）',
@@ -204,9 +204,9 @@ export class BalanceDashboard {
           '降雪機 SPS/台',
           this.derivedInput(
             () => diskYield(machine.radius, machine.rate),
-            (v) => TUNABLE.get('UPGRADE_EFFECT.snowMachine.rate')!.set(sig(rateForYield(machine.radius, v))),
+            (v) => TUNABLE.get('SNOW_MACHINE.rate')!.set(sig(rateForYield(machine.radius, v))),
             1,
-            'UPGRADE_EFFECT.snowMachine.rate',
+            'SNOW_MACHINE.rate',
           ),
           this.text(() => `×${th().machines}台 = ${num(th().machines * th().machineEach)}`),
         ],
@@ -399,18 +399,12 @@ function effectText(s: GameState, id: UpgradeId): string {
   switch (id) {
     case 'shovel':
       return `半径 ${num(a.collectRadius)} → ${num(b.collectRadius)}m・回収 SPS ${num(a.collect)} → ${num(b.collect)}${perGold(b.collect - a.collect)}`
-    case 'power':
-      return `回収 SPS ${num(a.collect)} → ${num(b.collect)}${perGold(b.collect - a.collect)}`
     case 'backpack':
       return `所持上限 ${a.capacity} → ${b.capacity}`
     case 'throwing':
       return `投げ込み SPS ${num(a.throwRate)} → ${num(b.throwRate)}`
     case 'plow':
       return `除雪機 ${a.plows} → ${b.plows}台・SPS ${num(a.plows * a.plowEach)} → ${num(b.plows * b.plowEach)}${perGold(b.plowEach)}`
-    case 'snowMachine': {
-      const delta = (b.machines - a.machines) * b.machineEach
-      return b.machines > a.machines ? `降雪機 ${a.machines} → ${b.machines}台・降雪 SPS +${num(delta)}${perGold(delta)}` : '設置場所が足りない（SNOW_MACHINE_SPOTS）'
-    }
     case 'cooldown':
       return `スキルの CD ×${num(a.cooldownMult)} → ×${num(b.cooldownMult)}`
   }
