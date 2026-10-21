@@ -29,7 +29,7 @@ import { Hud } from './hud'
 import { Shop, type ShopAction } from './shop'
 import { TimeAttack } from './timeAttack'
 import { Minimap } from './minimap'
-import { CameraRig, overviewPose, type Shot, type ViewMode } from './camera'
+import { CameraRig, overviewPose, type MapArea, type Shot, type ViewMode } from './camera'
 import { GodCamera } from './godView'
 import { createDebugGui } from './debugGui'
 import { BalanceDashboard } from './balanceDashboard'
@@ -209,9 +209,18 @@ viewButton.addEventListener('click', () => toggleView())
 viewBar.querySelector('[data-map]')!.addEventListener('click', () => toggleOverview())
 if (isGodView) document.body.classList.add('god-view')
 
+// 全体マップ中だけ出す、映す範囲の切り替えボタン（自分と次の建物／雪原全体）
+const scopeButton = document.createElement('button')
+scopeButton.id = 'overview-scope'
+scopeButton.addEventListener('click', () => toggleOverviewScope())
+if (!isGodView) document.body.appendChild(scopeButton)
+
 function refreshViewButton() {
   viewButton.innerHTML = `視点変更 <kbd>V</kbd>`
   document.body.classList.toggle('overview', rig.overview)
+  scopeButton.innerHTML = `${rig.overviewScope === 'route' ? '全体を見る' : '自分と目標を見る'} <kbd>Tab</kbd>`
+  // 全部完成したら「自分と目標」は無いので出さない
+  scopeButton.hidden = !currentBuilding(state)
 }
 function toggleView() {
   rig.toggleMode()
@@ -228,6 +237,10 @@ function toggleOverview() {
   input.release()
   refreshViewButton()
 }
+function toggleOverviewScope() {
+  rig.overviewScope = rig.overviewScope === 'route' ? 'all' : 'route'
+  refreshViewButton()
+}
 refreshViewButton()
 
 // 完成演出をスキップできるまでの秒数。タイムアタック中は演出の間もタイムが進むので、すぐスキップできる
@@ -237,6 +250,10 @@ addEventListener('keydown', (e) => {
   if (rig.cinematic && rig.cinematicElapsed > skipAfter) rig.skipCinematic()
   else if (e.code === 'KeyV') toggleView()
   else if (e.code === 'KeyM') toggleOverview()
+  else if (e.code === 'Tab' && rig.overview) {
+    e.preventDefault()
+    toggleOverviewScope()
+  }
 })
 // 俯瞰中は画面タップで戻る。演出は少し見せてからタップでスキップできる
 renderer.domElement.addEventListener('pointerdown', () => {
@@ -326,7 +343,7 @@ function celebrationShots(b: Building): Shot[] {
     // 全体マップと同じ構図。遠くから撮るとフォグに沈んで雲の中のように見えるので、フォグも合わせる
     const pos = new THREE.Vector3()
     const lookAll = new THREE.Vector3()
-    const fog = overviewPose(camera, WORLD.size, { x: WORLD.centerX, z: WORLD.centerZ }, pos, lookAll)
+    const fog = overviewPose(camera, WORLD_AREA, pos, lookAll)
     shots.push({
       pos,
       look: lookAll,
@@ -391,6 +408,21 @@ function clearViewpoint(b: Building, look: THREE.Vector3, dist: number, height: 
   return best!
 }
 
+
+/** 雪原全体（全体マップの「全体」と、全部完成したときの演出で映す範囲） */
+const WORLD_AREA: MapArea = { x: WORLD.centerX, z: WORLD.centerZ, width: WORLD.size, depth: WORLD.size }
+/** 全体マップの「自分と目標」で、自分と建物のまわりに足す余白 (m) と、映す範囲の一辺の最小 (m) */
+const ROUTE_MARGIN = 24
+const ROUTE_MIN = 90
+
+/** 自分と建物 b が両方収まる範囲（近すぎるときは ROUTE_MIN まで広げる） */
+function routeArea(p: { x: number; z: number }, b: Building): MapArea {
+  const minX = Math.min(p.x, b.x - b.width / 2) - ROUTE_MARGIN
+  const maxX = Math.max(p.x, b.x + b.width / 2) + ROUTE_MARGIN
+  const minZ = Math.min(p.z, b.z - b.depth / 2) - ROUTE_MARGIN
+  const maxZ = Math.max(p.z, b.z + b.depth / 2) + ROUTE_MARGIN
+  return { x: (minX + maxX) / 2, z: (minZ + maxZ) / 2, width: Math.max(ROUTE_MIN, maxX - minX), depth: Math.max(ROUTE_MIN, maxZ - minZ) }
+}
 
 /** 完成形の外接箱 */
 function buildingBox(b: Building): THREE.Box3 {
@@ -621,6 +653,7 @@ renderer.setAnimationLoop((now: number) => {
   // 光の柱が遠くて見えない／演出中・全体マップ中は、キャラクターの頭上の矢印で建設予定地の方向を示す
   const arrowTarget = !isGodView && !rig.cinematic && !rig.overview ? current : null
   labels.updateArrow(playerView.group.position, arrowTarget, camera)
+  labels.updateMarker(playerView.group.position, !isGodView && rig.overview)
 
   scoop.update(dt, packPos)
   sparkles.update(dt)
@@ -656,8 +689,8 @@ renderer.setAnimationLoop((now: number) => {
       focus: current ? focusPos : null,
       near,
       blocked: (q) => !!buildingAt(q, 0.4),
-      worldSize: WORLD.size,
-      worldCenter: { x: WORLD.centerX, z: WORLD.centerZ },
+      world: WORLD_AREA,
+      route: current ? routeArea(p, current) : null,
     })
     fog.near = rig.fog.near
     fog.far = rig.fog.far
