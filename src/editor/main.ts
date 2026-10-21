@@ -141,12 +141,17 @@ function syncMarkers() {
     const color = NOTE_KINDS[n.kind].color
     ;(m.ball.material as THREE.MeshBasicMaterial).color.setHex(color)
     ;(m.line.material as THREE.LineDashedMaterial).color.setHex(color)
+    // 完了済みは薄く。「完了を隠す」のときは選択中のもの以外は出さない
+    ;(m.ball.material as THREE.MeshBasicMaterial).opacity = n.done ? 0.35 : 1
+    ;(m.line.material as THREE.LineDashedMaterial).opacity = n.done ? 0.3 : 0.8
+    m.group.visible = !(n.done && hideDoneCheck.checked && n.id !== selectedId)
     m.ball.position.set(n.x, n.y, n.z)
     m.ball.userData.size = n.id === selectedId ? 1.5 : 1
     placeStem(m.line, n.x, n.y, n.z)
-    m.el.textContent = `${i + 1}. ${NOTE_KINDS[n.kind].label}：${n.text.split('\n')[0] || '（テキストなし）'}`
+    m.el.textContent = `${n.done ? '✓ ' : ''}${i + 1}. ${NOTE_KINDS[n.kind].label}：${n.text.split('\n')[0] || '（テキストなし）'}`
     m.el.style.borderColor = `#${color.toString(16).padStart(6, '0')}`
     m.el.classList.toggle('selected', n.id === selectedId)
+    m.el.classList.toggle('done', n.done)
   })
 }
 
@@ -171,6 +176,7 @@ panel.innerHTML = `
       .map((k) => `<label><input type="radio" name="kind" value="${k}"><span style="--c:#${NOTE_KINDS[k].color.toString(16).padStart(6, '0')}">${NOTE_KINDS[k].label}</span></label>`)
       .join('')}</div>
     <textarea data-text rows="3" placeholder="例：ここにベンチを 3 脚／この木を消す／屋上に雪だるまの像／2 階の窓際にこたつ"></textarea>
+    <label class="ep-row ep-done"><input type="checkbox" data-done> 完了済み（実装した）</label>
     <div class="ep-actions">
       <button data-submit class="primary"></button>
       <button data-cancel>選択解除</button>
@@ -186,6 +192,7 @@ panel.innerHTML = `
   </section>
   <section class="ep-list-wrap">
     <div class="ep-list-head"><b>リクエスト一覧</b><span data-count></span></div>
+    <label class="ep-row"><input type="checkbox" data-hide-done> 完了済みを隠す</label>
     <ol class="ep-list" data-list></ol>
     <div class="ep-actions">
       <button data-copy>Markdown をコピー</button>
@@ -202,6 +209,9 @@ const q = <T extends HTMLElement>(sel: string) => panel.querySelector<T>(sel)!
 const axisInputs = { x: q<HTMLInputElement>('[data-axis=x]'), y: q<HTMLInputElement>('[data-axis=y]'), z: q<HTMLInputElement>('[data-axis=z]') }
 const targetInput = q<HTMLInputElement>('[data-target]')
 const textInput = q<HTMLTextAreaElement>('[data-text]')
+const doneCheck = q<HTMLInputElement>('[data-done]')
+const doneRow = q<HTMLLabelElement>('.ep-done')
+const hideDoneCheck = q<HTMLInputElement>('[data-hide-done]')
 const submitButton = q<HTMLButtonElement>('[data-submit]')
 const cancelButton = q<HTMLButtonElement>('[data-cancel]')
 const deleteButton = q<HTMLButtonElement>('[data-delete]')
@@ -260,6 +270,7 @@ function select(id: number | null) {
     targetInput.value = n.target
     textInput.value = n.text
     setKind(n.kind)
+    doneCheck.checked = n.done
   } else {
     textInput.value = ''
   }
@@ -273,6 +284,7 @@ function refreshForm() {
   submitButton.textContent = editing ? '更新' : 'ここに追加'
   cancelButton.hidden = !editing
   deleteButton.hidden = !editing
+  doneRow.hidden = !editing
   panel.classList.toggle('editing', editing)
 }
 
@@ -291,12 +303,27 @@ submitButton.addEventListener('click', () => {
     return
   }
   const id = notes.reduce((m, n) => Math.max(m, n.id), 0) + 1
-  notes.push({ id, kind: kindValue(), text: textInput.value, target: targetInput.value, x: pos.x, y: pos.y, z: pos.z })
+  notes.push({ id, kind: kindValue(), text: textInput.value, target: targetInput.value, x: pos.x, y: pos.y, z: pos.z, done: false })
   textInput.value = ''
   commit()
   flash(`${notes.length}. を追加しました`)
 })
 cancelButton.addEventListener('click', () => select(null))
+// 完了済みは座標と同じく、切り替えたらその場で反映する
+doneCheck.addEventListener('change', () => {
+  const n = selectedNote()
+  if (n) setDone(n, doneCheck.checked)
+})
+hideDoneCheck.addEventListener('change', () => {
+  syncMarkers()
+  renderList()
+})
+
+function setDone(n: Note, done: boolean) {
+  n.done = done
+  if (n.id === selectedId) doneCheck.checked = done
+  commit()
+}
 deleteButton.addEventListener('click', () => removeNote(selectedId))
 
 function removeNote(id: number | null) {
@@ -307,17 +334,28 @@ function removeNote(id: number | null) {
 }
 
 function renderList() {
-  q('[data-count]').textContent = `${notes.length} 件`
+  const doneCount = notes.filter((n) => n.done).length
+  q('[data-count]').textContent = doneCount ? `${notes.length} 件（完了 ${doneCount}）` : `${notes.length} 件`
   list.replaceChildren(
     ...notes.map((n) => {
       const li = document.createElement('li')
       li.classList.toggle('selected', n.id === selectedId)
+      li.classList.toggle('done', n.done)
+      // 番号を一覧・印・Markdown でそろえたいので、隠すときも li は残して見えなくするだけ
+      li.hidden = n.done && hideDoneCheck.checked && n.id !== selectedId
       li.style.setProperty('--c', `#${NOTE_KINDS[n.kind].color.toString(16).padStart(6, '0')}`)
       const head = document.createElement('div')
       head.className = 'ep-item-head'
-      head.innerHTML = `<span class="ep-kind"></span><span class="ep-pos"></span><button class="ep-go" title="カメラを向ける">◎</button><button class="ep-del" title="削除">×</button>`
+      head.innerHTML = `<span class="ep-kind"></span><span class="ep-pos"></span><button class="ep-check"></button><button class="ep-go" title="カメラを向ける">◎</button><button class="ep-del" title="削除">×</button>`
       head.querySelector('.ep-kind')!.textContent = NOTE_KINDS[n.kind].label
       head.querySelector('.ep-pos')!.textContent = `(${fmt(n.x)}, ${fmt(n.y)}, ${fmt(n.z)})`
+      const check = head.querySelector<HTMLButtonElement>('.ep-check')!
+      check.textContent = n.done ? '☑' : '☐'
+      check.title = n.done ? '未完了に戻す' : '完了済みにする'
+      check.addEventListener('click', (e) => {
+        e.stopPropagation()
+        setDone(n, !n.done)
+      })
       head.querySelector('.ep-go')!.addEventListener('click', (e) => {
         e.stopPropagation()
         lookAt(n)
