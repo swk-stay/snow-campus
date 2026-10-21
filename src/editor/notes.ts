@@ -20,6 +20,8 @@ export type Note = {
   z: number
   /** クリックしたときに当たったもの（「K1号館」「並木（桜） 根元 (12.0, 30.5)」など）。空なら地面や空中 */
   target: string
+  /** 実装済み。Markdown の書き出しからは外し、画面では薄く表示する */
+  done: boolean
 }
 
 const STORAGE_KEY = 'snow-campus-editor-notes'
@@ -55,6 +57,7 @@ export function parseNotes(json: string): Note[] {
       y: n.y,
       z: n.z,
       target: String(n.target ?? ''),
+      done: n.done === true,
     }))
 }
 
@@ -66,13 +69,17 @@ const COORDINATE_NOTE = 'ワールド座標（m）。+X が南、+Z が西、+Y 
 
 export const fmt = (v: number) => v.toFixed(1)
 
-/** issue やチャットにそのまま貼れる形 */
+/** issue やチャットにそのまま貼れる形。完了済みは省く（番号は一覧の番号のまま） */
 export function notesToMarkdown(notes: Note[]): string {
-  const lines = [`## Editor のリクエスト（${notes.length} 件）`, '', `座標は ${COORDINATE_NOTE}`, '']
+  const todo = notes.filter((n) => !n.done)
+  const lines = [`## Editor のリクエスト（${todo.length} 件）`, '', `座標は ${COORDINATE_NOTE}`, '']
   notes.forEach((n, i) => {
+    if (n.done) return
     const where = `(${fmt(n.x)}, ${fmt(n.y)}, ${fmt(n.z)})`
     const target = n.target ? ` ／ 対象: ${n.target}` : ''
     lines.push(`${i + 1}. **[${NOTE_KINDS[n.kind].label}]** ${n.text.trim().replace(/\s*\n\s*/g, ' / ') || '（テキストなし）'} — 座標 ${where}${target}`)
   })
+  const done = notes.length - todo.length
+  if (done) lines.push('', `（完了済みの ${done} 件は省略）`)
   return lines.join('\n')
 }

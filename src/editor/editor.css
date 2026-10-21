@@ -13,6 +13,7 @@ canvas { display: block; touch-action: none; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: auto; cursor: pointer;
 }
 .editor-note.selected { box-shadow: 0 0 0 3px rgba(255, 211, 110, 0.9); font-weight: bold; }
+.editor-note.done { opacity: 0.55; text-decoration: line-through; }
 
 #editor-panel {
   position: fixed; top: 12px; right: 12px; bottom: 12px; width: min(340px, calc(100vw - 24px)); overflow: auto;
@@ -58,7 +59,7 @@ canvas { display: block; touch-action: none; }
 }
 .ep-actions button.primary { flex: 1; border: none; background: #2f5fb3; color: #fff; font-weight: bold; }
 .ep-actions button.danger { border-color: #e3b4b4; color: #b03030; }
-.ep-actions button[hidden] { display: none; }
+.ep-actions button[hidden], .ep-row[hidden] { display: none; }
 
 .ep-list-head { display: flex; justify-content: space-between; }
 .ep-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; counter-reset: note; }
@@ -67,13 +68,17 @@ canvas { display: block; touch-action: none; }
   background: #f4f6fa; cursor: pointer;
 }
 .ep-list li.selected { background: #fff3cf; }
+.ep-list li[hidden] { display: none; }
+.ep-list li.done { opacity: 0.6; }
+.ep-list li.done .ep-text { text-decoration: line-through; }
 .ep-list small { color: #778; }
 .ep-item-head { display: flex; align-items: center; gap: 6px; }
 .ep-item-head::before { content: counter(note) '.'; font-weight: bold; }
 .ep-kind { color: var(--c); font-weight: bold; }
 .ep-pos { color: #667; font-size: 11px; font-variant-numeric: tabular-nums; }
 .ep-item-head button { border: none; background: none; cursor: pointer; color: #667; font-size: 14px; padding: 0 2px; }
-.ep-go { margin-left: auto; }
+.ep-check { margin-left: auto; }
+.ep-list li.done .ep-check { color: #2fae5f; }
 .ep-text { white-space: pre-wrap; word-break: break-word; }
 
 #editor-flash {
