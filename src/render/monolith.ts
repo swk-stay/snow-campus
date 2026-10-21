@@ -93,8 +93,8 @@ export class Monolith {
     this.signs = signs.map((m) => m.material)
     this.group.add(this.body)
 
-    // 着工前の敷地は雪をかぶった平らな台にしておく（更地のままだと駐車場のように見えるため）
-    this.pad = new THREE.Mesh(new THREE.PlaneGeometry(b.width, b.depth), new THREE.MeshLambertMaterial({ color: 0xf2f6fc }))
+    // 着工前の敷地は土を均した工事現場にしておく（更地のままだと駐車場に、白だと雪に見えるため）
+    this.pad = new THREE.Mesh(new THREE.PlaneGeometry(b.width, b.depth), new THREE.MeshLambertMaterial({ color: 0x8a6e4f }))
     this.pad.rotation.x = -Math.PI / 2
     this.pad.position.y = 0.3
     this.group.add(this.pad)
