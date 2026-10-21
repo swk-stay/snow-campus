@@ -32,6 +32,11 @@ export type FlyOptions = {
 /** マウス 1px あたりの回転（rad）。感度 1 のとき */
 const BASE_SENSITIVITY = 0.002
 const MAX_PITCH = THREE.MathUtils.degToRad(89)
+/**
+ * Pointer Lock 中、1 回の mousemove でこれ（px）を超え、直前の動きよりずっと大きい移動は捨てる。
+ * Chrome（とくに Windows）はロックの直後や、ときどき数百 px の飛んだ movementX/Y を返し、視点が急に飛ぶため
+ */
+const SPIKE_PX = 200
 const STORAGE_KEY = 'snow-campus-fly'
 const AXES = ['x', 'z', 'y'] as const
 
@@ -76,6 +81,10 @@ export class FlyCamera {
   private readonly speedListeners: (() => void)[] = []
   private down = { x: 0, y: 0 }
   private pinch = 0
+  /** 直前の mousemove の移動量（px）。飛んだ値を見分けるのに使う */
+  private lastMove = 0
+  /** ロックに入った直後の mousemove を捨てる（ロック前のカーソルの移動が入っていることがある） */
+  private skipMove = false
   /** Ctrl を単独で押しているあいだ true（Ctrl+Enter などのショートカットでは切り替えない） */
   private ctrlAlone = false
 
@@ -149,8 +158,10 @@ export class FlyCamera {
   lock() {
     if (this.locked) return
     // Pointer Lock が使えない環境（スマホなど）では何もしない。ドラッグで見回せる
-    const result = this.dom.requestPointerLock?.() as Promise<void> | undefined
-    result?.catch?.(() => {})
+    if (!this.dom.requestPointerLock) return
+    // OS のマウス加速を通さない生の移動量を使う（加速で移動量が跳ねるのを防ぐ）。対応していないブラウザでは普通にロックする
+    const result = this.dom.requestPointerLock({ unadjustedMovement: true }) as Promise<void> | undefined
+    result?.catch?.(() => this.dom.requestPointerLock()?.catch?.(() => {}))
   }
 
   unlock() {
@@ -299,6 +310,8 @@ export class FlyCamera {
     document.addEventListener('pointerlockchange', () => {
       const locked = this.locked
       if (!locked) this.unlockedAt = performance.now()
+      this.skipMove = locked
+      this.lastMove = 0
       this.pointers.clear()
       this.crosshair.classList.toggle('visible', locked)
       document.body.classList.toggle('fly-locked', locked)
@@ -309,7 +322,15 @@ export class FlyCamera {
   private bindPointer() {
     const dom = this.dom
     dom.addEventListener('mousemove', (e) => {
-      if (this.locked) this.look(e.movementX, e.movementY)
+      if (!this.locked) return
+      const size = Math.hypot(e.movementX, e.movementY)
+      if (this.skipMove) {
+        this.skipMove = false
+        if (size > SPIKE_PX / 4) return
+      }
+      const spike = size > SPIKE_PX && size > this.lastMove * 4
+      this.lastMove = size
+      if (!spike) this.look(e.movementX, e.movementY)
     })
     dom.addEventListener('pointerdown', (e) => {
       if (this.locked || (e.pointerType === 'mouse' && e.button !== 0)) return
