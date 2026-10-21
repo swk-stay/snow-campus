@@ -13,7 +13,7 @@ export const WORLD = {
 }
 
 export const PLAYER = {
-  speed: 6,
+  speed: 7,
   bodyRadius: 0.45,
   /** 自動回収の半径 (m)。スコップ系アップグレードで伸びる想定 */
   collectRadius: 2.5,
@@ -76,7 +76,7 @@ const b = (id: string, label: string, x: number, z: number, width: number, depth
  */
 export const BUILDINGS: BuildingDef[] = [
   // 守衛所の寸法は、かまぼこ屋根の庇（長さ 8m・幅 5.2m）を含めたもの
-  b('guard', '守衛所', 43, 65.6, 8.0, 5.2, 4.6, 300, { speed: 1.15 }),
+  b('guard', '守衛所', 43, 65.6, 8.0, 5.2, 4.6, 300, { speed: 1.3 }),
   b('d2', '先進技術研究所', 38.2, -12.2, 27.0, 31.0, 8.3, 900, { rare: true }),
   b('d1', 'KAIT工房', -31.8, -72.0, 44.1, 46.6, 5.0, 1400),
   b('c1', '附属図書館', -83.8, -11.5, 34.4, 47.9, 17.4, 2000),
@@ -209,7 +209,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
 export const SKILL_EFFECT = {
   dashSpeed: 26,
   dashTime: 0.22,
-  boostSpeedMult: 1.7,
+  boostSpeedMult: 1.5,
   boostTime: 6,
   /** 遠投・ブリザードで飛ばす雪玉の最大個数（演出用に分割する数） */
   volleyCount: 12,
