@@ -1,6 +1,6 @@
 import './style.css'
 import * as THREE from 'three'
-import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, TIME_ATTACK, UPGRADES, WORLD, type UpgradeId } from './config'
+import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, TIME_ATTACK, UPGRADES, WORLD, useCourtyardCourse, type UpgradeId } from './config'
 import {
   buyItem,
   buyUpgrade,
@@ -50,6 +50,9 @@ if (isBalance) {
   loadTuning()
   useSaveSlot('balance')
 }
+// タイムアタックはキャンパス全体に広げる前の中庭まわりだけで遊ぶ（バランス調整の基準のタイムにする。issue #56）。
+// 雪原・建物・アップグレードの上限が変わるので、createGame と描画を作るより前に
+if (isTimeAttack) useCourtyardCourse()
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 const renderer = new THREE.WebGLRenderer({ antialias: true })

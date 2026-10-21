@@ -1,4 +1,5 @@
 import { BUILDINGS, ITEMS, UPGRADES, type ItemId, type UpgradeId } from './config'
+import { GAME_VERSION } from './version'
 import { canBuy, canBuyItem, itemCost, maxLevel, upgradeCost, type GameState } from './sim/game'
 
 // ショップ。「アップグレード」（レベル制）と「アイテム」（一度買えばずっと有効な解禁型）の2タブ。
@@ -74,6 +75,11 @@ export class Shop {
       })
       this.panel.appendChild(button)
     }
+    // どのバージョンで遊んでいるか（変更点はパッチノート.md）
+    const version = document.createElement('div')
+    version.className = 'shop-version'
+    version.textContent = GAME_VERSION
+    this.panel.appendChild(version)
     root.appendChild(this.panel)
 
     addEventListener('keydown', (e) => {
