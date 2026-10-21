@@ -178,7 +178,8 @@ export class Minimap {
     let cz = z
     if (target) {
       const need = Math.max(Math.abs(target.x - x) + target.width / 2, Math.abs(target.z - z) + target.depth / 2) + MARGIN * 2
-      span = Math.min(MAX_SPAN, Math.max(MIN_SPAN, need))
+      // 雪原より広くは映さない（タイムアタックの中庭コースは一辺 224m）
+      span = Math.min(MAX_SPAN, s.field.size, Math.max(MIN_SPAN, need))
       // 中心は自分と建物の中間。ただし自分は必ず余白つきで範囲に入れる（建物が遠すぎるときは矢印で示す）
       const reach = span / 2 - MARGIN
       cx = Math.min(x + reach, Math.max(x - reach, (x + target.x) / 2))
