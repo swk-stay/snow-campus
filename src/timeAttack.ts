@@ -1,14 +1,17 @@
 import { TIME_ATTACK } from './config'
+import { GAME_VERSION } from './version'
 
 // タイムアタック（?mode=timeattack）。セーブとは別の新しいゲームで、建物を順に完成させるまでのタイムを計る。
 // - タイムはゲーム内時間（毎フレームの dt の合計）。タブを離れている間や、低 fps で dt が頭打ちになった分は進まない
 //   （そのぶんゲームの進みも遅くなるので、端末の性能差で不公平にならない）。
 // - 区間タイム（スプリット）は「見た目上の完成」＝完成演出の開始で取る。sim の completed は雪玉を投げた瞬間に立つので使わない。
 // - 記録は localStorage（端末ごと）。学園祭で1台を回して遊ぶ想定で、上位数件とベスト記録の区間タイムを残す。
+// - 記録にはゲームのバージョンを残す（issue #45）。バランスを変えたあとのランと見分けられるように。
 
 const KEY = 'snow-campus-timeattack-v1'
 
-type Run = { time: number; at: number }
+/** ver はゲームのバージョン（v0.1.0 より前の記録には無い） */
+type Run = { time: number; at: number; ver?: string }
 /** ゴール（完成させる建物の並び）ごとの記録 */
 type Board = { runs: Run[]; bestSplits: number[] }
 
@@ -71,7 +74,8 @@ export class TimeAttack {
   constructor(root: HTMLElement, anchor: HTMLElement, goal: GoalBuilding[], actions: TimeAttackActions) {
     this.goal = goal
     this.actions = actions
-    this.key = goal.map((b) => b.id).join(',')
+    // コースが違えば同じ建物の並びでも雪原や必要量が違うので、記録を分ける
+    this.key = `${TIME_ATTACK.course}:${goal.map((b) => b.id).join(',')}`
     const board = loadBoards()[this.key]
     this.prev = { runs: board?.runs ?? [], bestSplits: board?.bestSplits ?? [] }
 
@@ -80,7 +84,7 @@ export class TimeAttack {
     const best = this.prev.runs[0]
     const goalLabel = goal.length === 1 ? goal[0].label : `${goal[goal.length - 1].label}まで ${goal.length}棟`
     timer.innerHTML = `
-      <span class="ta-head">タイムアタック・${goalLabel}</span>
+      <span class="ta-head">タイムアタック・${goalLabel} <small>${GAME_VERSION}</small></span>
       <span class="ta-time">${formatTime(0)}</span>
       <span class="ta-best">${best ? `ベスト ${formatTime(best.time)}` : 'ベスト なし'}</span>
       <span class="ta-split"></span>`
@@ -151,7 +155,7 @@ export class TimeAttack {
   private finish() {
     this.phase = 'finished'
     const time = this.elapsed
-    const run: Run = { time, at: Date.now() }
+    const run: Run = { time, at: Date.now(), ver: GAME_VERSION }
     const prevBest = this.prev.runs[0]?.time
     const isBest = prevBest === undefined || time < prevBest
 
@@ -169,11 +173,11 @@ export class TimeAttack {
       })
       .join('')
     const runRows = runs
-      .map((r, i) => `<li class="${r === run ? 'me' : ''}"><span>${i + 1}位</span><span>${formatTime(r.time)}</span><small>${formatDate(r.at)}</small></li>`)
+      .map((r, i) => `<li class="${r === run ? 'me' : ''}"><span>${i + 1}位</span><span>${formatTime(r.time)}</span><small>${formatDate(r.at)} ${r.ver ?? ''}</small></li>`)
       .join('')
     this.resultEl.innerHTML = `
       <div class="ta-card">
-        <h2>${isBest ? '新記録！' : 'クリア！'}</h2>
+        <h2>${isBest ? '新記録！' : 'クリア！'} <small>${GAME_VERSION}</small></h2>
         <div class="ta-final">${formatTime(time)}</div>
         <div class="ta-sub">${prevBest === undefined ? 'はじめての記録' : isBest ? `これまでのベスト ${formatTime(prevBest)}（${formatDiff(time - prevBest)}）` : `ベスト ${formatTime(prevBest)}（${formatDiff(time - prevBest)}）`}</div>
         <table class="ta-splits">${splitRows}</table>

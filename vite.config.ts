@@ -1,8 +1,11 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
+import pkg from './package.json' with { type: 'json' }
 
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/snow-campus/' : '/',
+  // ゲームのバージョン（package.json の version）。タイムアタックの記録に残す。上げるときはパッチノート.md も書く
+  define: { __GAME_VERSION__: JSON.stringify(pkg.version) },
   build: {
     // ゲーム本編と、リクエストを置く Editor（editor.html）の 2 ページ
     rollupOptions: {

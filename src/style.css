@@ -75,7 +75,7 @@ canvas { display: block; touch-action: none; }
 .lil-gui.root { position: fixed; top: auto; bottom: 0; left: 0; right: auto; z-index: 10; max-height: 70vh; }
 
 .shop-action { display: block; width: calc(100% - 28px); margin: 10px 14px; padding: 8px; border: 1px solid #b4c6e3; border-radius: 10px; background: #fff; color: #2f5fb3; font-size: 13px; font-weight: bold; cursor: pointer; }
-.shop-action:last-child { margin-bottom: 14px; }
+.shop-version { margin: 4px 14px 12px; color: #8a92a0; font-size: 11px; text-align: right; }
 .shop-action.danger { border-color: #e3b4b4; color: #b03030; font-size: 12px; font-weight: normal; }
 
 #minimap {
@@ -273,6 +273,7 @@ body.balance-open #balance-toggle { display: none; }
   background: rgba(20, 30, 50, 0.6); color: #fff; pointer-events: none; backdrop-filter: blur(4px);
 }
 .ta-head { font-size: 11px; color: #bfe3ff; }
+.ta-head small { font-size: 10px; opacity: 0.7; }
 .ta-time { font-size: 28px; font-weight: bold; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .ta-best { font-size: 11px; color: #ffd36e; font-variant-numeric: tabular-nums; }
 .ta-split { font-size: 13px; font-variant-numeric: tabular-nums; max-height: 0; opacity: 0; transition: opacity 0.3s, max-height 0.3s; }
@@ -306,6 +307,7 @@ body.overview #ta-timer { opacity: 0.6; }
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35); animation: pop 0.4s ease-out;
 }
 .ta-card h2 { margin: 0; font-size: 22px; color: #7a4b00; }
+.ta-card h2 small { font-size: 11px; font-weight: normal; color: #8a92a0; }
 .ta-card h3 { margin: 14px 0 6px; font-size: 13px; color: #667; }
 .ta-final { font-size: 44px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .ta-sub { font-size: 12px; color: #667; font-variant-numeric: tabular-nums; }
