@@ -214,7 +214,7 @@ export function refillField(s: GameState) {
   const half = WORLD.size / 2
   s.field.fill((x, z) => {
     // 吹きだまり風のうねり。外周は描画側の外側の雪面に合わせて 0.75 へ寄せる
-    const drift = 0.65 + 0.2 * Math.sin(x * 0.3) * Math.cos(z * 0.25) + 0.15 * Math.sin(x * 0.11 + z * 0.17)
+    const drift = WORLD.snowDepth + 0.2 * Math.sin(x * 0.3) * Math.cos(z * 0.25) + 0.15 * Math.sin(x * 0.11 + z * 0.17)
     const edge = Math.max(Math.abs(x - WORLD.centerX), Math.abs(z - WORLD.centerZ)) / half
     const t = Math.min(1, Math.max(0, (edge - 0.85) / 0.15))
     return drift * (1 - t) + 0.75 * t
