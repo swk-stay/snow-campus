@@ -49,6 +49,7 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uFacing; // xy = 向きの単位ベクトル (x, z), z = 回収の扇形の半角
   uniform sampler2D uGround;
   uniform float uSize;
+  uniform float uMaxH;
   varying vec3 vNormal;
   varying vec3 vWorld;
   #include <fog_pars_fragment>
@@ -64,12 +65,14 @@ const fragmentShader = /* glsl */ `
     vec3 n = normalize(vNormal);
     float diff = max(dot(n, uSunDir), 0.0);
 
-    // 雪の下の地面（芝生・園路・構内道路。campusGround.ts で描いたもの）
+    // 雪の下の地面（芝生・園路・構内道路。campusGround.ts で描いたもの）。地面は平らなので、雪の縁の斜面の向きでは照らさない
     vec3 ground = texture2D(uGround, uv).rgb;
-    vec3 groundLit = ground * (0.55 + 0.45 * diff);
+    vec3 groundLit = ground * (0.55 + 0.45 * max(uSunDir.y, 0.0));
 
     vec3 snow = mix(vec3(0.42, 0.52, 0.78), vec3(1.0), diff);
-    float cover = smoothstep(0.02, 0.18, vH);
+    // 面が持ち上がっているところは雪にする。高さは頂点（2 セルごと）で決まるので、セルだけで見ると
+    // 雪の縁の斜面に地面が貼られて、地面が盛り上がったように見える
+    float cover = max(smoothstep(0.02, 0.18, vH), smoothstep(0.12, 0.25, vWorld.y / uMaxH));
     vec3 col = mix(groundLit, snow, cover);
 
     // 削り跡の縁をうっすら暗く（濡れた感じ）
