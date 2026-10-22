@@ -34,7 +34,7 @@ import { GodCamera } from './godView'
 import { createDebugGui } from './debugGui'
 import { BalanceDashboard } from './balanceDashboard'
 import { loadTuning } from './tuning'
-import { clearStorage, loadFromStorage, saveToStorage, useSaveSlot } from './save'
+import { clearStorage, hasSave, loadFromStorage, saveToStorage, useSaveSlot } from './save'
 import { playCoin, playFanfare, unlockAudio } from './audio'
 
 // ?view=god で展示用の神視点（マウスで見回し・WASD で移動・自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード、
@@ -169,10 +169,23 @@ function switchMode(timeAttack: boolean) {
   else url.searchParams.delete('mode')
   location.href = url.href
 }
+/**
+ * タイムアタックを終えた状態（建物・ゴールド・アップグレード・アイテム）を通常モードのセーブにして、通常モードで続ける（issue #61）。
+ * 雪原は大きさが違うので、通常モードで読むときに作り直される
+ */
+function carryOverToNormal() {
+  if (hasSave() && !confirm('通常モードのセーブを、このタイムアタックのデータで上書きしますか？（いまのセーブは消えます）')) return
+  if (!saveToStorage(state)) {
+    hud.toast('セーブできませんでした', 2000)
+    return
+  }
+  switchMode(false)
+}
 const timeAttack = isTimeAttack
   ? new TimeAttack(document.body, hud.el, state.buildings.slice(0, TIME_ATTACK.goal), {
       retry: () => location.reload(),
       quit: () => switchMode(false),
+      carryOver: carryOverToNormal,
     })
   : null
 const shopActions: ShopAction[] = isTimeAttack
