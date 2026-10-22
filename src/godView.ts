@@ -3,7 +3,7 @@ import { FlyCamera, type CollisionMode } from './flyCamera'
 
 // ?view=god の神視点（展示用）カメラ。操作は Editor と共通の FPS 風カメラ（flyCamera.ts）で、
 // クリック（または Ctrl）で Pointer Lock に入ってマウスで見回し、WASD で見ている方向へ進む。自機は動かさない。
-// 右下のパネルで自動回転の ON/OFF・移動速度の段階・建物に当たったときの動き（貫通／止まる／回り込む）・感度と視野角を切り替える。
+// 右下のパネルで自動回転の ON/OFF・移動速度の段階・建物に当たったときの動き（回り込む／止まる／貫通）・感度と視野角を切り替える。
 
 /** カメラの高さの範囲（m）。地面に潜らず、上がりすぎない程度 */
 const MIN_Y = 2
@@ -13,10 +13,11 @@ const OUTSIDE = 80
 /** 自動回転の速さ（rad/秒）。1 周およそ 100 秒 */
 const AUTO_ROTATE_SPEED = 0.063
 
+// 先頭が既定。貫通だと入った建物が薄くなり、展示で映すには見栄えが悪いので、既定は回り込む（issue #62）
 const COLLISIONS: { label: string; value: CollisionMode }[] = [
-  { label: '貫通', value: 'pass' },
-  { label: '止まる', value: 'stop' },
   { label: '回り込む', value: 'slide' },
+  { label: '止まる', value: 'stop' },
+  { label: '貫通', value: 'pass' },
 ]
 
 export class GodCamera {
@@ -38,6 +39,7 @@ export class GodCamera {
       blocked,
       clickToLock: true,
     })
+    this.fly.collision = COLLISIONS[this.collisionIndex].value
     camera.position.set(area.x, 230, area.z + 300)
     this.fly.lookAt(new THREE.Vector3(area.x, 8, area.z))
     this.fly.onUserInput = () => (this.interacted = true)

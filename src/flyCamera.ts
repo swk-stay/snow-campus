@@ -184,8 +184,10 @@ export class FlyCamera {
     // 見下ろしていれば視線と地面の交点、水平より上を見ていれば少し先の点を中心にする
     const dist = forward.y < -0.05 ? Math.min(pos.y / -forward.y, 600) : 150
     const pivot = next.copy(pos).addScaledVector(forward, dist)
-    delta.subVectors(pos, pivot).applyAxisAngle(UP, angle)
-    pos.copy(pivot).add(delta)
+    delta.subVectors(pos, pivot).applyAxisAngle(UP, angle).add(pivot)
+    // 回った先が建物の中なら、その場で止まる
+    if (this.enters(delta)) return
+    pos.copy(delta)
     this.yaw += angle
     this.applyRotation()
   }
@@ -228,12 +230,17 @@ export class FlyCamera {
     pos.add(d)
   }
 
-  /** カメラが建物に入らないよう delta を削る。既に中にいるときは、出られるように何もしない */
+  /** カメラが p へ動くと建物に入るか。貫通のときと、既に中にいるとき（出られるように）は false */
+  private enters(p: THREE.Vector3): boolean {
+    const blocked = this.options.blocked
+    return !!blocked && this.collision !== 'pass' && !blocked(this.camera.position) && blocked(p)
+  }
+
+  /** カメラが建物に入らないよう delta を削る */
   private collide(d: THREE.Vector3) {
     const blocked = this.options.blocked
     const pos = this.camera.position
-    if (!blocked || this.collision === 'pass' || blocked(pos)) return
-    if (!blocked(next.copy(pos).add(d))) return
+    if (!blocked || !this.enters(next.copy(pos).add(d))) return
     if (this.collision === 'stop') {
       d.set(0, 0, 0)
       return
