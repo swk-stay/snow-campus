@@ -10,6 +10,8 @@ export const WORLD = {
   fieldRes: 880,
   /** セル量 1.0 のときの雪の高さ (m) */
   snowMaxHeight: 0.6,
+  /** 最初に積もっている雪の量の平均（セル量 0..1）。吹きだまりのうねりで ±0.35 ほど増減し、1 を超えたぶんは切り捨てる */
+  snowDepth: 0.65,
 }
 
 export const PLAYER = {
@@ -280,14 +282,14 @@ export const TIME_ATTACK = {
 }
 
 /**
- * タイムアタックの「中庭」コース（issue #56）。キャンパス全体に広げる前（11d692e より前）と同じ範囲・建物・必要量にする。
+ * タイムアタックの「中庭」コース（issue #56）。キャンパス全体に広げる前（11d692e より前）と同じ範囲で遊ぶ。
  * 一周が短く、建物の順番と必要量も固定なので、バランス調整の基準のタイムとして使う。
- * 建物は id → 必要量。並びが建てる順番
+ * 建物は id → 必要量。並びが建てる順番。D3・C6・K4号館は外し、そのぶんの必要量をほかの棟に配っている（issue #68）
  */
 const COURTYARD = {
-  world: { size: 224, centerX: 0, centerZ: 0, fieldRes: 480 },
-  buildings: { guard: 300, d2: 900, d1: 1400, c1: 2000, d3: 2600, k2: 3200, c6: 3800, b5: 4400, k4: 5000, k3: 6000, k1: 8000 } as Record<string, number>,
-  /** Tier ごとの最大レベル（守衛所＋10 棟ぶん。配列を超えた Tier は最後の値） */
+  world: { size: 224, centerX: 0, centerZ: 0, fieldRes: 480, snowDepth: 0.8 },
+  buildings: { guard: 300, d2: 1300, d1: 2000, c1: 2900, k2: 4600, b5: 6300, k3: 8600, k1: 11500 } as Record<string, number>,
+  /** Tier ごとの最大レベル（守衛所＋7 棟ぶん。配列を超えた Tier は最後の値） */
   maxLevel: {
     shovel: [3, 3, 5, 7, 9, 11, 13, 15],
     backpack: [3, 3, 5, 7, 9, 11, 13, 15],
