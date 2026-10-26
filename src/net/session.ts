@@ -48,7 +48,7 @@ export function joinFromParams(params: URLSearchParams, state: GameState, specta
   const create = params.get('create')
   if (!server || (!roomId && (spectator || create === null))) return Promise.reject(new Error('サーバーアドレスかルームの指定がありません'))
   // 名前が空ならサーバーが付ける
-  return MultiSession.join(server, roomId ? { roomId } : { create: create! }, loadPlayerName(), state, spectator)
+  return MultiSession.join(server, roomId ? { roomId } : { create: create! }, loadPlayerName(), state, spectator, params.has('debug'))
 }
 
 /** 補間の目標。サーバーからは 15Hz でしか届かないので、ほかのプレイヤーと除雪機は毎フレームここへ寄せる */
@@ -102,9 +102,9 @@ export class MultiSession {
   }
 
   /** ルームに入り、最初の状態（welcome）を state に写してから返す */
-  static async join(server: string, target: JoinTarget, name: string, state: GameState, spectator = false): Promise<MultiSession> {
+  static async join(server: string, target: JoinTarget, name: string, state: GameState, spectator = false, debug = false): Promise<MultiSession> {
     const client = new Client(server)
-    const options: JoinOptions = { name, spectator }
+    const options: JoinOptions = { name, spectator, debug }
     const room = 'roomId' in target ? await client.joinById(target.roomId, options) : await client.joinOrCreate(ROOM_NAME, { ...options, roomName: normalizeRoomName(target.create) })
     const session = new MultiSession(room, state, name, spectator)
     try {
@@ -204,6 +204,7 @@ export class MultiSession {
     s.tier = w.tier
     s.totalCollected = w.totalCollected
     s.buildings.forEach((b, i) => {
+      b.required = w.required[i] ?? b.required
       b.deposited = w.deposited[i] ?? b.deposited
       b.completed = w.completed[i] ?? b.completed
     })

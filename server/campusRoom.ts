@@ -1,7 +1,7 @@
 import { deflateSync } from 'node:zlib'
 import { Room, matchMaker, type Client } from '@colyseus/core'
 import { ITEMS, SKILLS, UPGRADES } from '../src/config'
-import { buyItem, buyUpgrade, createPlayer, createWorld, stepPlayer, stepWorld, useSkill, type GameEvent, type World } from '../src/sim/game'
+import { buyItem, buyUpgrade, createPlayer, createWorld, setRequiredMult, stepPlayer, stepWorld, useSkill, type GameEvent, type World } from '../src/sim/game'
 import {
   MAX_PLAYERS,
   MAX_SPECTATORS,
@@ -42,6 +42,8 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   private events: TaggedEvent[] = []
   /** 神視点で観戦している端末の sessionId */
   private readonly spectators = new Set<string>()
+  /** ?debug で遊んでいるプレイヤーの id。建物の必要量を決める人数に数えない */
+  private readonly debugPlayers = new Set<string>()
 
   messages = {
     pos: (client: Client, m: PosMessage) => {
@@ -96,9 +98,11 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
     }
     const name = options.name?.trim().slice(0, 16) || `プレイヤー${this.world.players.length + 1}`
     this.world.players.push(createPlayer(client.sessionId, name))
+    if (options.debug) this.debugPlayers.add(client.sessionId)
+    this.syncRequiredMult()
     this.setMetadata({ ...this.metadata, players: this.world.players.length })
     this.sendWelcome(client)
-    this.broadcast('notice', { text: `${name} が参加しました` }, { except: client })
+    this.broadcast('notice', { text: `${name} が参加しました（建物に必要な雪 ×${this.world.requiredMult}）` }, { except: client })
   }
 
   onDrop(client: Client) {
@@ -117,8 +121,16 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
     const i = this.world.players.findIndex((p) => p.id === client.sessionId)
     if (i < 0) return
     const [p] = this.world.players.splice(i, 1)
+    this.debugPlayers.delete(p.id)
+    this.syncRequiredMult()
     this.setMetadata({ ...this.metadata, players: this.world.players.length })
-    this.broadcast('notice', { text: `${p.name} が抜けました` })
+    this.broadcast('notice', { text: `${p.name} が抜けました（建物に必要な雪 ×${this.world.requiredMult}）` })
+  }
+
+  /** 建物の必要量を遊んでいる人数ぶんにする（観戦と ?debug の人は数えない。誰もいなければ 1 人ぶん） */
+  private syncRequiredMult() {
+    const n = this.world.players.filter((p) => !this.debugPlayers.has(p.id)).length
+    setRequiredMult(this.world, Math.max(1, n))
   }
 
   private sendWelcome(client: Client) {
