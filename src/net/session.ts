@@ -1,6 +1,6 @@
 import { Client, type Room } from '@colyseus/sdk'
 import { SKILL_EFFECT, type ItemId, type SkillId, type UpgradeId } from '../config'
-import { loadPlayerName } from '../title/prefs'
+import { loadPlayerName, loadPlayerSkin } from '../title/prefs'
 import { createPlayer, syncOwnedUnits, type GameState, type Player, type Plow } from '../sim/game'
 import {
   ROOM_NAME,
@@ -48,7 +48,7 @@ export function joinFromParams(params: URLSearchParams, state: GameState, specta
   const create = params.get('create')
   if (!server || (!roomId && (spectator || create === null))) return Promise.reject(new Error('サーバーアドレスかルームの指定がありません'))
   // 名前が空ならサーバーが付ける
-  return MultiSession.join(server, roomId ? { roomId } : { create: create! }, loadPlayerName(), state, spectator, params.has('debug'))
+  return MultiSession.join(server, roomId ? { roomId } : { create: create! }, { name: loadPlayerName(), skin: loadPlayerSkin() }, state, spectator, params.has('debug'))
 }
 
 /** 補間の目標。サーバーからは 15Hz でしか届かないので、ほかのプレイヤーと除雪機は毎フレームここへ寄せる */
@@ -102,9 +102,10 @@ export class MultiSession {
   }
 
   /** ルームに入り、最初の状態（welcome）を state に写してから返す */
-  static async join(server: string, target: JoinTarget, name: string, state: GameState, spectator = false, debug = false): Promise<MultiSession> {
+  static async join(server: string, target: JoinTarget, player: { name: string; skin: string }, state: GameState, spectator = false, debug = false): Promise<MultiSession> {
+    const { name } = player
     const client = new Client(server)
-    const options: JoinOptions = { name, spectator, debug }
+    const options: JoinOptions = { ...player, spectator, debug }
     const room = 'roomId' in target ? await client.joinById(target.roomId, options) : await client.joinOrCreate(ROOM_NAME, { ...options, roomName: normalizeRoomName(target.create) })
     const session = new MultiSession(room, state, name, spectator)
     try {
@@ -219,13 +220,15 @@ export class MultiSession {
       s.player.carried = me.carried
       s.player.capacity = me.capacity
       s.player.rare = me.rare
+      // 送ったスキンをサーバーが受け付けなかった（知らない id だった）ときは、サーバーが選んだものになる
+      s.player.skin = me.skin
       Object.assign(s.player.cooldowns, me.cooldowns)
     }
     const others = this.mergeById(
       s.players.filter((p) => p !== s.player),
       w.players.filter((p) => p.id !== s.player.id),
       snap,
-      (sync, prev) => Object.assign(prev ?? createPlayer(sync.id, sync.name), remoteFields(sync)),
+      (sync, prev) => Object.assign(prev ?? createPlayer(sync.id, sync.name, sync.skin), remoteFields(sync)),
     )
     // 観戦の端末はルームのプレイヤーではないので、players に入れない
     s.players = this.spectator ? others : [s.player, ...others]
@@ -256,7 +259,7 @@ export class MultiSession {
 
 /** ほかのプレイヤーについて、位置以外にサーバーから写すもの（位置は補間で寄せる） */
 function remoteFields(p: PlayerSync): Partial<Player> {
-  return { name: p.name, carried: p.carried, capacity: p.capacity, rare: p.rare, boostTime: p.boostTime, dashTime: p.dashTime }
+  return { name: p.name, skin: p.skin, carried: p.carried, capacity: p.capacity, rare: p.rare, boostTime: p.boostTime, dashTime: p.dashTime }
 }
 
 async function inflate(bytes: Uint8Array): Promise<Uint8Array> {

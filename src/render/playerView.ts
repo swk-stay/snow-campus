@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { WORLD } from '../config'
 import type { SnowField } from '../sim/field'
 import type { Player } from '../sim/game'
+import { DEFAULT_SKIN, skinById, type Skin } from '../skins'
 
 // プレイヤーの見た目。背中の雪玉が所持量に応じて膨らむ。
 // 影と回収範囲リングは SnowSurface のシェーダー側で描いている。
@@ -13,9 +14,9 @@ export class PlayerView {
   private y = 0
   private bob = 0
 
-  /** jacket：上着の色（マルチプレイではプレイヤーごとに変える） */
-  constructor(jacketColor = 0xd9443a) {
-    const jacket = new THREE.MeshStandardMaterial({ color: jacketColor, roughness: 0.7 })
+  /** skin：見た目（マルチプレイではプレイヤーが選ぶ）。いまは上着の色違い（kind: 'jacket'）だけ */
+  constructor(skin: Skin = skinById(DEFAULT_SKIN)) {
+    const jacket = new THREE.MeshStandardMaterial({ color: skin.color, roughness: 0.7 })
     const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.55, 4, 12), jacket)
     torso.position.y = 0.62
     const head = new THREE.Mesh(

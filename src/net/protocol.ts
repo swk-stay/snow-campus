@@ -3,6 +3,7 @@
 
 import type { ItemId, SkillId, UpgradeId } from '../config'
 import type { SnowField } from '../sim/field'
+import type { SkinId } from '../skins'
 import type { GameEvent, Plow, RareCrystal, World } from '../sim/game'
 
 export const ROOM_NAME = 'campus'
@@ -22,9 +23,10 @@ export type RoomSummary = { roomId: string; name: string; players: number; maxPl
 
 /**
  * spectator：神視点で観戦する。プレイヤーとしては加わらず、受け取るだけ。
- * debug：?debug で遊んでいる。プレイヤーとして加わるが、建物の必要量を決める人数には数えない
+ * debug：?debug で遊んでいる。プレイヤーとして加わるが、建物の必要量を決める人数には数えない。
+ * skin：SKINS の id（知らない id ならサーバーが選ぶ）
  */
-export type JoinOptions = { name?: string; roomName?: string; spectator?: boolean; debug?: boolean }
+export type JoinOptions = { name?: string; skin?: string; roomName?: string; spectator?: boolean; debug?: boolean }
 
 /** ルーム名をサーバーに保存する形にそろえる。joinOrCreate は完全一致で探すので、端末も送る前にこれを通す */
 export function normalizeRoomName(name: string): string {
@@ -43,6 +45,7 @@ export type SkillMessage = { id: SkillId }
 export type PlayerSync = {
   id: string
   name: string
+  skin: SkinId
   x: number
   z: number
   facing: number
@@ -94,6 +97,7 @@ export function worldSync(w: World): WorldSync {
     players: w.players.map((p) => ({
       id: p.id,
       name: p.name,
+      skin: p.skin,
       x: p.x,
       z: p.z,
       facing: p.facing,

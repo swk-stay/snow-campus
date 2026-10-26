@@ -3,9 +3,10 @@ import type * as THREE from 'three'
 import { courtyardRecord } from '../config'
 import type { Building } from '../sim/game'
 import { bestTime, formatTime } from '../timeAttack'
+import { SKINS, skinById, type SkinId } from '../skins'
 import { GAME_VERSION } from '../version'
 import { lobby as defaultLobby, type Lobby, type RoomSummary } from './lobby'
-import { loadPlayerName, loadServer, savePlayerName, saveServer } from './prefs'
+import { loadPlayerName, loadPlayerSkin, loadServer, savePlayerName, savePlayerSkin, saveServer } from './prefs'
 import { CampusTour } from './tour'
 
 // タイトル画面。URL に mode が無いときに main が作る。
@@ -43,6 +44,7 @@ export class Title {
   private readonly menu: HTMLElement
   private readonly multi: HTMLElement
   private readonly nameInput: HTMLInputElement
+  private readonly skinLabel: HTMLElement
   private readonly serverInput: HTMLInputElement
   private readonly roomInput: HTMLInputElement
   private readonly findButton: HTMLButtonElement
@@ -82,6 +84,7 @@ export class Title {
         <div class="title-panel" data-multi-panel hidden>
           <div class="tp-head"><button class="tp-back" data-back>‹ もどる</button><h2>マルチプレイ</h2></div>
           <label class="tp-field"><span>プレイヤー名</span><input data-name maxlength="12" placeholder="なまえ（12文字まで）" autocomplete="nickname"></label>
+          <fieldset class="tp-field tp-skin-field"><legend>スキン <b data-skin-label></b></legend><div class="tp-skins" data-skins></div></fieldset>
           <label class="tp-field"><span>サーバー</span><input data-server placeholder="ws://192.168.0.10:2567" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
           <div class="tp-rooms-head"><span>ルーム</span><button class="tp-small" data-find>ルームを探す</button></div>
           <div class="tp-rooms" data-rooms><p class="tp-note">「ルームを探す」で、サーバーにあるルームを表示します</p></div>
@@ -100,6 +103,7 @@ export class Title {
     this.menu = $('[data-menu]')
     this.multi = $('[data-multi-panel]')
     this.nameInput = $('[data-name]')
+    this.skinLabel = $('[data-skin-label]')
     this.serverInput = $('[data-server]')
     this.roomInput = $('[data-room-name]')
     this.findButton = $('[data-find]')
@@ -118,6 +122,7 @@ export class Title {
     this.roomInput.addEventListener('keydown', (e) => e.key === 'Enter' && this.join({ create: this.roomInput.value.trim() }))
 
     this.nameInput.value = loadPlayerName()
+    this.buildSkins($('[data-skins]'), loadPlayerSkin())
     this.serverInput.value = loadServer()
     this.nameInput.addEventListener('change', () => savePlayerName(this.nameInput.value.trim()))
     this.serverInput.addEventListener('change', () => saveServer(this.serverInput.value.trim()))
@@ -164,6 +169,33 @@ export class Title {
   private setMessage(text: string) {
     this.messageEl.textContent = text
     this.messageEl.hidden = !text
+  }
+
+  /** スキンの選択肢。いまは上着の色の見本だけ（別のモデルを足すときは、kind ごとに見本の出し方を変える） */
+  private buildSkins(el: HTMLElement, selected: SkinId) {
+    for (const skin of SKINS) {
+      const option = document.createElement('label')
+      option.className = 'tp-skin'
+      option.title = skin.label
+      const radio = document.createElement('input')
+      radio.type = 'radio'
+      radio.name = 'skin'
+      radio.value = skin.id
+      radio.checked = skin.id === selected
+      radio.setAttribute('aria-label', skin.label)
+      radio.addEventListener('change', () => this.selectSkin(skin.id))
+      const swatch = document.createElement('span')
+      swatch.className = 'tp-skin-swatch'
+      swatch.style.background = `#${skin.color.toString(16).padStart(6, '0')}`
+      option.append(radio, swatch)
+      el.append(option)
+    }
+    this.skinLabel.textContent = skinById(selected).label
+  }
+
+  private selectSkin(id: SkinId) {
+    savePlayerSkin(id)
+    this.skinLabel.textContent = skinById(id).label
   }
 
   /** ws:// か wss:// で始まるアドレス。違っていればメッセージを出して null */
@@ -236,7 +268,7 @@ export class Title {
     )
   }
 
-  /** ルームに入る（作る）。ゲーム側は ?mode=multi で読み直したあと、プレイヤー名を loadPlayerName で読む */
+  /** ルームに入る（作る）。ゲーム側は ?mode=multi で読み直したあと、プレイヤー名とスキンを loadPlayerName / loadPlayerSkin で読む */
   private join(target: { room: string } | { create: string }) {
     const name = this.nameInput.value.trim()
     if (!name) {

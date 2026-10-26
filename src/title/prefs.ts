@@ -1,10 +1,12 @@
 import { DEFAULT_PORT } from '../net/protocol'
+import { isSkinId, randomSkinId, type SkinId } from '../skins'
 
-// マルチプレイの入力欄（サーバーのアドレス・プレイヤー名）を端末に覚えておく。
-// プレイヤー名は ?mode=multi で読み直したあと、ゲーム側が loadPlayerName で読む。
+// マルチプレイの入力欄（サーバーのアドレス・プレイヤー名・スキン）を端末に覚えておく。
+// プレイヤー名とスキンは ?mode=multi で読み直したあと、ゲーム側が loadPlayerName / loadPlayerSkin で読む。
 
 const SERVER_KEY = 'snow-campus-server'
 const PLAYER_NAME_KEY = 'snow-campus-player-name'
+const PLAYER_SKIN_KEY = 'snow-campus-player-skin'
 
 /** ゲームのサーバーは同じ PC で立てる想定なので、ページを開いたホストの 2567 番を既定にする */
 export function defaultServer(): string {
@@ -43,4 +45,17 @@ export function loadPlayerName(): string {
 
 export function savePlayerName(name: string) {
   write(PLAYER_NAME_KEY, name)
+}
+
+/** まだ選んでいなければランダムに 1 つ選んで覚える（参加のたびに見た目が変わらないように） */
+export function loadPlayerSkin(): SkinId {
+  const saved = read(PLAYER_SKIN_KEY)
+  if (isSkinId(saved)) return saved
+  const skin = randomSkinId()
+  savePlayerSkin(skin)
+  return skin
+}
+
+export function savePlayerSkin(skin: SkinId) {
+  write(PLAYER_SKIN_KEY, skin)
 }
