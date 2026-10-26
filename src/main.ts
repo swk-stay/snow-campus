@@ -34,6 +34,7 @@ import { Shop, type ShopAction } from './shop'
 import { TimeAttack } from './timeAttack'
 import { MilestoneCard } from './milestone'
 import { Minimap } from './minimap'
+import { PlayerList } from './playerList'
 import { CameraRig, overviewPose, type Shot, type ViewMode } from './camera'
 import { GodCamera } from './godView'
 import { createDebugGui } from './debugGui'
@@ -268,6 +269,7 @@ const skillBar = isGodView
       else pendingEvents.push(...useSkill(state, state.player, id))
     })
 const minimap = new Minimap(document.body, () => toggleOverview())
+const playerList = session ? new PlayerList(document.body) : null
 unlockAudio()
 
 // 画面左下の視点ボタン
@@ -839,6 +841,7 @@ renderer.setAnimationLoop((now: number) => {
   rareView.update(time, state.rares, state.field)
   // ブースト中・ダッシュ中は足元から雪煙
   if ((p.boostTime > 0 && moving > 0.1) || p.dashTime > 0) sparkles.burst(tmp.copy(playerView.group.position).setY(0.3), p.dashTime > 0 ? 4 : 1, 0xdff4ff, 2)
+  playerList?.update(state.players, isSpectator ? null : state.player.id)
   minimap.update(dt, time, state, rig.mode === 'ground' && !rig.overview ? rig.yaw : null)
   dashboard?.update(dt)
   document.body.classList.toggle('cinematic', rig.cinematic)
