@@ -168,6 +168,14 @@ export class MultiSession {
     return this.events.splice(0)
   }
 
+  /** ほかのプレイヤーと除雪機を、補間せずに最新の位置へ置く（タブに戻ったとき、離れていた間の移動を滑らせて見せないため） */
+  snap() {
+    for (const o of [...this.state.players, ...this.state.plows]) {
+      const t = this.targets.get(o.id)
+      if (t && o !== this.state.player) Object.assign(o, t)
+    }
+  }
+
   private applyTick(m: TickMessage) {
     this.applyWorld(m.world, false)
     for (const [pid, e] of m.events) {

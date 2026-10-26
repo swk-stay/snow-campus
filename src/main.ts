@@ -1,6 +1,6 @@
 import './style.css'
 import * as THREE from 'three'
-import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, TIME_ATTACK, UPGRADES, WORLD, useCourtyardCourse, type UpgradeId } from './config'
+import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, TIME_ATTACK, UPGRADES, WORLD, useCourtyardCourse, type ItemId, type UpgradeId } from './config'
 import {
   buyItem,
   buyUpgrade,
@@ -322,7 +322,16 @@ function save() {
 }
 setInterval(save, 10_000)
 addEventListener('pagehide', save)
-document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && save())
+/**
+ * マルチプレイでタブを離れた時刻。離れている間は描画のループが止まるが、サーバーは進み続けるので出来事が溜まる。
+ * 戻った最初のフレームで、溜まった出来事を welcomeBack にまとめて渡す
+ */
+let awaySince: number | null = null
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'hidden') return
+  save()
+  if (session) awaySince ??= performance.now()
+})
 const title =
   isGodView || isBalance || params.has('mode')
     ? null
@@ -344,6 +353,45 @@ if (session) {
     alert('サーバーとの接続が切れました。タイトルに戻ります')
     backToTitle()
   }
+}
+
+/**
+ * タブに戻ったとき、離れていた間の出来事を 1 件ずつ処理せずにまとめて知らせる。
+ * 1 件ずつだと、溜まった雪玉・効果音・完成演出が戻った瞬間に一斉に出るため
+ */
+function welcomeBack(events: TaggedEvent[], ms: number) {
+  let gold = 0
+  const upgrades = new Map<UpgradeId, number>()
+  const items: ItemId[] = []
+  for (const [, e] of events) {
+    if (e.type === 'gold') gold += e.amount
+    else if (e.type === 'upgrade') upgrades.set(e.id, Math.max(upgrades.get(e.id) ?? 0, e.level))
+    else if (e.type === 'item') items.push(e.id)
+  }
+  // 離れている間に完成した建物は、カメラの演出を飛ばしてその場でカラーにしていく（何棟ぶんも演出を続けて流すと、しばらく操作できないため）
+  const completed = state.buildings.filter((b) => b.completed && !buildingViews.get(b.id)!.celebrated)
+  for (const b of completed) {
+    const view = buildingViews.get(b.id)!
+    view.display = 1
+    view.inFlight = 0
+    view.celebrated = true
+    view.colorize = 0
+  }
+  session?.snap()
+
+  const news = [
+    ...(completed.length > 3 ? [`${completed[0].label} ほか ${completed.length - 1}棟が完成！`] : completed.map((b) => `${b.label} 完成！`)),
+    ...[...upgrades].map(([id, level]) => `${UPGRADES[id].label} Lv${level}`),
+    ...items.map((id) => `${ITEMS[id].label} を手に入れた`),
+  ]
+  // 少しよそ見しただけのときは、ゴールドしか増えていなければ何も出さない
+  if (news.length === 0 && ms < 10_000) return
+  if (gold > 0) news.push(`+${Math.floor(gold)} G`)
+  if (news.length === 0) return
+  const away = ms < 60_000 ? `${Math.round(ms / 1000)}秒` : `${Math.floor(ms / 60_000)}分`
+  hud.toast(`離れていた${away}のあいだに\n${news.join('\n')}`, 2500 + news.length * 600)
+  if (completed.length > 0) playFanfare()
+  else if (upgrades.size + items.length > 0) playCoin()
 }
 
 /** マルチプレイで、出来事を起こしたプレイヤーの名前（自分なら null） */
@@ -582,6 +630,10 @@ renderer.setAnimationLoop((now: number) => {
     state.player.boostTime = Math.max(0, state.player.boostTime - dt)
     movePlayer(state, state.player, move, dt)
     events.push(...session.update(dt))
+    if (awaySince !== null) {
+      welcomeBack(events.splice(0), now - awaySince)
+      awaySince = null
+    }
   } else {
     for (let i = 0; i < steps; i++) events.push(...stepGame(state, move, simDt).map((e): TaggedEvent => [me, e]))
   }
