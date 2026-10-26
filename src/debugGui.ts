@@ -75,7 +75,7 @@ export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
       for (const id of Object.keys(ITEMS) as ItemId[]) s.items[id] = true
     },
     resetCd: () => {
-      for (const id of Object.keys(SKILLS) as SkillId[]) s.cooldowns[id] = 0
+      for (const id of Object.keys(SKILLS) as SkillId[]) s.player.cooldowns[id] = 0
     },
     replay: hooks.replayColorize,
     reset: hooks.resetSave,

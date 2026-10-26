@@ -13,8 +13,9 @@ export class PlayerView {
   private y = 0
   private bob = 0
 
-  constructor() {
-    const jacket = new THREE.MeshStandardMaterial({ color: 0xd9443a, roughness: 0.7 })
+  /** jacket：上着の色（マルチプレイではプレイヤーごとに変える） */
+  constructor(jacketColor = 0xd9443a) {
+    const jacket = new THREE.MeshStandardMaterial({ color: jacketColor, roughness: 0.7 })
     const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.55, 4, 12), jacket)
     torso.position.y = 0.62
     const head = new THREE.Mesh(

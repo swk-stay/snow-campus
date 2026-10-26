@@ -1,0 +1,104 @@
+/* タイトル画面。表示中はゲームの UI を隠す（閉じたら各要素の transition でふわっと出てくる） */
+body.title-screen #hud, body.title-screen #minimap, body.title-screen #view-bar, body.title-screen #shop-button,
+body.title-screen #shop, body.title-screen #skill-bar, body.title-screen #labels, body.title-screen #toast {
+  opacity: 0; pointer-events: none;
+}
+#labels { transition: opacity 0.4s; }
+
+/* カットの変わり目と、タイトルを閉じるときに重ねる空の色（scene.background と同じ色） */
+#title-veil { position: fixed; inset: 0; z-index: 7; background: #b9cbe0; pointer-events: none; opacity: 1; }
+#title-veil.leaving { transition: opacity 0.35s ease; }
+
+#title {
+  position: fixed; inset: 0; z-index: 7; overflow-y: auto; box-sizing: border-box;
+  display: flex; flex-direction: column;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: radial-gradient(ellipse at 50% 55%, rgba(12, 22, 44, 0.42), rgba(12, 22, 44, 0.08) 70%);
+  color: #1d2433; transition: opacity 0.3s;
+}
+#title.leaving { opacity: 0; pointer-events: none; }
+/* 縦にあふれたときに上が切れないよう、justify-content ではなく margin で中央に置く */
+.title-main { margin: auto; width: min(420px, 100%); display: grid; gap: 14px; padding: 12px 0 28px; }
+
+.title-logo {
+  margin: 0; text-align: center; font-size: clamp(36px, 10.5vw, 56px); font-weight: 900; line-height: 1.05; letter-spacing: 0.04em;
+  color: #fff; text-shadow: 0 2px 0 #9fc3ec, 0 4px 0 #6f9fd8, 0 10px 30px rgba(20, 50, 110, 0.55);
+}
+.title-tagline {
+  margin: -4px 0 10px; text-align: center; font-size: 15px; font-weight: bold; color: #fff;
+  text-shadow: 0 1px 6px rgba(10, 25, 60, 0.8);
+}
+
+.title-menu { display: grid; gap: 10px; }
+.title-menu[hidden], .title-panel[hidden] { display: none; }
+.title-button {
+  display: grid; gap: 2px; justify-items: start; width: 100%; padding: 14px 18px; border: none; border-radius: 16px;
+  background: rgba(255, 255, 255, 0.93); color: #1d2433; font: inherit; font-size: 19px; font-weight: bold; text-align: left;
+  box-shadow: 0 6px 20px rgba(10, 25, 60, 0.28); cursor: pointer; transition: transform 0.12s, background 0.12s;
+}
+.title-button small { font-size: 12px; font-weight: normal; color: #667; font-variant-numeric: tabular-nums; }
+.title-button.primary { background: #2f5fb3; color: #fff; font-size: 22px; padding: 18px; }
+.title-button.primary small { color: #d6e4ff; }
+.title-button:hover { transform: translateY(-1px); }
+.title-button:hover:not(.primary) { background: #fff; }
+.title-button.primary:hover { background: #3a72d4; }
+.title-button:active { transform: scale(0.98); }
+.title-button:focus-visible, .title-link:focus-visible, .title-panel button:focus-visible { outline: 3px solid #ffd36e; outline-offset: 2px; }
+.title-link {
+  justify-self: center; margin-top: 2px; padding: 6px 10px; border: none; background: none; font: inherit; font-size: 13px;
+  color: #fff; text-decoration: underline; text-underline-offset: 3px; text-shadow: 0 1px 4px rgba(10, 25, 60, 0.9); cursor: pointer;
+}
+
+.title-version {
+  position: fixed; right: 12px; bottom: max(10px, env(safe-area-inset-bottom)); font-size: 11px; color: #fff;
+  text-shadow: 0 1px 3px rgba(10, 25, 60, 0.9); pointer-events: none;
+}
+
+/* マルチプレイのパネル */
+.title-panel {
+  display: grid; gap: 12px; padding: 14px 16px 16px; border-radius: 18px; background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 40px rgba(10, 25, 60, 0.35); -webkit-user-select: text; user-select: text;
+}
+.tp-head { display: flex; align-items: center; gap: 8px; }
+.tp-head h2 { margin: 0; font-size: 17px; }
+.tp-back { padding: 4px 8px 4px 2px; border: none; background: none; font: inherit; font-size: 14px; font-weight: bold; color: #2f5fb3; cursor: pointer; }
+.tp-field { display: grid; gap: 4px; font-size: 12px; font-weight: bold; color: #667; }
+.title-panel input {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #c9d3e3; border-radius: 10px;
+  background: #fff; color: #1d2433; font: inherit; font-size: 16px; font-weight: normal;
+}
+.title-panel input:focus { outline: 2px solid #6ea0ff; border-color: transparent; }
+.tp-rooms-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; color: #667; }
+.tp-small {
+  padding: 6px 12px; border: 1px solid #b4c6e3; border-radius: 999px; background: #fff; color: #2f5fb3;
+  font: inherit; font-size: 13px; font-weight: bold; cursor: pointer; white-space: nowrap;
+}
+.tp-small.primary { border-color: #2f5fb3; background: #2f5fb3; color: #fff; }
+.tp-small:disabled { opacity: 0.5; cursor: default; }
+.tp-rooms { display: grid; gap: 6px; max-height: 40vh; overflow-y: auto; }
+.tp-note { margin: 0; padding: 14px 10px; border-radius: 10px; background: #f3f6fb; color: #667; font-size: 13px; text-align: center; }
+.tp-room {
+  display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'name action' 'info action'; gap: 2px 10px; align-items: center;
+  padding: 10px 12px; border: 1px solid #dfe5ef; border-radius: 12px; background: #fff; color: #1d2433; font: inherit; text-align: left; cursor: pointer;
+}
+.tp-room:hover:not(:disabled) { border-color: #2f5fb3; background: #f5f8ff; }
+.tp-room:disabled { opacity: 0.55; cursor: default; }
+.tp-room-name { grid-area: name; font-weight: bold; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-room small { grid-area: info; color: #667; font-size: 12px; font-variant-numeric: tabular-nums; }
+.tp-room-action { grid-area: action; padding: 6px 12px; border-radius: 999px; background: #2f5fb3; color: #fff; font-size: 13px; font-weight: bold; }
+.tp-room:disabled .tp-room-action { background: #dfe3ea; color: #8a92a0; }
+.tp-create { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding-top: 10px; border-top: 1px solid #e3e8f0; }
+.tp-message { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fdecec; color: #b03030; font-size: 13px; }
+.tp-message[hidden] { display: none; }
+
+/* 横に広い画面では、メニューを左に寄せて景色を空ける */
+@media (min-width: 900px) and (min-aspect-ratio: 4/3) {
+  #title { background: linear-gradient(90deg, rgba(12, 22, 44, 0.5), rgba(12, 22, 44, 0.12) 45%, rgba(12, 22, 44, 0) 70%); }
+  .title-main { margin: auto auto auto 7vw; }
+  .title-logo, .title-tagline { text-align: left; }
+}
+@media (max-width: 480px) {
+  .title-main { gap: 12px; }
+  .title-button { padding: 12px 16px; font-size: 17px; }
+  .title-button.primary { padding: 16px; font-size: 20px; }
+}

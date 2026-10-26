@@ -7,6 +7,7 @@ import {
   createGame,
   currentBuilding,
   distanceToBuilding,
+  movePlayer,
   stats,
   stepGame,
   useSkill,
@@ -24,6 +25,7 @@ import { UnitsView } from './render/units'
 import { BuildingLabels } from './render/buildingLabels'
 import { RareView } from './render/rareView'
 import { KeepOutSigns } from './render/keepOut'
+import { RemotePlayers } from './render/remotePlayers'
 import { SkillBar } from './skillBar'
 import { Input } from './input'
 import { Hud } from './hud'
@@ -37,14 +39,20 @@ import { BalanceDashboard } from './balanceDashboard'
 import { loadTuning } from './tuning'
 import { clearStorage, hasSave, loadFromStorage, saveToStorage, useSaveSlot } from './save'
 import { playCoin, playFanfare, unlockAudio } from './audio'
+import { joinFromParams, type MultiSession } from './net/session'
+import type { TaggedEvent } from './net/protocol'
+import { Title } from './title/title'
 
 // ?view=god で展示用の神視点（マウスで見回し・WASD で移動・自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード、
-// ?mode=timeattack でタイムアタック（セーブを読まずに最初から始め、セーブもしない）
+// ?mode=timeattack でタイムアタック（セーブを読まずに最初から始め、セーブもしない）。
+// mode が無ければタイトル画面から始める（?mode=normal は通常プレイへ直接入る）
 const params = new URLSearchParams(location.search)
 const isGodView = params.get('view') === 'god'
 const isBalance = params.has('balance')
 // ダッシュボードの早回しや調整値が入るとタイムが比べられないので、?balance とは併用しない
 const isTimeAttack = !isGodView && !isBalance && params.get('mode') === 'timeattack'
+// ?mode=multi&server=ws://…&room=<roomId>（新しく作るときは room の代わりに create=<ルーム名>）でマルチプレイ。タイトル画面から入る
+const isMulti = !isGodView && !isBalance && params.get('mode') === 'multi'
 // 調整した値はダッシュボードを開いたときだけ使う（普段のプレイには持ち込まない）。建物の必要量に効くので createGame より前に。
 // セーブも本編とは別の枠にする
 if (isBalance) {
@@ -71,7 +79,27 @@ sun.position.copy(sunDir).multiplyScalar(30)
 scene.add(sun)
 
 const state = createGame()
-const resumed = !isTimeAttack && loadFromStorage(state)
+// マルチプレイはルームの状態をサーバーから受け取ってから描画を作る（完成済みの建物を最初からカラーで建てるため）
+const session = isMulti ? await joinOrFail() : null
+const resumed = !isTimeAttack && !isMulti && loadFromStorage(state)
+
+async function joinOrFail(): Promise<MultiSession> {
+  try {
+    return await joinFromParams(params, state)
+  } catch (e) {
+    const box = document.createElement('div')
+    box.id = 'fatal'
+    box.innerHTML = `<p>ルームに参加できませんでした</p><p class="fatal-detail"></p><button>タイトルに戻る</button>`
+    box.querySelector('.fatal-detail')!.textContent = e instanceof Error ? e.message : String(e)
+    box.querySelector('button')!.addEventListener('click', backToTitle)
+    document.body.appendChild(box)
+    throw e
+  }
+}
+
+function backToTitle() {
+  location.href = location.pathname
+}
 
 const snow = new SnowSurface(state.field, sunDir)
 scene.add(snow.mesh)
@@ -95,7 +123,8 @@ const sparkles = new Sparkles()
 const projectiles = new Projectiles()
 const units = new UnitsView()
 const rareView = new RareView()
-scene.add(playerView.group, scoop.mesh, sparkles.mesh, projectiles.mesh, units.group, rareView.group)
+const remotePlayers = new RemotePlayers()
+scene.add(playerView.group, scoop.mesh, sparkles.mesh, projectiles.mesh, units.group, rareView.group, remotePlayers.group)
 
 type BuildingView = {
   monolith: Monolith
@@ -164,13 +193,15 @@ let resetting = false
 function resetSave() {
   resetting = true
   clearStorage()
-  location.reload()
+  // タイトル画面に戻すと、もう一度「はじめから」を押すことになる
+  const url = new URL(location.href)
+  if (!url.searchParams.has('mode')) url.searchParams.set('mode', 'normal')
+  location.href = url.href
 }
 /** 通常モードとタイムアタックの切り替え。どちらもページを読み直す（通常モードのセーブは pagehide で保存される） */
 function switchMode(timeAttack: boolean) {
   const url = new URL(location.href)
-  if (timeAttack) url.searchParams.set('mode', 'timeattack')
-  else url.searchParams.delete('mode')
+  url.searchParams.set('mode', timeAttack ? 'timeattack' : 'normal')
   location.href = url.href
 }
 /**
@@ -192,7 +223,13 @@ const timeAttack = isTimeAttack
       carryOver: carryOverToNormal,
     })
   : null
-const shopActions: ShopAction[] = isTimeAttack
+function leaveRoom() {
+  session?.leave()
+  backToTitle()
+}
+const shopActions: ShopAction[] = session
+  ? [{ label: 'ルームから抜ける', onClick: leaveRoom, confirm: 'ルームから抜けてタイトルに戻りますか？（ルームの進行はサーバーに残ります）', danger: true }]
+  : isTimeAttack
   ? [
       { label: '最初からやり直す', onClick: () => location.reload(), confirm: 'タイムアタックを最初からやり直しますか？' },
       { label: 'タイムアタックをやめる', onClick: () => switchMode(false), confirm: 'タイムアタックをやめて通常モードに戻りますか？', danger: true },
@@ -206,13 +243,19 @@ const shop = isGodView
   ? null
   : new Shop(
       document.body,
-      (id) => pendingEvents.push(...buyUpgrade(state, id)),
-      (id) => pendingEvents.push(...buyItem(state, id)),
+      (id) => (session ? session.buyUpgrade(id) : pendingEvents.push(...buyUpgrade(state, id))),
+      (id) => (session ? session.buyItem(id) : pendingEvents.push(...buyItem(state, id))),
       shopActions,
     )
-/** 演出中・全体マップ中・タイムアタックのカウントダウン中は操作できない */
-const inputLocked = () => rig.inputLocked || !!timeAttack?.locked
-const skillBar = isGodView ? null : new SkillBar(document.body, (id) => !inputLocked() && pendingEvents.push(...useSkill(state, id)))
+/** 演出中・全体マップ中・タイムアタックのカウントダウン中・タイトル画面では操作できない */
+const inputLocked = () => rig.inputLocked || !!timeAttack?.locked || !!title?.active
+const skillBar = isGodView
+  ? null
+  : new SkillBar(document.body, (id) => {
+      if (inputLocked()) return
+      if (session) session.skill(id)
+      else pendingEvents.push(...useSkill(state, state.player, id))
+    })
 const minimap = new Minimap(document.body, () => toggleOverview())
 unlockAudio()
 
@@ -272,14 +315,42 @@ if (params.has('debug')) {
   })
 }
 
-// オートセーブ：10秒ごと、タブを離れたとき、購入・完成のとき。神視点（展示用）とタイムアタックは保存しない
+// オートセーブ：10秒ごと、タブを離れたとき、購入・完成のとき。神視点（展示用）とタイムアタックは保存しない。
+// タイトル画面のあいだも保存しない（開いただけで、まだ遊んでいないのにセーブができてしまう）
 function save() {
-  if (!resetting && !isGodView && !isTimeAttack) saveToStorage(state)
+  if (!resetting && !isGodView && !isTimeAttack && !isMulti && !title?.active) saveToStorage(state)
 }
 setInterval(save, 10_000)
 addEventListener('pagehide', save)
 document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && save())
-if (resumed) hud.toast('続きから再開！', 1500)
+const title =
+  isGodView || isBalance || params.has('mode')
+    ? null
+    : new Title({
+        camera,
+        fog,
+        buildings: state.buildings,
+        heightOf: (b) => buildingViews.get(b.id)!.monolith.topY,
+        hasSave: hasSave(),
+        onPlay: () => resumed && hud.toast('続きから再開！', 1500),
+        onNewGame: resetSave,
+        onTimeAttack: () => switchMode(true),
+      })
+if (resumed && !title) hud.toast('続きから再開！', 1500)
+if (session) {
+  hud.toast(`「${session.roomName}」に参加しました`, 2000)
+  session.onNotice = (text) => hud.toast(text, 2000)
+  session.onDisconnect = () => {
+    alert('サーバーとの接続が切れました。タイトルに戻ります')
+    backToTitle()
+  }
+}
+
+/** マルチプレイで、出来事を起こしたプレイヤーの名前（自分なら null） */
+function whoElse(pid: string | null): string | null {
+  if (!session || pid === null || pid === state.player.id) return null
+  return state.players.find((o) => o.id === pid)?.name ?? '誰か'
+}
 
 function resize() {
   const { clientWidth: w, clientHeight: h } = app
@@ -501,12 +572,20 @@ renderer.setAnimationLoop((now: number) => {
   // 神視点では WASD はカメラの移動に使い、自機は動かさない
   const move = isGodView || inputLocked() ? { x: 0, z: 0 } : rig.toWorld(input.move())
   // ダッシュボードの早回しは stepGame を複数回まわす（dt を大きくすると除雪機や回収の挙動が変わるため）
-  const steps = dashboard?.timeScale ?? 1
-  const events = pendingEvents.splice(0)
+  const steps = title?.active ? 0 : (dashboard?.timeScale ?? 1)
+  const me = state.player.id
+  const events: TaggedEvent[] = pendingEvents.splice(0).map((e) => [me, e])
   // タイムアタックのカウントダウン中はゲームの時間を止める
   const simDt = timeAttack?.locked ? 0 : dt
-  for (let i = 0; i < steps; i++) events.push(...stepGame(state, move, simDt))
-  dashboard?.record(events, simDt * steps)
+  if (session) {
+    // マルチプレイでは回収・投げ込みはサーバーが決める。手元では自分を動かすだけ
+    state.player.boostTime = Math.max(0, state.player.boostTime - dt)
+    movePlayer(state, state.player, move, dt)
+    events.push(...session.update(dt))
+  } else {
+    for (let i = 0; i < steps; i++) events.push(...stepGame(state, move, simDt).map((e): TaggedEvent => [me, e]))
+  }
+  dashboard?.record(events.map(([, e]) => e), simDt * steps)
   const p = state.player
   const st = stats(state)
   const moving = Math.min(1, Math.hypot(move.x, move.z))
@@ -514,27 +593,36 @@ renderer.setAnimationLoop((now: number) => {
   playerView.update(dt, p, state.field, moving > 0.05)
   playerView.packWorldPosition(packPos)
 
-  for (const e of events) {
+  remotePlayers.update(dt, state.players.filter((o) => o !== p), state.field)
+
+  for (const [pid, e] of events) {
+    const other = whoElse(pid)
     if (e.type === 'collect') {
-      scoopBudget += e.amount * FX.scoopPerSnow
+      if (pid === me) scoopBudget += e.amount * FX.scoopPerSnow
     } else if (e.type === 'upgrade') {
-      hud.toast(`${UPGRADES[e.id].label} Lv${e.level}！`, 1200)
+      hud.toast(`${other ? `${other}が ` : ''}${UPGRADES[e.id].label} Lv${e.level}！`, 1200)
       sparkles.burst(packPos, 24, 0xffd36e, 4)
       playCoin()
       save()
     } else if (e.type === 'item') {
-      hud.toast(`${ITEMS[e.id].label} を手に入れた！`, 1800)
+      hud.toast(other ? `${other}が ${ITEMS[e.id].label} を買った！` : `${ITEMS[e.id].label} を手に入れた！`, 1800)
       sparkles.burst(packPos, 30, 0x9ff0ff, 4)
       playCoin()
       save()
     } else if (e.type === 'skill') {
-      playSkillEffect(e.id, e.amount)
+      if (!other) playSkillEffect(e.id, e.amount)
+      else {
+        const at = remotePlayers.position(pid!)
+        if (at) sparkles.burst(tmp.copy(at).setY(1), 30, 0xffd36e, 4)
+        if (e.id === 'blizzard') hud.toast(`${other}のブリザード！！ +${Math.floor(e.amount ?? 0)}`, 2000)
+      }
     } else if (e.type === 'skillFail') {
+      if (other) continue
       hud.toast(`${SKILLS[e.id].label}：${e.reason}`, 1200)
       skillBar?.shake(e.id)
     } else if (e.type === 'rarePickup') {
       sparkles.burst(tmp.set(e.x, 1, e.z), 24, 0x7fe9ff, 4)
-      hud.toast('レア雪ゲット！', 900)
+      if (!other) hud.toast('レア雪ゲット！', 900)
     } else if (e.type === 'complete') {
       // 完成演出自体は雪玉の着弾と表示の追従を待ってから（下のループ）
       save()
@@ -546,7 +634,7 @@ renderer.setAnimationLoop((now: number) => {
         Math.max(0.3, view.monolith.topY) + 0.2,
         b.z + (Math.random() - 0.5) * b.depth * 0.8,
       )
-      const from = e.from ? units.plowPosition(e.from.plowId, tmp) : packPos
+      const from = e.from ? units.plowPosition(e.from.plowId, tmp) : other ? remotePlayers.packPosition(pid!, tmp) : packPos
       if (!from) continue
       view.inFlight += e.amount
       projectiles.launch(from, to, () => {
@@ -666,6 +754,8 @@ renderer.setAnimationLoop((now: number) => {
 
   if (god) {
     god.update(dt)
+  } else if (title?.active) {
+    title.update(dt)
   } else {
     // 見下ろしで、いま建てている建物に近づいたら引きのアングルにする
     let near = 0
@@ -688,7 +778,7 @@ renderer.setAnimationLoop((now: number) => {
   }
 
   // カメラとプレイヤーの間にある建物の部分を抜く（実寸の校舎は高いので、見下ろしでも隠れてしまう）
-  const occlude = !isGodView && !rig.cinematic && !rig.overview
+  const occlude = !isGodView && !rig.cinematic && !rig.overview && !title?.active
   occlusion.uOccl.value += ((occlude ? 1 : 0) - occlusion.uOccl.value) * Math.min(1, dt * 6)
   occlusion.uCamPos.value.copy(camera.position)
   occlusion.uFocus.value.copy(playerView.group.position).setY(playerView.group.position.y + 1)
@@ -701,5 +791,5 @@ renderer.setAnimationLoop((now: number) => {
 
 // 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890, buy('plow')）
 if (import.meta.env.DEV) {
-  Object.assign(window, { game: state, rig, camera, god, scene, renderer, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
+  Object.assign(window, { game: state, session, rig, camera, god, scene, renderer, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
 }

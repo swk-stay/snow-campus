@@ -67,8 +67,8 @@ export class SnowField {
     this.touch(0, this.res - 1, 0, this.res - 1)
   }
 
-  /** 変わったセルの範囲を広げる */
-  private touch(i0: number, i1: number, j0: number, j1: number) {
+  /** 変わったセルの範囲を広げる（data を範囲を決めて直接書き換えたときにも呼ぶ） */
+  touch(i0: number, i1: number, j0: number, j1: number) {
     const r = this.dirtyRect
     if (!this.dirty) {
       r.i0 = i0
