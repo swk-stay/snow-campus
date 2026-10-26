@@ -42,8 +42,9 @@ export class Minimap {
    */
   update(dt: number, time: number, s: GameState, viewYaw: number | null) {
     const dpr = Math.min(devicePixelRatio, 2)
-    const css = this.canvas.clientWidth
-    if (this.canvas.width !== Math.round(css * dpr)) this.canvas.width = this.canvas.height = Math.round(css * dpr)
+    const side = Math.round(this.canvas.clientWidth * dpr)
+    // canvas の初期サイズは 300×150 なので、幅がちょうど 300 になる端末では高さも見ないと 150 のまま残る
+    if (this.canvas.width !== side || this.canvas.height !== side) this.canvas.width = this.canvas.height = side
     const W = this.canvas.width
     const g = this.g
     const { size, centerX, centerZ } = s.field

@@ -94,6 +94,8 @@ export type World = {
   items: Record<ItemId, boolean>
   /** 完成した建物の数。アップグレードの上限を決める */
   tier: number
+  /** 建物の必要量の倍率。マルチプレイでは遊んでいる人数（ソロは 1） */
+  requiredMult: number
   /** プレイヤーが累計で集めた雪の量（アイテムの解禁条件） */
   totalCollected: number
   plows: Plow[]
@@ -171,6 +173,7 @@ export function createWorld(): World {
     upgrades: Object.fromEntries(UPGRADE_IDS.map((id) => [id, 0])) as Record<UpgradeId, number>,
     items: Object.fromEntries(ITEM_IDS.map((id) => [id, false])) as Record<ItemId, boolean>,
     tier: 0,
+    requiredMult: 1,
     totalCollected: 0,
     plows: [],
     machines: [],
@@ -210,9 +213,23 @@ function machineSpot(b: BuildingDef, field: SnowField): { x: number; z: number }
   return sides.find(free) ?? sides[0]
 }
 
-/** 建物の完成に必要な量（全体倍率込み） */
-export function requiredOf(def: BuildingDef): number {
-  return Math.max(1, Math.round(def.required * ECONOMY.requiredScale))
+/** 建物の完成に必要な量（全体倍率と人数の倍率込み） */
+export function requiredOf(def: BuildingDef, mult = 1): number {
+  return Math.max(1, Math.round(def.required * ECONOMY.requiredScale * mult))
+}
+
+/**
+ * 必要量の倍率を変える（マルチプレイで人が出入りしたとき）。
+ * 建てている途中の建物は、寄付済みの割合が変わらないように寄付済みの量も同じ比で増減させる
+ */
+export function setRequiredMult(s: World, mult: number) {
+  if (mult === s.requiredMult) return
+  s.requiredMult = mult
+  s.buildings.forEach((b, i) => {
+    const prev = b.required
+    b.required = requiredOf(BUILDINGS[i], mult)
+    b.deposited = b.completed ? b.required : (b.deposited * b.required) / prev
+  })
 }
 
 /**
@@ -221,7 +238,7 @@ export function requiredOf(def: BuildingDef): number {
  */
 function syncRequired(s: World, events: GameEvent[]) {
   s.buildings.forEach((b, i) => {
-    b.required = requiredOf(BUILDINGS[i])
+    b.required = requiredOf(BUILDINGS[i], s.requiredMult)
     if (b.completed) b.deposited = b.required
   })
   const b = currentBuilding(s)

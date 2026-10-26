@@ -21,8 +21,12 @@ export type RoomMeta = { roomName: string; players: number; completed: number; t
 /** GET /rooms の応答の 1 行 */
 export type RoomSummary = { roomId: string; name: string; players: number; maxPlayers: number; completed: number; total: number }
 
-/** spectator：神視点で観戦する。プレイヤーとしては加わらず、受け取るだけ。skin は SKINS の id（知らない id ならサーバーが選ぶ） */
-export type JoinOptions = { name?: string; skin?: string; roomName?: string; spectator?: boolean }
+/**
+ * spectator：神視点で観戦する。プレイヤーとしては加わらず、受け取るだけ。
+ * debug：?debug で遊んでいる。プレイヤーとして加わるが、建物の必要量を決める人数には数えない。
+ * skin：SKINS の id（知らない id ならサーバーが選ぶ）
+ */
+export type JoinOptions = { name?: string; skin?: string; roomName?: string; spectator?: boolean; debug?: boolean }
 
 /** ルーム名をサーバーに保存する形にそろえる。joinOrCreate は完全一致で探すので、端末も送る前にこれを通す */
 export function normalizeRoomName(name: string): string {
@@ -60,7 +64,8 @@ export type WorldSync = {
   items: Record<ItemId, boolean>
   tier: number
   totalCollected: number
-  /** BUILDINGS の順 */
+  /** BUILDINGS の順。required は人数の倍率込み */
+  required: number[]
   deposited: number[]
   completed: boolean[]
   players: PlayerSync[]
@@ -86,6 +91,7 @@ export function worldSync(w: World): WorldSync {
     items: { ...w.items },
     tier: w.tier,
     totalCollected: w.totalCollected,
+    required: w.buildings.map((b) => b.required),
     deposited: w.buildings.map((b) => b.deposited),
     completed: w.buildings.map((b) => b.completed),
     players: w.players.map((p) => ({
