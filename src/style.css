@@ -25,6 +25,14 @@ canvas { display: block; touch-action: none; }
 }
 #toast.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
+/* マルチプレイのルームに参加できなかったとき */
+#fatal {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 16px;
+  background: rgba(20, 30, 50, 0.85); color: #fff; font-size: 18px; text-align: center;
+}
+#fatal .fatal-detail { font-size: 14px; color: #c8d2e0; max-width: 32em; }
+#fatal button { padding: 10px 24px; border: 0; border-radius: 10px; background: #fff; color: #233; font-size: 16px; font-weight: bold; }
+
 .stick-base {
   position: fixed; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.12);
@@ -141,6 +149,12 @@ body.god-view #view-bar, body.god-view #minimap { display: none; }
 .building-label[data-stage='locked'] .bl-value { color: #b8c0cc; font-size: 11px; }
 .building-label[data-stage='done'] .bl-value { color: #9fe0a0; font-size: 11px; }
 body.cinematic #labels { opacity: 0; transition: opacity 0.4s; }
+
+/* マルチプレイで、ほかのプレイヤーの頭上の名前 */
+.player-name {
+  padding: 2px 8px; border-radius: 8px; background: rgba(20, 30, 50, 0.55); color: #fff;
+  font-size: 12px; font-weight: bold; white-space: nowrap;
+}
 
 /* キャラクターの頭上に出す、建設予定地の方向を示す矢印（光の柱が遠くて見えないとき用） */
 .site-arrow { display: grid; justify-items: center; gap: 2px; }

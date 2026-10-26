@@ -48,7 +48,7 @@ export class SkillBar {
         if (owned) b.el.classList.add('learned')
       }
       if (!owned) continue
-      const remain = s.cooldowns[id]
+      const remain = s.player.cooldowns[id]
       const ratio = remain / (SKILLS[id].cooldown * mult)
       b.el.style.setProperty('--cd', `${Math.min(1, ratio)}`)
       const text = remain > 0 ? `${Math.ceil(remain)}` : ''

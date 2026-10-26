@@ -132,6 +132,9 @@ export class Minimap {
       }
     }
 
+    // マルチプレイのほかのプレイヤー
+    for (const o of s.players) if (o !== s.player) dot(g, toPxX(o.x), toPxZ(o.z), 4 * dpr, '#2f7fd9')
+
     // プレイヤー（向きつきの三角）とグランドレベル時の視野
     if (viewYaw !== null) {
       const dir = Math.atan2(-Math.cos(viewYaw), -Math.sin(viewYaw))
