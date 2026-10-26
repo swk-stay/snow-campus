@@ -15,18 +15,27 @@ concurrency:
 
 jobs:
   # パッチノートの断片（パッチノート/未リリース/）があれば、まとめてバージョンを上げ、main に push する。
-  # GITHUB_TOKEN の push ではワークフローが起動しないので、デプロイはこのジョブが push したコミットから行う
+  # main は PR 必須なので、Ruleset の Bypass に入れたリリース用 GitHub App のトークンで push する。
+  # App の push はこのワークフローを起動し直すので、push したときのデプロイはその実行に任せる
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    # App の秘密鍵は main だけに絞った Environment に置いている
+    environment: push-to-main
     outputs:
+      released: ${{ steps.push.outputs.released }}
       sha: ${{ steps.push.outputs.sha }}
     steps:
+      - id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       # 先に走っていた実行が打ち切られても漏れないよう、イベントのコミットではなく main の先頭を見る
       - uses: actions/checkout@v5
         with:
           ref: main
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v5
         with:
@@ -38,19 +47,25 @@ jobs:
       - run: npm run release
 
       - id: push
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             version=$(node -p "require('./package.json').version")
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            user_id=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+            git config user.name "${APP_SLUG}[bot]"
+            git config user.email "${user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
             git add -A
             git commit -m "v${version} をリリース（パッチノートをまとめる）"
             git push origin HEAD:main
+            echo "released=true" >> "$GITHUB_OUTPUT"
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
     needs: release
+    if: needs.release.outputs.released != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
