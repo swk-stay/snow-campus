@@ -21,6 +21,7 @@ import {
   type UpgradeId,
 } from '../config'
 import { SnowField } from './field'
+import { DEFAULT_SKIN, type SkinId } from '../skins'
 
 export type Building = BuildingDef & {
   deposited: number
@@ -33,6 +34,8 @@ export type Player = {
   /** ソロでは 'local'、マルチプレイではサーバーの sessionId */
   id: string
   name: string
+  /** 見た目（マルチプレイでプレイヤーが選ぶ。ソロは DEFAULT_SKIN） */
+  skin: SkinId
   x: number
   z: number
   /** 向き（ラジアン、+Z 方向が 0） */
@@ -123,10 +126,11 @@ const UPGRADE_IDS = Object.keys(UPGRADES) as UpgradeId[]
 const ITEM_IDS = Object.keys(ITEMS) as ItemId[]
 const SKILL_IDS = Object.keys(SKILLS) as SkillId[]
 
-export function createPlayer(id: string, name: string): Player {
+export function createPlayer(id: string, name: string, skin: SkinId = DEFAULT_SKIN): Player {
   return {
     id,
     name,
+    skin,
     x: PLAYER_START.x,
     z: PLAYER_START.z,
     facing: PLAYER_START.facing,

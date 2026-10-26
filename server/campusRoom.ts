@@ -1,6 +1,7 @@
 import { deflateSync } from 'node:zlib'
 import { Room, matchMaker, type Client } from '@colyseus/core'
 import { ITEMS, SKILLS, UPGRADES } from '../src/config'
+import { isSkinId, randomSkinId } from '../src/skins'
 import { buyItem, buyUpgrade, createPlayer, createWorld, stepPlayer, stepWorld, useSkill, type GameEvent, type World } from '../src/sim/game'
 import {
   MAX_PLAYERS,
@@ -95,7 +96,8 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
       return
     }
     const name = options.name?.trim().slice(0, 16) || `プレイヤー${this.world.players.length + 1}`
-    this.world.players.push(createPlayer(client.sessionId, name))
+    const skin = isSkinId(options.skin) ? options.skin : randomSkinId()
+    this.world.players.push(createPlayer(client.sessionId, name, skin))
     this.setMetadata({ ...this.metadata, players: this.world.players.length })
     this.sendWelcome(client)
     this.broadcast('notice', { text: `${name} が参加しました` }, { except: client })

@@ -20,6 +20,7 @@ import { occlusion } from './render/buildings/material'
 import { createScenery } from './render/scenery'
 import { applySubjectCut, subjectCut } from './render/subjectCut'
 import { PlayerView } from './render/playerView'
+import { skinById } from './skins'
 import { Projectiles, Scoop, Sparkles } from './render/effects'
 import { UnitsView } from './render/units'
 import { BuildingLabels } from './render/buildingLabels'
@@ -119,7 +120,7 @@ const scenery = createScenery()
 applySubjectCut(scenery)
 scene.add(scenery)
 
-const playerView = new PlayerView()
+const playerView = new PlayerView(skinById(state.player.skin))
 const scoop = new Scoop()
 const sparkles = new Sparkles()
 const projectiles = new Projectiles()
