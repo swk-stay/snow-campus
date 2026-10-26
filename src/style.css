@@ -319,6 +319,7 @@ body.overview #ta-timer { opacity: 0.6; }
 .ta-runs li span:nth-child(2) { text-align: left; font-weight: bold; }
 .ta-runs small { color: #8a92a0; }
 .ta-runs li.me { background: #ffe9a8; }
-.ta-actions { display: flex; gap: 8px; margin-top: 16px; }
+.ta-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .ta-actions button { flex: 1; padding: 10px; border: none; border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; background: #dfe3ea; color: #1d2433; }
 .ta-actions [data-retry] { background: #f2b01e; color: #3a2a00; }
+.ta-actions [data-carry] { flex-basis: 100%; background: #2f6fd6; color: #fff; }

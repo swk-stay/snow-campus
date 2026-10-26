@@ -16,7 +16,8 @@ type Run = { time: number; at: number; ver?: string }
 type Board = { runs: Run[]; bestSplits: number[] }
 
 export type GoalBuilding = { id: string; label: string }
-export type TimeAttackActions = { retry: () => void; quit: () => void }
+/** carryOver：ゴールした状態のまま通常モードで続ける */
+export type TimeAttackActions = { retry: () => void; quit: () => void; carryOver: () => void }
 
 // localStorage はプライベートモードなどで例外を投げることがあるので、全部 try/catch で包む
 function loadBoards(): Record<string, Board> {
@@ -183,10 +184,11 @@ export class TimeAttack {
         <table class="ta-splits">${splitRows}</table>
         <h3>この端末の記録</h3>
         <ol class="ta-runs">${runRows}</ol>
-        <div class="ta-actions"><button data-retry>もう一度</button><button data-quit>通常モードへ</button></div>
+        <div class="ta-actions"><button data-retry>もう一度</button><button data-quit>通常モードへ</button><button data-carry>このデータで通常モードを続ける</button></div>
       </div>`
     this.resultEl.querySelector('[data-retry]')!.addEventListener('click', this.actions.retry)
     this.resultEl.querySelector('[data-quit]')!.addEventListener('click', this.actions.quit)
+    this.resultEl.querySelector('[data-carry]')!.addEventListener('click', this.actions.carryOver)
   }
 
   private showCountdown(text: string, go: boolean) {
