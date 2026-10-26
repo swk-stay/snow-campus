@@ -41,6 +41,8 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   /** 端末に送った雪原（量子化済み）。差分はこれと比べて作る */
   private sentField!: Uint8Array
   private events: TaggedEvent[] = []
+  /** プレイヤーがいる間だけ進めるルームの経過時間（秒）。マルチプレイの一区切り（K1号館の完成）までのタイムに使う */
+  private playTime = 0
   /** 神視点で観戦している端末の sessionId */
   private readonly spectators = new Set<string>()
   /** ?debug で遊んでいるプレイヤーの id。建物の必要量を決める人数に数えない */
@@ -142,6 +144,7 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
       roomName: this.metadata.roomName,
       world: worldSync(this.world),
       field: deflateSync(this.sentField),
+      buildingIds: this.world.buildings.map((b) => b.id),
     }
     client.send('welcome', welcome)
   }
@@ -157,6 +160,7 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   private step(dt: number) {
     // 止まっていたあとの最初の 1 回などで dt が大きくなると、除雪機や回収の挙動が変わるので抑える
     const t = Math.min(dt, 0.1)
+    if (this.world.players.length > 0) this.playTime += t
     for (const p of this.world.players) this.tag(p.id, stepPlayer(this.world, p, null, t))
     this.tag(null, stepWorld(this.world, t))
     if (this.events.some(([, e]) => e.type === 'complete')) {
@@ -165,7 +169,7 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   }
 
   private sendTick() {
-    const tick: TickMessage = { world: worldSync(this.world), events: this.events.splice(0) }
+    const tick: TickMessage = { world: worldSync(this.world), events: this.events.splice(0), playTime: this.playTime }
     this.broadcast('tick', tick)
   }
 
