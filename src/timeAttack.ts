@@ -36,6 +36,15 @@ function saveBoards(boards: Record<string, Board>) {
   }
 }
 
+function boardKey(course: string, goalIds: string[]): string {
+  return `${course}:${goalIds.join(',')}`
+}
+
+/** この端末のベストタイム（秒）。記録が無ければ null */
+export function bestTime(course: string, goalIds: string[]): number | null {
+  return loadBoards()[boardKey(course, goalIds)]?.runs[0]?.time ?? null
+}
+
 /** 1:23.45 の形式 */
 export function formatTime(t: number): string {
   const cs = Math.floor(t * 100)
@@ -76,7 +85,7 @@ export class TimeAttack {
     this.goal = goal
     this.actions = actions
     // コースが違えば同じ建物の並びでも雪原や必要量が違うので、記録を分ける
-    this.key = `${TIME_ATTACK.course}:${goal.map((b) => b.id).join(',')}`
+    this.key = boardKey(TIME_ATTACK.course, goal.map((b) => b.id))
     const board = loadBoards()[this.key]
     this.prev = { runs: board?.runs ?? [], bestSplits: board?.bestSplits ?? [] }
 

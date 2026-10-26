@@ -37,9 +37,11 @@ import { BalanceDashboard } from './balanceDashboard'
 import { loadTuning } from './tuning'
 import { clearStorage, hasSave, loadFromStorage, saveToStorage, useSaveSlot } from './save'
 import { playCoin, playFanfare, unlockAudio } from './audio'
+import { Title } from './title/title'
 
 // ?view=god で展示用の神視点（マウスで見回し・WASD で移動・自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード、
-// ?mode=timeattack でタイムアタック（セーブを読まずに最初から始め、セーブもしない）
+// ?mode=timeattack でタイムアタック（セーブを読まずに最初から始め、セーブもしない）。
+// mode が無ければタイトル画面から始める（?mode=normal は通常プレイへ直接入る）
 const params = new URLSearchParams(location.search)
 const isGodView = params.get('view') === 'god'
 const isBalance = params.has('balance')
@@ -164,13 +166,15 @@ let resetting = false
 function resetSave() {
   resetting = true
   clearStorage()
-  location.reload()
+  // タイトル画面に戻すと、もう一度「はじめから」を押すことになる
+  const url = new URL(location.href)
+  if (!url.searchParams.has('mode')) url.searchParams.set('mode', 'normal')
+  location.href = url.href
 }
 /** 通常モードとタイムアタックの切り替え。どちらもページを読み直す（通常モードのセーブは pagehide で保存される） */
 function switchMode(timeAttack: boolean) {
   const url = new URL(location.href)
-  if (timeAttack) url.searchParams.set('mode', 'timeattack')
-  else url.searchParams.delete('mode')
+  url.searchParams.set('mode', timeAttack ? 'timeattack' : 'normal')
   location.href = url.href
 }
 /**
@@ -210,8 +214,8 @@ const shop = isGodView
       (id) => pendingEvents.push(...buyItem(state, id)),
       shopActions,
     )
-/** 演出中・全体マップ中・タイムアタックのカウントダウン中は操作できない */
-const inputLocked = () => rig.inputLocked || !!timeAttack?.locked
+/** 演出中・全体マップ中・タイムアタックのカウントダウン中・タイトル画面では操作できない */
+const inputLocked = () => rig.inputLocked || !!timeAttack?.locked || !!title?.active
 const skillBar = isGodView ? null : new SkillBar(document.body, (id) => !inputLocked() && pendingEvents.push(...useSkill(state, id)))
 const minimap = new Minimap(document.body, () => toggleOverview())
 unlockAudio()
@@ -272,14 +276,28 @@ if (params.has('debug')) {
   })
 }
 
-// オートセーブ：10秒ごと、タブを離れたとき、購入・完成のとき。神視点（展示用）とタイムアタックは保存しない
+// オートセーブ：10秒ごと、タブを離れたとき、購入・完成のとき。神視点（展示用）とタイムアタックは保存しない。
+// タイトル画面のあいだも保存しない（開いただけで、まだ遊んでいないのにセーブができてしまう）
 function save() {
-  if (!resetting && !isGodView && !isTimeAttack) saveToStorage(state)
+  if (!resetting && !isGodView && !isTimeAttack && !title?.active) saveToStorage(state)
 }
 setInterval(save, 10_000)
 addEventListener('pagehide', save)
 document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && save())
-if (resumed) hud.toast('続きから再開！', 1500)
+const title =
+  isGodView || isBalance || params.has('mode')
+    ? null
+    : new Title({
+        camera,
+        fog,
+        buildings: state.buildings,
+        heightOf: (b) => buildingViews.get(b.id)!.monolith.topY,
+        hasSave: hasSave(),
+        onPlay: () => resumed && hud.toast('続きから再開！', 1500),
+        onNewGame: resetSave,
+        onTimeAttack: () => switchMode(true),
+      })
+if (resumed && !title) hud.toast('続きから再開！', 1500)
 
 function resize() {
   const { clientWidth: w, clientHeight: h } = app
@@ -498,7 +516,7 @@ renderer.setAnimationLoop((now: number) => {
   // 神視点では WASD はカメラの移動に使い、自機は動かさない
   const move = isGodView || inputLocked() ? { x: 0, z: 0 } : rig.toWorld(input.move())
   // ダッシュボードの早回しは stepGame を複数回まわす（dt を大きくすると除雪機や回収の挙動が変わるため）
-  const steps = dashboard?.timeScale ?? 1
+  const steps = title?.active ? 0 : (dashboard?.timeScale ?? 1)
   const events = pendingEvents.splice(0)
   // タイムアタックのカウントダウン中はゲームの時間を止める
   const simDt = timeAttack?.locked ? 0 : dt
@@ -663,6 +681,8 @@ renderer.setAnimationLoop((now: number) => {
 
   if (god) {
     god.update(dt)
+  } else if (title?.active) {
+    title.update(dt)
   } else {
     // 見下ろしで、いま建てている建物に近づいたら引きのアングルにする
     let near = 0
@@ -685,7 +705,7 @@ renderer.setAnimationLoop((now: number) => {
   }
 
   // カメラとプレイヤーの間にある建物の部分を抜く（実寸の校舎は高いので、見下ろしでも隠れてしまう）
-  const occlude = !isGodView && !rig.cinematic && !rig.overview
+  const occlude = !isGodView && !rig.cinematic && !rig.overview && !title?.active
   occlusion.uOccl.value += ((occlude ? 1 : 0) - occlusion.uOccl.value) * Math.min(1, dt * 6)
   occlusion.uCamPos.value.copy(camera.position)
   occlusion.uFocus.value.copy(playerView.group.position).setY(playerView.group.position.y + 1)
