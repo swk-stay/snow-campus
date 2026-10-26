@@ -11,14 +11,22 @@ export const MAX_PLAYERS = 8
 /** 神視点で観戦できる端末の数。プレイヤーの枠とは別に数える */
 export const MAX_SPECTATORS = 4
 
-/** ルーム一覧に出す情報（Colyseus のルームの metadata）。players は観戦の端末を数えない */
-export type RoomMeta = { name: string; players: number; completed: number; total: number }
+/**
+ * ルーム一覧に出す情報（Colyseus のルームの metadata）。players は観戦の端末を数えない。
+ * joinOrCreate は JoinOptions.roomName と同じ名前のキーを metadata から探すので、名前は roomName に入れる
+ */
+export type RoomMeta = { roomName: string; players: number; completed: number; total: number }
 
 /** GET /rooms の応答の 1 行 */
 export type RoomSummary = { roomId: string; name: string; players: number; maxPlayers: number; completed: number; total: number }
 
 /** spectator：神視点で観戦する。プレイヤーとしては加わらず、受け取るだけ */
 export type JoinOptions = { name?: string; roomName?: string; spectator?: boolean }
+
+/** ルーム名をサーバーに保存する形にそろえる。joinOrCreate は完全一致で探すので、端末も送る前にこれを通す */
+export function normalizeRoomName(name: string): string {
+  return name.trim().slice(0, 24)
+}
 
 // ---- 端末 → サーバー ----
 

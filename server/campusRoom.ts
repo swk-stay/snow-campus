@@ -1,11 +1,13 @@
 import { deflateSync } from 'node:zlib'
-import { Room, type Client } from '@colyseus/core'
+import { Room, matchMaker, type Client } from '@colyseus/core'
 import { ITEMS, SKILLS, UPGRADES } from '../src/config'
 import { buyItem, buyUpgrade, createPlayer, createWorld, stepPlayer, stepWorld, useSkill, type GameEvent, type World } from '../src/sim/game'
 import {
   MAX_PLAYERS,
   MAX_SPECTATORS,
+  ROOM_NAME,
   encodeFieldPatch,
+  normalizeRoomName,
   quantize,
   worldSync,
   type BuyMessage,
@@ -60,14 +62,16 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
     },
   }
 
-  onCreate(options: JoinOptions) {
+  async onCreate(options: JoinOptions) {
+    const roomName = normalizeRoomName(options.roomName ?? '') || `ルーム ${this.roomId}`
+    // 同名のルームがあれば joinOrCreate はそこへ入るので、ここに来るのは同名のルームが観戦も含めて満員のときだけ
+    if ((await matchMaker.query({ name: ROOM_NAME, roomName })).length > 0) throw new Error('同じ名前のルームが満員です')
     this.world = createWorld()
     const { field } = this.world
     this.sentField = new Uint8Array(field.data.length)
     for (let k = 0; k < field.data.length; k++) this.sentField[k] = quantize(field.data[k])
     field.dirty = false
-    const name = options.roomName?.trim().slice(0, 24) || `ルーム ${this.roomId}`
-    this.setMetadata({ name, players: 0, completed: 0, total: this.world.buildings.length })
+    this.setMetadata({ roomName, players: 0, completed: 0, total: this.world.buildings.length })
 
     this.setSimulationInterval((ms) => this.step(ms / 1000), SIM_INTERVAL)
     this.clock.setInterval(() => this.sendTick(), TICK_INTERVAL)
@@ -121,7 +125,7 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
     // 差分は sentField に対して作っているので、参加者にも sentField を渡す（いまの data を渡すと、まだ送っていない変化が抜ける）
     const welcome: WelcomeMessage = {
       you: client.sessionId,
-      roomName: this.metadata.name,
+      roomName: this.metadata.roomName,
       world: worldSync(this.world),
       field: deflateSync(this.sentField),
     }

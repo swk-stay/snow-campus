@@ -18,7 +18,7 @@ const listRooms = createEndpoint('/rooms', { method: 'GET' }, async () => {
     const meta = r.metadata as RoomMeta | undefined
     return {
       roomId: r.roomId,
-      name: meta?.name ?? r.roomId,
+      name: meta?.roomName ?? r.roomId,
       players: meta?.players ?? 0,
       maxPlayers: MAX_PLAYERS,
       completed: meta?.completed ?? 0,
@@ -32,7 +32,8 @@ const server = defineServer({
   // 参加した直後は端末がキャンパスの組み立てで数秒止まり、その間は死活確認の ping に応答できない。
   // 既定（3 秒 × 2 回）では遅い端末が参加直後に切られるので、20 秒まで待つ
   transport: new WebSocketTransport({ pingInterval: 5000, pingMaxRetries: 4 }),
-  rooms: { [ROOM_NAME]: defineRoom(CampusRoom) },
+  // 名前の同じルームがあれば、作らずにそこへ入る（タブを複製したときに同名のルームが増えないように）
+  rooms: { [ROOM_NAME]: defineRoom(CampusRoom).filterBy(['roomName']) },
   routes: createRouter({ listRooms }),
   greet: false,
 })
