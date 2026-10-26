@@ -74,6 +74,8 @@ export function apply(s: GameState, d: SaveData) {
     if (!saved) continue
     b.deposited = Math.min(saved.deposited, b.required)
     b.completed = saved.completed || b.deposited >= b.required
+    // タイムアタックから引き継いだデータは、必要量が通常モードより少ない（完成済みなのに途中の高さで建ってしまう）
+    if (b.completed) b.deposited = b.required
   }
   s.tier = s.buildings.filter((b) => b.completed).length
   if (d.field.res === s.field.res && decodeField(d.field.data, s.field.data)) {
@@ -103,6 +105,14 @@ export function loadFromStorage(s: GameState): boolean {
     if (d.v !== 1) return false
     apply(s, d)
     return true
+  } catch {
+    return false
+  }
+}
+
+export function hasSave(): boolean {
+  try {
+    return localStorage.getItem(key) !== null
   } catch {
     return false
   }
