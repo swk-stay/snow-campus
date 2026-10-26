@@ -4,6 +4,7 @@ import { loadPlayerName } from '../title/prefs'
 import { createPlayer, syncOwnedUnits, type GameState, type Player, type Plow } from '../sim/game'
 import {
   ROOM_NAME,
+  normalizeRoomName,
   type BuyMessage,
   type JoinOptions,
   type NoticeMessage,
@@ -104,7 +105,7 @@ export class MultiSession {
   static async join(server: string, target: JoinTarget, name: string, state: GameState, spectator = false): Promise<MultiSession> {
     const client = new Client(server)
     const options: JoinOptions = { name, spectator }
-    const room = 'roomId' in target ? await client.joinById(target.roomId, options) : await client.create(ROOM_NAME, { ...options, roomName: target.create })
+    const room = 'roomId' in target ? await client.joinById(target.roomId, options) : await client.joinOrCreate(ROOM_NAME, { ...options, roomName: normalizeRoomName(target.create) })
     const session = new MultiSession(room, state, name, spectator)
     try {
       await session.ready

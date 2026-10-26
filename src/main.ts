@@ -51,7 +51,7 @@ const isGodView = params.get('view') === 'god'
 const isBalance = params.has('balance')
 // ダッシュボードの早回しや調整値が入るとタイムが比べられないので、?balance とは併用しない
 const isTimeAttack = !isGodView && !isBalance && params.get('mode') === 'timeattack'
-// ?mode=multi&server=ws://…&room=<roomId>（新しく作るときは room の代わりに create=<ルーム名>）でマルチプレイ。タイトル画面から入る。
+// ?mode=multi&server=ws://…&room=<roomId>（新しく作るときは room の代わりに create=<ルーム名>。同じ名前のルームがあればそこへ入る）でマルチプレイ。タイトル画面から入る。
 // ?view=god を付けると、そのルームを神視点で観戦する（自機は無く、操作も送らない）
 const isMulti = !isBalance && params.get('mode') === 'multi'
 const isSpectator = isGodView && isMulti
