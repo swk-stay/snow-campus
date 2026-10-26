@@ -3,6 +3,7 @@ import { createEndpoint, createRouter, defineRoom, defineServer, matchMaker } fr
 import { WebSocketTransport } from '@colyseus/ws-transport'
 import { DEFAULT_PORT, MAX_PLAYERS, ROOM_NAME, type RoomMeta, type RoomSummary } from '../src/net/protocol'
 import { CampusRoom } from './campusRoom'
+import { SERVER_VERSION } from './version'
 
 // マルチプレイのサーバー。`npm run server` で起動し、端末のタイトル画面で ws://<このマシンのアドレス>:<PORT> を入れて参加する。
 // PORT（既定 2567）と HOST（既定 0.0.0.0。LAN の別の端末から入れるように全インターフェースで待つ）は環境変数で変えられる。
@@ -43,5 +44,6 @@ const addresses = Object.values(networkInterfaces())
   .filter((a) => a && a.family === 'IPv4' && !a.internal)
   .map((a) => `ws://${a!.address}:${port}`)
 console.log(`snow-campus サーバーを起動しました（ポート ${port}）`)
+console.log(`バージョン: ${SERVER_VERSION}`)
 console.log('タイトル画面の「マルチプレイ」で、次のどれかを入れてください:')
 for (const a of [`ws://localhost:${port}`, ...addresses]) console.log(`  ${a}`)
