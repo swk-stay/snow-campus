@@ -314,6 +314,28 @@ export function useCourtyardCourse() {
   TIME_ATTACK.course = COURTYARD.course
 }
 
+/**
+ * マルチプレイで、何番目に建てるかによらず必要量を決める棟。K1号館までの追い込みなので、
+ * タイムアタックの B5 → K3 → K1号館と同じくらいの比（約 ×1.35）で盛る。K1号館の次の棟は少し下がる
+ */
+const MULTI_REQUIRED: Record<string, number> = { k3: 3600, k1: 4800 }
+
+/**
+ * マルチプレイの建てる順番（issue #92）。中庭コースの 8 棟をタイムアタックと同じ順で先に建て、残りの棟はそのあと通常の順で建てる。
+ * 必要量は通常モードで同じ番目に建てる棟の値にする（MULTI_REQUIRED の棟を除く）。雪原は通常モードのまま。
+ * サーバーと端末で並びがそろっていないといけないので、両方で createWorld より前に呼ぶ
+ */
+export function useMultiOrder() {
+  const ids = Object.keys(COURTYARD.buildings)
+  const rank = (id: string) => (ids.includes(id) ? ids.indexOf(id) : ids.length)
+  const required = BUILDINGS.map((b) => b.required)
+  BUILDINGS.sort((a, b) => rank(a.id) - rank(b.id))
+  BUILDINGS.forEach((b, i) => (b.required = MULTI_REQUIRED[b.id] ?? required[i]))
+}
+
+/** マルチプレイで一区切りにする建物（中庭コースの最後の K1号館） */
+export const MULTI_MILESTONE = Object.keys(COURTYARD.buildings).at(-1)!
+
 /** 中庭コースの記録の保存先（コース名とゴールの建物 id）。useCourtyardCourse を呼ぶ前でも、呼んだ後の TIME_ATTACK と同じ値を返す */
 export function courtyardRecord(): { course: string; goalIds: string[] } {
   const ids = Object.keys(COURTYARD.buildings)

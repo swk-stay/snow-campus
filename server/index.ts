@@ -1,12 +1,16 @@
 import { networkInterfaces } from 'node:os'
 import { createEndpoint, createRouter, defineRoom, defineServer, matchMaker } from '@colyseus/core'
 import { WebSocketTransport } from '@colyseus/ws-transport'
+import { useMultiOrder } from '../src/config'
 import { DEFAULT_PORT, MAX_PLAYERS, ROOM_NAME, type RoomMeta, type RoomSummary } from '../src/net/protocol'
 import { CampusRoom } from './campusRoom'
 import { SERVER_VERSION } from './version'
 
 // マルチプレイのサーバー。`npm run server` で起動し、端末のタイトル画面で ws://<このマシンのアドレス>:<PORT> を入れて参加する。
 // PORT（既定 2567）と HOST（既定 0.0.0.0。LAN の別の端末から入れるように全インターフェースで待つ）は環境変数で変えられる。
+
+// サーバーのルームはどれもマルチプレイなので、起動時に 1 回だけ建てる順番を入れ替える（ルームの createWorld より前に）
+useMultiOrder()
 
 const port = Number(process.env.PORT ?? DEFAULT_PORT)
 const host = process.env.HOST ?? '0.0.0.0'

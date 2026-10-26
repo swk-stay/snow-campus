@@ -77,10 +77,14 @@ export type WorldSync = {
 /** 誰の出来事か（null は除雪機・降雪機・建物の完成など、プレイヤーによらないもの） */
 export type TaggedEvent = [playerId: string | null, event: GameEvent]
 
-export type TickMessage = { world: WorldSync; events: TaggedEvent[] }
+/** playTime：ルームでプレイヤーが遊んでいた時間の合計（秒。誰もいない間は進まない） */
+export type TickMessage = { world: WorldSync; events: TaggedEvent[]; playTime: number }
 
-/** 参加直後に 1 回だけ送る。field は量子化した雪原を deflate したもの。観戦の端末の you は world.players に入っていない */
-export type WelcomeMessage = { you: string; roomName: string; world: WorldSync; field: Uint8Array }
+/**
+ * 参加直後に 1 回だけ送る。field は量子化した雪原を deflate したもの。観戦の端末の you は world.players に入っていない。
+ * buildingIds はサーバーの建てる順番（WorldSync の配列はこの順で並ぶので、端末と違えば参加させない）
+ */
+export type WelcomeMessage = { you: string; roomName: string; world: WorldSync; field: Uint8Array; buildingIds: string[] }
 
 export type NoticeMessage = { text: string }
 

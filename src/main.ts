@@ -1,6 +1,6 @@
 import './style.css'
 import * as THREE from 'three'
-import { FX, ITEMS, PLAYER, SKILL_EFFECT, SKILLS, TIME_ATTACK, UPGRADES, WORLD, useCourtyardCourse, type ItemId, type UpgradeId } from './config'
+import { FX, ITEMS, MULTI_MILESTONE, PLAYER, SKILL_EFFECT, SKILLS, TIME_ATTACK, UPGRADES, WORLD, useCourtyardCourse, useMultiOrder, type ItemId, type UpgradeId } from './config'
 import {
   buyItem,
   buyUpgrade,
@@ -32,6 +32,7 @@ import { Input } from './input'
 import { Hud } from './hud'
 import { Shop, type ShopAction } from './shop'
 import { TimeAttack } from './timeAttack'
+import { MilestoneCard } from './milestone'
 import { Minimap } from './minimap'
 import { CameraRig, overviewPose, type Shot, type ViewMode } from './camera'
 import { GodCamera } from './godView'
@@ -65,6 +66,8 @@ if (isBalance) {
 // タイムアタックはキャンパス全体に広げる前の中庭まわりだけで遊ぶ（バランス調整の基準のタイムにする。issue #56）。
 // 雪原・建物・アップグレードの上限が変わるので、createGame と描画を作るより前に
 if (isTimeAttack) useCourtyardCourse()
+// マルチプレイはタイムアタックの 8 棟を同じ順で先に建て、K1号館で一区切りにする（issue #92）。サーバーと同じ並びにする
+if (isMulti) useMultiOrder()
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -227,6 +230,10 @@ const timeAttack = isTimeAttack
       carryOver: carryOverToNormal,
     })
   : null
+const milestone = session ? new MilestoneCard(document.body, isSpectator) : null
+/** 一区切りの建物の complete が届いたときのルームの経過時間。カードは完成演出が終わってから出す */
+let milestoneTime: number | null = null
+let milestonePending = false
 function leaveRoom() {
   session?.leave()
   backToTitle()
@@ -251,8 +258,8 @@ const shop = isGodView
       (id) => (session ? session.buyItem(id) : pendingEvents.push(...buyItem(state, id))),
       shopActions,
     )
-/** 演出中・全体マップ中・タイムアタックのカウントダウン中・タイトル画面では操作できない */
-const inputLocked = () => rig.inputLocked || !!timeAttack?.locked || !!title?.active
+/** 演出中・全体マップ中・タイムアタックのカウントダウン中・一区切りのカードを出している間・タイトル画面では操作できない */
+const inputLocked = () => rig.inputLocked || !!timeAttack?.locked || !!milestone?.open || !!title?.active
 const skillBar = isGodView
   ? null
   : new SkillBar(document.body, (id) => {
@@ -471,7 +478,9 @@ function celebrationShots(b: Building): Shot[] {
     },
   ]
   const next = currentBuilding(state)
-  if (next) {
+  // マルチプレイの一区切りでは、次の建物の代わりに全体を見せる（次の建物はカードで知らせる）
+  const isMilestone = !!session && b.id === MULTI_MILESTONE
+  if (next && !isMilestone) {
     const d = (portrait ? 26 : 16) + next.height
     const nextLook = new THREE.Vector3(next.x, next.height * 0.3, next.z)
     shots.push({
@@ -491,7 +500,7 @@ function celebrationShots(b: Building): Shot[] {
       look: lookAll,
       duration: 4,
       fog,
-      onStart: () => hud.toast('キャンパスが全部復活した！', 3800),
+      onStart: () => hud.toast(isMilestone ? '中庭まわりが全部復活した！' : 'キャンパスが全部復活した！', 3800),
     })
   }
   return shots
@@ -634,6 +643,14 @@ renderer.setAnimationLoop((now: number) => {
   const time = now / 1000
 
   timeAttack?.update(dt, rig.cinematic)
+  if (milestonePending && !rig.cinematic) {
+    milestonePending = false
+    input.release()
+    const next = currentBuilding(state)
+    milestone!.show(milestoneTime ?? session!.playTime, next?.label ?? null, () => {
+      if (next) hud.toast(`次は「${next.label}」！ 光の柱が目印`, 2600)
+    })
+  }
   if (!isGodView) rig.turn(-input.turn() * dt * 2)
   // 神視点では WASD はカメラの移動に使い、自機は動かさない
   const move = isGodView || inputLocked() ? { x: 0, z: 0 } : rig.toWorld(input.move())
@@ -698,6 +715,7 @@ renderer.setAnimationLoop((now: number) => {
     } else if (e.type === 'complete') {
       // 完成演出自体は雪玉の着弾と表示の追従を待ってから（下のループ）
       save()
+      if (session && e.buildingId === MULTI_MILESTONE) milestoneTime = session.playTime
     } else if (e.type === 'throw') {
       const b = state.buildings.find((b) => b.id === e.buildingId)!
       const view = buildingViews.get(b.id)!
@@ -771,6 +789,7 @@ renderer.setAnimationLoop((now: number) => {
       view.celebrated = true
       view.hold = isGodView ? 0 : 1
       timeAttack?.complete(b.id)
+      if (session && b.id === MULTI_MILESTONE) milestonePending = true
       input.release()
       if (!isGodView) rig.play(celebrationShots(b))
     } else if (view.celebrated && view.colorize < 0) {
