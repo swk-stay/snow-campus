@@ -77,7 +77,9 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   }
 
   onDrop(client: Client) {
-    this.allowReconnection(client, RECONNECT_SECONDS)
+    // 参加の途中（JOIN_ROOM の確認が届く前）で切れると reject が返る。放っておくと未処理の reject になり、サーバーごと止まる。
+    // 再接続できなかったときは Colyseus がこのあと onLeave を呼ぶので、ここでは何もしない
+    this.allowReconnection(client, RECONNECT_SECONDS).catch(() => {})
   }
 
   /** 切れていた間の雪原の差分を受け取れていないので、最初と同じく全体を送り直す */
