@@ -14,10 +14,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # パッチノートの断片（パッチノート/未リリース/）があれば、まとめてバージョンを上げ、main に push する。
+  # GITHUB_TOKEN の push ではワークフローが起動しないので、デプロイはこのジョブが push したコミットから行う
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.push.outputs.sha }}
+    steps:
+      # 先に走っていた実行が打ち切られても漏れないよう、イベントのコミットではなく main の先頭を見る
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run release
+
+      - id: push
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            version=$(node -p "require('./package.json').version")
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -A
+            git commit -m "v${version} をリリース（パッチノートをまとめる）"
+            git push origin HEAD:main
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release.outputs.sha }}
 
       - uses: actions/setup-node@v5
         with:
