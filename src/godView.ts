@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { FlyCamera, type CollisionMode } from './flyCamera'
 
 // ?view=god の神視点（展示用）カメラ。操作は Editor と共通の FPS 風カメラ（flyCamera.ts）で、
-// クリック（または Ctrl）で Pointer Lock に入ってマウスで見回し、WASD で見ている方向へ進む。自機は動かさない。
+// クリック（または Alt）で Pointer Lock に入ってマウスで見回し、WASD で見ている方向へ進む。自機は動かさない。
 // 右下のパネルで自動回転の ON/OFF・移動速度の段階・建物に当たったときの動き（貫通／止まる／回り込む）・感度と視野角を切り替える。
 
 /** カメラの高さの範囲（m）。地面に潜らず、上がりすぎない程度 */

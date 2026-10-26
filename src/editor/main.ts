@@ -13,7 +13,7 @@ import { NOTE_KINDS, fmt, loadNotes, notesToJson, notesToMarkdown, parseNotes, s
 // 任意の座標に「ここに〇〇を置いて」「この木を消して」を書き込む Editor（issue #26）。
 // 全棟完成の状態のキャンパスを自由に見回し、クリックした場所（建物・木・地面）の 3 軸の座標にテキストを置く。
 // 建物の中に置くときは「断面」で上の階を消して、床をクリックする。書き出した Markdown / JSON を実装する人に渡す。
-// カメラは神視点と共通の FPS 風（flyCamera.ts、issue #42）。Ctrl で「選択モード（カーソルでクリック）」と
+// カメラは神視点と共通の FPS 風（flyCamera.ts、issue #42）。Alt で「選択モード（カーソルでクリック）」と
 // 「視点モード（Pointer Lock でマウス見回し、クリックで画面中央を選ぶ）」を切り替える。
 
 const app = document.querySelector<HTMLDivElement>('#app')!
@@ -72,8 +72,8 @@ document.body.appendChild(modeBadge)
 function refreshMode(locked: boolean) {
   modeBadge.classList.toggle('locked', locked)
   modeBadge.innerHTML = locked
-    ? '<b>視点モード</b> マウスで見回す ／ クリックで画面中央を選ぶ ／ <kbd>Ctrl</kbd> か <kbd>Esc</kbd> で選択モードへ'
-    : '<b>選択モード</b> ドラッグで見回す ／ クリックで場所を選ぶ ／ <kbd>Ctrl</kbd> で視点モードへ'
+    ? '<b>視点モード</b> マウスで見回す ／ クリックで画面中央を選ぶ ／ <kbd>Alt</kbd> か <kbd>Esc</kbd> で選択モードへ'
+    : '<b>選択モード</b> ドラッグで見回す ／ クリックで場所を選ぶ ／ <kbd>Alt</kbd> で視点モードへ'
 }
 fly.onLockChange = refreshMode
 refreshMode(false)
@@ -202,7 +202,7 @@ panel.innerHTML = `
     </div>
     <input type="file" accept="application/json,.json" data-file hidden>
   </section>
-  <small class="ep-hint">WASD・矢印：移動 ／ E・Q：上下 ／ ホイール：前後 ／ Shift：速度 ／ Ctrl：視点モード（マウスで見回す）と選択モードの切り替え</small>
+  <small class="ep-hint">WASD・矢印：移動 ／ Space・E：上昇 ／ Ctrl・Q：下降 ／ ホイール：前後 ／ Shift：速度 ／ Alt：視点モード（マウスで見回す）と選択モードの切り替え</small>
 `
 document.body.appendChild(panel)
 const q = <T extends HTMLElement>(sel: string) => panel.querySelector<T>(sel)!

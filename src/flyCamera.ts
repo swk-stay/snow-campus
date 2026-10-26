@@ -3,8 +3,8 @@ import * as THREE from 'three'
 
 // 神視点（?view=god）と Editor で共通の、FPS のスペクテイター風カメラ（issue #42）。
 // - 見回す：Pointer Lock 中はマウスを動かすだけ、ロックしていないときはドラッグ（タッチも）
-// - 移動：W/S は見ている方向（上下も含む）、A/D は水平に左右、E/Q で真上・真下。ホイール・ピンチで前後
-// - Ctrl（単独で押して離す）でロックの ON/OFF。神視点はクリックでもロックする（Editor のクリックは場所の指定）
+// - 移動：W/S は見ている方向（上下も含む）、A/D は水平に左右、Space・E で真上、Ctrl・Q で真下。ホイール・ピンチで前後
+// - Alt（単独で押して離す）でロックの ON/OFF。神視点はクリックでもロックする（Editor のクリックは場所の指定）
 // - 感度・視野角・移動速度・入った建物を透かすかはブラウザに保存して、神視点と Editor で共有する
 
 /** 移動速度の段階（m/秒）。キャンパスは東西 450m ほどなので、最速で数秒で端まで行ける程度 */
@@ -54,6 +54,7 @@ function loadSettings(fov: number): Settings {
   }
 }
 
+const isAlt = (code: string) => code === 'AltLeft' || code === 'AltRight'
 const isTyping = (t: EventTarget | null) => t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement
 
 export class FlyCamera {
@@ -77,8 +78,8 @@ export class FlyCamera {
   private readonly speedListeners: (() => void)[] = []
   private down = { x: 0, y: 0 }
   private pinch = 0
-  /** Ctrl を単独で押しているあいだ true（Ctrl+Enter などのショートカットでは切り替えない） */
-  private ctrlAlone = false
+  /** Alt を単独で押しているあいだ true（Alt+Tab などのショートカットでは切り替えない） */
+  private altAlone = false
 
   constructor(camera: THREE.PerspectiveCamera, dom: HTMLElement, options: FlyOptions) {
     this.camera = camera
@@ -211,8 +212,8 @@ export class FlyCamera {
     if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) z -= 1
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) x -= 1
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) x += 1
-    if (this.keys.has('KeyE')) y += 1
-    if (this.keys.has('KeyQ')) y -= 1
+    if (this.keys.has('Space') || this.keys.has('KeyE')) y += 1
+    if (this.keys.has('ControlLeft') || this.keys.has('ControlRight') || this.keys.has('KeyQ')) y -= 1
     if (x === 0 && z === 0 && y === 0) return
     this.onUserInput?.()
     const len = Math.hypot(x, z, y)
@@ -289,22 +290,36 @@ export class FlyCamera {
 
   private bindKeys() {
     addEventListener('keydown', (e) => {
-      if (e.code === 'ControlLeft' || e.code === 'ControlRight') {
-        if (!e.repeat) this.ctrlAlone = !isTyping(e.target)
+      if (isAlt(e.code)) {
+        if (!e.repeat) this.altAlone = !isTyping(e.target)
+        // Firefox などで Alt を離したときにメニューバーへフォーカスが移らないように
+        e.preventDefault()
         return
       }
-      this.ctrlAlone = false
-      // 入力欄に書いているときや、ショートカット（Ctrl+S など）では動かさない
-      if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
+      this.altAlone = false
+      if (isTyping(e.target)) return
+      // Ctrl は下降に使う。押している最中の Ctrl 自身の keydown は ctrlKey が立つので、ショートカットの判定より先に拾う
+      if (e.code === 'ControlLeft' || e.code === 'ControlRight') {
+        this.keys.add(e.code)
+        return
+      }
+      // ショートカット（Ctrl+S など）では動かさない
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      // フォーカスの残ったボタンやチェックボックスが Space で押されないように
+      if (e.code === 'Space') e.preventDefault()
       this.keys.add(e.code)
       if (!e.repeat && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')) this.cycleSpeed()
     })
     addEventListener('keyup', (e) => {
       this.keys.delete(e.code)
-      // Ctrl を単独で押して離したら、ロックを切り替える（keydown のユーザー操作の直後なので requestPointerLock が通る）
-      if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && this.ctrlAlone) {
-        this.ctrlAlone = false
-        this.toggleLock()
+      if (e.code === 'Space' && !isTyping(e.target)) e.preventDefault()
+      // Alt を単独で押して離したら、ロックを切り替える（keydown のユーザー操作の直後なので requestPointerLock が通る）
+      if (isAlt(e.code)) {
+        e.preventDefault()
+        if (this.altAlone) {
+          this.altAlone = false
+          this.toggleLock()
+        }
       }
     })
     addEventListener('blur', () => this.keys.clear())
