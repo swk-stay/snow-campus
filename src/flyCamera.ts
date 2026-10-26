@@ -15,7 +15,7 @@ const SPEEDS = [
   { label: '最速', value: 120 },
 ]
 
-/** 建物に当たったときの動き。貫通は中に入った建物を main が薄くする。回り込むは壁に沿って滑る */
+/** 建物に当たったときの動き。貫通は建物の中へ入れる（室内が見える）。回り込むは壁に沿って滑る */
 export type CollisionMode = 'pass' | 'stop' | 'slide'
 
 export type FlyOptions = {
