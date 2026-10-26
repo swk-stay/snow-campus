@@ -23,6 +23,7 @@ import { Projectiles, Scoop, Sparkles } from './render/effects'
 import { UnitsView } from './render/units'
 import { BuildingLabels } from './render/buildingLabels'
 import { RareView } from './render/rareView'
+import { KeepOutSigns } from './render/keepOut'
 import { SkillBar } from './skillBar'
 import { Input } from './input'
 import { Hud } from './hud'
@@ -135,6 +136,9 @@ function buildingAt(q: THREE.Vector3, margin: number) {
 }
 
 const labels = new BuildingLabels(scene, state.buildings)
+// タイムアタックの中庭コースは、コースの縁と建て始める前の敷地に「立入禁止」の看板を置く（どちらも見えない壁で押し戻されるため）
+const keepOut = isTimeAttack ? new KeepOutSigns(state.buildings) : null
+if (keepOut) scene.add(keepOut.group)
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.3, 2500)
 const rig = new CameraRig(camera)
@@ -633,6 +637,7 @@ renderer.setAnimationLoop((now: number) => {
     view.monolith.setInterior(!rig.overview && away < INTERIOR_DISTANCE)
 
     const stage = view.celebrated ? 'done' : b === shownCurrent ? 'current' : 'locked'
+    keepOut?.setLot(b.id, stage === 'locked')
     const inZone = b === current && distanceToBuilding(b, p.x, p.z) <= b.dropRange
     view.monolith.update(time, view.display, Math.max(0, view.colorize), stage, inZone)
     labels.update(b, stage, view.display, view.monolith.topY, camera)
