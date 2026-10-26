@@ -77,6 +77,7 @@ body.title-screen #shop, body.title-screen #skill-bar, body.title-screen #labels
 .tp-small:disabled { opacity: 0.5; cursor: default; }
 .tp-rooms { display: grid; gap: 6px; max-height: 40vh; overflow-y: auto; }
 .tp-note { margin: 0; padding: 14px 10px; border-radius: 10px; background: #f3f6fb; color: #667; font-size: 13px; text-align: center; }
+.tp-room-line { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
 .tp-room {
   display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'name action' 'info action'; gap: 2px 10px; align-items: center;
   padding: 10px 12px; border: 1px solid #dfe5ef; border-radius: 12px; background: #fff; color: #1d2433; font: inherit; text-align: left; cursor: pointer;

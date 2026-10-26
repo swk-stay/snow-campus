@@ -223,7 +223,15 @@ export class Title {
         action.textContent = full ? '満員' : '参加'
         row.append(name, info, action)
         row.addEventListener('click', () => this.join({ room: r.roomId }))
-        return row
+        // 会場のモニターに映す用。プレイヤー名は要らず、満員でも観られる
+        const watch = document.createElement('button')
+        watch.className = 'tp-small'
+        watch.textContent = '観戦'
+        watch.addEventListener('click', () => this.watch(r.roomId))
+        const line = document.createElement('div')
+        line.className = 'tp-room-line'
+        line.append(row, watch)
+        return line
       }),
     )
   }
@@ -251,6 +259,19 @@ export class Title {
     url.searchParams.set('server', server)
     if ('room' in target) url.searchParams.set('room', target.room)
     else url.searchParams.set('create', target.create)
+    location.href = url.href
+  }
+
+  /** 神視点でルームを観戦する（?view=god&mode=multi） */
+  private watch(roomId: string) {
+    const server = this.server()
+    if (!server) return
+    const url = new URL(location.href)
+    url.searchParams.delete('create')
+    url.searchParams.set('view', 'god')
+    url.searchParams.set('mode', 'multi')
+    url.searchParams.set('server', server)
+    url.searchParams.set('room', roomId)
     location.href = url.href
   }
 }

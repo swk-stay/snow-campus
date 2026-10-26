@@ -4,6 +4,7 @@ import { ITEMS, SKILLS, UPGRADES } from '../src/config'
 import { buyItem, buyUpgrade, createPlayer, createWorld, stepPlayer, stepWorld, useSkill, type GameEvent, type World } from '../src/sim/game'
 import {
   MAX_PLAYERS,
+  MAX_SPECTATORS,
   encodeFieldPatch,
   quantize,
   worldSync,
@@ -28,7 +29,8 @@ const RECONNECT_SECONDS = 30
 
 /** キャンパス 1 つぶんのルーム。sim/ をそのまま回し、雪の回収・投げ込み・ゴールド・建物の進捗はここで決める */
 export class CampusRoom extends Room<{ metadata: RoomMeta }> {
-  maxClients = MAX_PLAYERS
+  // プレイヤーと観戦の枠は onAuth で別々に数える
+  maxClients = MAX_PLAYERS + MAX_SPECTATORS
   // 進行はメモリにしか無いので、全員が抜けてもルームを残す（サーバーを止めると消える）
   autoDispose = false
 
@@ -36,6 +38,8 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   /** 端末に送った雪原（量子化済み）。差分はこれと比べて作る */
   private sentField!: Uint8Array
   private events: TaggedEvent[] = []
+  /** 神視点で観戦している端末の sessionId */
+  private readonly spectators = new Set<string>()
 
   messages = {
     pos: (client: Client, m: PosMessage) => {
@@ -46,6 +50,7 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
       p.facing = m.facing
     },
     buy: (client: Client, m: BuyMessage) => {
+      if (!this.player(client)) return
       if (m.kind === 'upgrade' && m.id in UPGRADES) this.tag(client.sessionId, buyUpgrade(this.world, m.id))
       else if (m.kind === 'item' && m.id in ITEMS) this.tag(client.sessionId, buyItem(this.world, m.id))
     },
@@ -62,16 +67,32 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
     for (let k = 0; k < field.data.length; k++) this.sentField[k] = quantize(field.data[k])
     field.dirty = false
     const name = options.roomName?.trim().slice(0, 24) || `ルーム ${this.roomId}`
-    this.setMetadata({ name, completed: 0, total: this.world.buildings.length })
+    this.setMetadata({ name, players: 0, completed: 0, total: this.world.buildings.length })
 
     this.setSimulationInterval((ms) => this.step(ms / 1000), SIM_INTERVAL)
     this.clock.setInterval(() => this.sendTick(), TICK_INTERVAL)
     this.clock.setInterval(() => this.sendField(), FIELD_INTERVAL)
   }
 
+  // 投げたメッセージは端末に届く。onJoin で投げると、参加していない端末に onDrop が呼ばれて allowReconnection が失敗するので、ここで断る
+  onAuth(_client: Client, options: JoinOptions) {
+    if (options.spectator) {
+      if (this.spectators.size >= MAX_SPECTATORS) throw new Error('観戦の枠がいっぱいです')
+    } else if (this.world.players.length >= MAX_PLAYERS) {
+      throw new Error('ルームが満員です')
+    }
+    return true
+  }
+
   onJoin(client: Client, options: JoinOptions) {
-    const name = options.name?.trim().slice(0, 16) || `プレイヤー${this.clients.length}`
+    if (options.spectator) {
+      this.spectators.add(client.sessionId)
+      this.sendWelcome(client)
+      return
+    }
+    const name = options.name?.trim().slice(0, 16) || `プレイヤー${this.world.players.length + 1}`
     this.world.players.push(createPlayer(client.sessionId, name))
+    this.setMetadata({ ...this.metadata, players: this.world.players.length })
     this.sendWelcome(client)
     this.broadcast('notice', { text: `${name} が参加しました` }, { except: client })
   }
@@ -88,9 +109,11 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   }
 
   onLeave(client: Client) {
+    if (this.spectators.delete(client.sessionId)) return
     const i = this.world.players.findIndex((p) => p.id === client.sessionId)
     if (i < 0) return
     const [p] = this.world.players.splice(i, 1)
+    this.setMetadata({ ...this.metadata, players: this.world.players.length })
     this.broadcast('notice', { text: `${p.name} が抜けました` })
   }
 

@@ -8,14 +8,17 @@ import type { GameEvent, Plow, RareCrystal, World } from '../sim/game'
 export const ROOM_NAME = 'campus'
 export const DEFAULT_PORT = 2567
 export const MAX_PLAYERS = 8
+/** 神視点で観戦できる端末の数。プレイヤーの枠とは別に数える */
+export const MAX_SPECTATORS = 4
 
-/** ルーム一覧に出す情報（Colyseus のルームの metadata） */
-export type RoomMeta = { name: string; completed: number; total: number }
+/** ルーム一覧に出す情報（Colyseus のルームの metadata）。players は観戦の端末を数えない */
+export type RoomMeta = { name: string; players: number; completed: number; total: number }
 
 /** GET /rooms の応答の 1 行 */
 export type RoomSummary = { roomId: string; name: string; players: number; maxPlayers: number; completed: number; total: number }
 
-export type JoinOptions = { name?: string; roomName?: string }
+/** spectator：神視点で観戦する。プレイヤーとしては加わらず、受け取るだけ */
+export type JoinOptions = { name?: string; roomName?: string; spectator?: boolean }
 
 // ---- 端末 → サーバー ----
 
@@ -61,7 +64,7 @@ export type TaggedEvent = [playerId: string | null, event: GameEvent]
 
 export type TickMessage = { world: WorldSync; events: TaggedEvent[] }
 
-/** 参加直後に 1 回だけ送る。field は量子化した雪原を deflate したもの */
+/** 参加直後に 1 回だけ送る。field は量子化した雪原を deflate したもの。観戦の端末の you は world.players に入っていない */
 export type WelcomeMessage = { you: string; roomName: string; world: WorldSync; field: Uint8Array }
 
 export type NoticeMessage = { text: string }

@@ -37,14 +37,17 @@ export async function listRooms(server: string): Promise<RoomSummary[]> {
 
 export type JoinTarget = { roomId: string } | { create: string }
 
-/** タイトル画面からの遷移（?mode=multi&server=…&room=… または create=…）でルームに入る */
-export function joinFromParams(params: URLSearchParams, state: GameState): Promise<MultiSession> {
+/**
+ * タイトル画面からの遷移（?mode=multi&server=…&room=… または create=…）でルームに入る。
+ * spectator（?view=god）なら観戦として入る。観戦はルームを作れないので room が要る
+ */
+export function joinFromParams(params: URLSearchParams, state: GameState, spectator: boolean): Promise<MultiSession> {
   const server = params.get('server')
   const roomId = params.get('room')
   const create = params.get('create')
-  if (!server || (!roomId && create === null)) return Promise.reject(new Error('サーバーアドレスかルームの指定がありません'))
+  if (!server || (!roomId && (spectator || create === null))) return Promise.reject(new Error('サーバーアドレスかルームの指定がありません'))
   // 名前が空ならサーバーが付ける
-  return MultiSession.join(server, roomId ? { roomId } : { create: create! }, loadPlayerName(), state)
+  return MultiSession.join(server, roomId ? { roomId } : { create: create! }, loadPlayerName(), state, spectator)
 }
 
 /** 補間の目標。サーバーからは 15Hz でしか届かないので、ほかのプレイヤーと除雪機は毎フレームここへ寄せる */
@@ -62,13 +65,16 @@ export class MultiSession {
   onNotice: (text: string) => void = () => {}
   onDisconnect: () => void = () => {}
 
+  /** 神視点で観戦している（ルームのプレイヤーではない） */
+  readonly spectator: boolean
   private readonly room: Room
   private readonly state: GameState
   private readonly name: string
   private readonly ready: Promise<void>
   private welcomed!: (error?: Error) => void
 
-  private constructor(room: Room, state: GameState, name: string) {
+  private constructor(room: Room, state: GameState, name: string, spectator: boolean) {
+    this.spectator = spectator
     this.room = room
     this.state = state
     this.name = name
@@ -95,11 +101,11 @@ export class MultiSession {
   }
 
   /** ルームに入り、最初の状態（welcome）を state に写してから返す */
-  static async join(server: string, target: JoinTarget, name: string, state: GameState): Promise<MultiSession> {
+  static async join(server: string, target: JoinTarget, name: string, state: GameState, spectator = false): Promise<MultiSession> {
     const client = new Client(server)
-    const options: JoinOptions = { name }
+    const options: JoinOptions = { name, spectator }
     const room = 'roomId' in target ? await client.joinById(target.roomId, options) : await client.create(ROOM_NAME, { ...options, roomName: target.create })
-    const session = new MultiSession(room, state, name)
+    const session = new MultiSession(room, state, name, spectator)
     try {
       await session.ready
     } catch (e) {
@@ -148,11 +154,11 @@ export class MultiSession {
     void this.room.leave()
   }
 
-  /** 毎フレーム呼ぶ。自分の位置を送り、ほかのプレイヤーと除雪機を補間して、届いた出来事を返す */
+  /** 毎フレーム呼ぶ。自分の位置を送り（観戦なら送らない）、ほかのプレイヤーと除雪機を補間して、届いた出来事を返す */
   update(dt: number): TaggedEvent[] {
     const p = this.state.player
     this.posTimer -= dt
-    if (this.posTimer <= 0 && !this.disconnected) {
+    if (this.posTimer <= 0 && !this.disconnected && !this.spectator) {
       this.posTimer = POS_INTERVAL
       this.room.send('pos', { x: p.x, z: p.z, facing: p.facing })
     }
@@ -219,7 +225,8 @@ export class MultiSession {
       snap,
       (sync, prev) => Object.assign(prev ?? createPlayer(sync.id, sync.name), remoteFields(sync)),
     )
-    s.players = [s.player, ...others]
+    // 観戦の端末はルームのプレイヤーではないので、players に入れない
+    s.players = this.spectator ? others : [s.player, ...others]
   }
 
   /** サーバーの並びに合わせて増減させ、位置は補間の目標として覚える */

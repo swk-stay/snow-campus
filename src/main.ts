@@ -51,8 +51,10 @@ const isGodView = params.get('view') === 'god'
 const isBalance = params.has('balance')
 // ダッシュボードの早回しや調整値が入るとタイムが比べられないので、?balance とは併用しない
 const isTimeAttack = !isGodView && !isBalance && params.get('mode') === 'timeattack'
-// ?mode=multi&server=ws://…&room=<roomId>（新しく作るときは room の代わりに create=<ルーム名>）でマルチプレイ。タイトル画面から入る
-const isMulti = !isGodView && !isBalance && params.get('mode') === 'multi'
+// ?mode=multi&server=ws://…&room=<roomId>（新しく作るときは room の代わりに create=<ルーム名>）でマルチプレイ。タイトル画面から入る。
+// ?view=god を付けると、そのルームを神視点で観戦する（自機は無く、操作も送らない）
+const isMulti = !isBalance && params.get('mode') === 'multi'
+const isSpectator = isGodView && isMulti
 // 調整した値はダッシュボードを開いたときだけ使う（普段のプレイには持ち込まない）。建物の必要量に効くので createGame より前に。
 // セーブも本編とは別の枠にする
 if (isBalance) {
@@ -85,7 +87,7 @@ const resumed = !isTimeAttack && !isMulti && loadFromStorage(state)
 
 async function joinOrFail(): Promise<MultiSession> {
   try {
-    return await joinFromParams(params, state)
+    return await joinFromParams(params, state, isSpectator)
   } catch (e) {
     const box = document.createElement('div')
     box.id = 'fatal'
@@ -124,6 +126,7 @@ const projectiles = new Projectiles()
 const units = new UnitsView()
 const rareView = new RareView()
 const remotePlayers = new RemotePlayers()
+playerView.group.visible = !isSpectator
 scene.add(playerView.group, scoop.mesh, sparkles.mesh, projectiles.mesh, units.group, rareView.group, remotePlayers.group)
 
 type BuildingView = {
@@ -268,6 +271,7 @@ const viewButton = viewBar.querySelector<HTMLButtonElement>('[data-view]')!
 viewButton.addEventListener('click', () => toggleView())
 viewBar.querySelector('[data-map]')!.addEventListener('click', () => toggleOverview())
 if (isGodView) document.body.classList.add('god-view')
+if (isSpectator) document.body.classList.add('spectator')
 
 function refreshViewButton() {
   viewButton.innerHTML = `視点変更 <kbd>V</kbd>`
@@ -347,9 +351,15 @@ const title =
       })
 if (resumed && !title) hud.toast('続きから再開！', 1500)
 if (session) {
-  hud.toast(`「${session.roomName}」に参加しました`, 2000)
+  hud.toast(`「${session.roomName}」に${isSpectator ? '観戦で入りました' : '参加しました'}`, 2000)
   session.onNotice = (text) => hud.toast(text, 2000)
   session.onDisconnect = () => {
+    // 観戦は会場のモニターで誰も見ていないことがあるので、ダイアログで止めずに入り直す
+    if (isSpectator) {
+      hud.toast('サーバーとの接続が切れました。入り直します…', 3000)
+      setTimeout(() => location.reload(), 3000)
+      return
+    }
     alert('サーバーとの接続が切れました。タイトルに戻ります')
     backToTitle()
   }
@@ -398,6 +408,12 @@ function welcomeBack(events: TaggedEvent[], ms: number) {
 function whoElse(pid: string | null): string | null {
   if (!session || pid === null || pid === state.player.id) return null
   return state.players.find((o) => o.id === pid)?.name ?? '誰か'
+}
+
+/** 購入の演出を出す場所。観戦では自機が無いので、買った人の位置に出す */
+function buyFxAt(pid: string | null): THREE.Vector3 | null {
+  if (!isSpectator) return packPos
+  return pid ? remotePlayers.packPosition(pid, buyPos) : null
 }
 
 function resize() {
@@ -606,6 +622,7 @@ const INTERIOR_DISTANCE = 120
 
 const tmp = new THREE.Vector3()
 const packPos = new THREE.Vector3()
+const buyPos = new THREE.Vector3()
 const focusPos = new THREE.Vector3()
 let last = performance.now()
 let scoopBudget = 0
@@ -653,12 +670,14 @@ renderer.setAnimationLoop((now: number) => {
       if (pid === me) scoopBudget += e.amount * FX.scoopPerSnow
     } else if (e.type === 'upgrade') {
       hud.toast(`${other ? `${other}が ` : ''}${UPGRADES[e.id].label} Lv${e.level}！`, 1200)
-      sparkles.burst(packPos, 24, 0xffd36e, 4)
+      const at = buyFxAt(pid)
+      if (at) sparkles.burst(at, 24, 0xffd36e, 4)
       playCoin()
       save()
     } else if (e.type === 'item') {
       hud.toast(other ? `${other}が ${ITEMS[e.id].label} を買った！` : `${ITEMS[e.id].label} を手に入れた！`, 1800)
-      sparkles.burst(packPos, 30, 0x9ff0ff, 4)
+      const at = buyFxAt(pid)
+      if (at) sparkles.burst(at, 30, 0x9ff0ff, 4)
       playCoin()
       save()
     } else if (e.type === 'skill') {
@@ -790,7 +809,7 @@ renderer.setAnimationLoop((now: number) => {
   sparkles.update(dt)
   projectiles.update(dt)
   units.update(dt, time, state.plows, state.machines, (pos) => sparkles.burst(tmp.copy(pos).setY(1), 30, 0xbfe3ff, 5))
-  snow.update(time, p.x, p.z, st.collectRadius, p.facing, (PLAYER.collectArc * Math.PI) / 180)
+  snow.update(time, p.x, p.z, isSpectator ? 0 : st.collectRadius, p.facing, (PLAYER.collectArc * Math.PI) / 180)
 
   // HUD の進捗は「いま建てている建物」（全部完成したら最後の建物）
   const shown = shownCurrent ?? state.buildings[state.buildings.length - 1]
