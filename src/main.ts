@@ -424,8 +424,6 @@ function fadeOccluders(dt: number) {
     }
   }
   const cam = camera.position
-  // 神視点の「貫通」で建物の中に入ったら、その建物を薄くして外が見えるようにする（壁は両面描画なので、中からだと視界がふさがる）
-  const inside = god?.fly.collision === 'pass' ? buildingAt(cam, 1) : undefined
   for (const view of buildingViews.values()) {
     const box = subject ? view.monolith.bounds(fadeBox) : null
     let blocking = false
@@ -437,7 +435,6 @@ function fadeOccluders(dt: number) {
         return hit !== null && hit.distanceToSquared(cam) < s.distanceToSquared(cam)
       })
     }
-    if (inside && view === buildingViews.get(inside.id)) blocking = true
     view.monolith.fade(blocking ? 0.15 : 1, dt)
   }
 }
