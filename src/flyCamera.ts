@@ -5,7 +5,7 @@ import * as THREE from 'three'
 // - 見回す：Pointer Lock 中はマウスを動かすだけ、ロックしていないときはドラッグ（タッチも）
 // - 移動：W/S は見ている方向（上下も含む）、A/D は水平に左右、E/Q で真上・真下。ホイール・ピンチで前後
 // - Ctrl（単独で押して離す）でロックの ON/OFF。神視点はクリックでもロックする（Editor のクリックは場所の指定）
-// - 感度・視野角・移動速度はブラウザに保存して、神視点と Editor で共有する
+// - 感度・視野角・移動速度・入った建物を透かすかはブラウザに保存して、神視点と Editor で共有する
 
 /** 移動速度の段階（m/秒）。キャンパスは東西 450m ほどなので、最速で数秒で端まで行ける程度 */
 const SPEEDS = [
@@ -15,7 +15,7 @@ const SPEEDS = [
   { label: '最速', value: 120 },
 ]
 
-/** 建物に当たったときの動き。貫通は建物の中へ入れる（室内が見える）。回り込むは壁に沿って滑る */
+/** 建物に当たったときの動き。貫通は建物の中へ入れる（seeThrough なら入った建物を透かす）。回り込むは壁に沿って滑る */
 export type CollisionMode = 'pass' | 'stop' | 'slide'
 
 export type FlyOptions = {
@@ -41,11 +41,12 @@ const delta = new THREE.Vector3()
 const next = new THREE.Vector3()
 const UP = new THREE.Vector3(0, 1, 0)
 
-type Settings = { sensitivity: number; fov: number; speed: number }
+/** seeThrough：カメラが入った建物を透かして外を見るか（切ると室内が見える。issue #62） */
+type Settings = { sensitivity: number; fov: number; speed: number; seeThrough: boolean }
 
 // localStorage はプライベートモードなどで例外を投げることがあるので、全部 try/catch で包む
 function loadSettings(fov: number): Settings {
-  const fallback = { sensitivity: 1, fov, speed: 1 }
+  const fallback = { sensitivity: 1, fov, speed: 1, seeThrough: false }
   try {
     return { ...fallback, ...(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Partial<Settings>) }
   } catch {
@@ -97,16 +98,19 @@ export class FlyCamera {
     this.settingsPanel.innerHTML = `
       <label>感度 <input type="range" min="0.2" max="3" step="0.1" data-sens><output data-sens-out></output></label>
       <label>視野角 <input type="range" min="30" max="100" step="1" data-fov><output data-fov-out></output></label>
+      <label><input type="checkbox" data-see> 入った建物を透かす</label>
     `
     const sens = this.settingsPanel.querySelector<HTMLInputElement>('[data-sens]')!
     const fov = this.settingsPanel.querySelector<HTMLInputElement>('[data-fov]')!
     const sensOut = this.settingsPanel.querySelector<HTMLOutputElement>('[data-sens-out]')!
     const fovOut = this.settingsPanel.querySelector<HTMLOutputElement>('[data-fov-out]')!
+    const see = this.settingsPanel.querySelector<HTMLInputElement>('[data-see]')!
     const show = () => {
       sens.value = String(this.settings.sensitivity)
       fov.value = String(this.settings.fov)
       sensOut.textContent = this.settings.sensitivity.toFixed(1)
       fovOut.textContent = `${Math.round(this.settings.fov)}°`
+      see.checked = this.settings.seeThrough
     }
     sens.addEventListener('input', () => {
       this.settings.sensitivity = parseFloat(sens.value)
@@ -119,8 +123,12 @@ export class FlyCamera {
       show()
       this.save()
     })
+    see.addEventListener('change', () => {
+      this.settings.seeThrough = see.checked
+      this.save()
+    })
     // スライダーを触ったあとに矢印キーで移動しても、スライダーが動かないように
-    for (const el of [sens, fov]) el.addEventListener('change', () => el.blur())
+    for (const el of [sens, fov, see]) el.addEventListener('change', () => el.blur())
     show()
 
     this.bindKeys()
@@ -129,6 +137,11 @@ export class FlyCamera {
 
   get locked(): boolean {
     return document.pointerLockElement === this.dom
+  }
+
+  /** カメラが入った建物を透かすか（透かすのは使う側。神視点は main.ts、Editor は editor/main.ts） */
+  get seeThrough(): boolean {
+    return this.settings.seeThrough
   }
 
   get speedLabel(): string {

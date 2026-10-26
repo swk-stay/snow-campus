@@ -470,6 +470,8 @@ snowCheck.addEventListener('change', () => {
 
 const raycaster = new THREE.Raycaster()
 const pickTargets: THREE.Object3D[] = [...monoliths.map((m) => m.body), scenery]
+/** 「入った建物を透かす」で薄くしている建物。クリックはその建物を通り抜けて向こうに当てる */
+let seeThroughBody: THREE.Object3D | null = null
 const ndc = new THREE.Vector2()
 const down = new THREE.Vector2()
 renderer.domElement.addEventListener('pointerdown', (e) => down.set(e.clientX, e.clientY))
@@ -488,6 +490,7 @@ function pick() {
   const clipY = section.uClipY.value
   const hit = raycaster.intersectObjects(pickTargets, true).find((h) => {
     if (h.point.y > clipY + 0.01) return false
+    for (let o: THREE.Object3D | null = h.object; o; o = o.parent) if (o === seeThroughBody) return false
     const mat = (h.object as THREE.Mesh).material
     // ガラスは 'SLOT_GLASS' の define を持つ
     if (glassCheck.checked && mat instanceof THREE.ShaderMaterial && 'SLOT_GLASS' in mat.defines) return false
@@ -574,8 +577,16 @@ const scaleAt = (p: THREE.Vector3) => Math.min(3, Math.max(0.15, camera.position
 
 let last = performance.now()
 renderer.setAnimationLoop((now: number) => {
-  fly.update(Math.min(0.1, (now - last) / 1000))
+  const dt = Math.min(0.1, (now - last) / 1000)
+  fly.update(dt)
   last = now
+  // 「入った建物を透かす」なら、カメラが中にいる建物を薄くする（神視点と同じ。壁は両面描画なので、中からだと視界がふさがる）
+  const cam = camera.position
+  const inside = fly.seeThrough
+    ? state.buildings.findIndex((b) => Math.abs(cam.x - b.x) < b.width / 2 + 1 && Math.abs(cam.z - b.z) < b.depth / 2 + 1 && cam.y < b.height + 1)
+    : -1
+  monoliths.forEach((m, i) => m.fade(i === inside ? 0.15 : 1, dt))
+  seeThroughBody = inside >= 0 ? monoliths[inside].body : null
   // 印とカーソルは、近寄っても遠ざかっても画面上でだいたい同じ大きさに
   for (const m of markers.values()) m.ball.scale.setScalar(m.ball.userData.size * scaleAt(m.ball.position))
   cursor.scale.setScalar(scaleAt(cursor.position))
