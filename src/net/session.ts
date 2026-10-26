@@ -1,5 +1,6 @@
 import { Client, type Room } from '@colyseus/sdk'
 import { SKILL_EFFECT, type ItemId, type SkillId, type UpgradeId } from '../config'
+import { loadPlayerName } from '../title/prefs'
 import { createPlayer, syncOwnedUnits, type GameState, type Player, type Plow } from '../sim/game'
 import {
   ROOM_NAME,
@@ -36,22 +37,14 @@ export async function listRooms(server: string): Promise<RoomSummary[]> {
 
 export type JoinTarget = { roomId: string } | { create: string }
 
-/** タイトル画面で入れたプレイヤー名の保存先 */
-export const PLAYER_NAME_KEY = 'snow-campus-player-name'
-
 /** タイトル画面からの遷移（?mode=multi&server=…&room=… または create=…）でルームに入る */
 export function joinFromParams(params: URLSearchParams, state: GameState): Promise<MultiSession> {
   const server = params.get('server')
   const roomId = params.get('room')
   const create = params.get('create')
   if (!server || (!roomId && create === null)) return Promise.reject(new Error('サーバーアドレスかルームの指定がありません'))
-  let name = ''
-  try {
-    name = localStorage.getItem(PLAYER_NAME_KEY) ?? ''
-  } catch {
-    // 名前が読めなければサーバーが付ける
-  }
-  return MultiSession.join(server, roomId ? { roomId } : { create: create! }, name, state)
+  // 名前が空ならサーバーが付ける
+  return MultiSession.join(server, roomId ? { roomId } : { create: create! }, loadPlayerName(), state)
 }
 
 /** 補間の目標。サーバーからは 15Hz でしか届かないので、ほかのプレイヤーと除雪機は毎フレームここへ寄せる */

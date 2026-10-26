@@ -287,6 +287,7 @@ export const TIME_ATTACK = {
  * 建物は id → 必要量。並びが建てる順番。D3・C6・K4号館は外し、そのぶんの必要量をほかの棟に配っている（issue #68）
  */
 const COURTYARD = {
+  course: 'courtyard',
   world: { size: 224, centerX: 0, centerZ: 0, fieldRes: 480, snowDepth: 0.8 },
   buildings: { guard: 300, d2: 1300, d1: 2000, c1: 2900, k2: 4600, b5: 6300, k3: 8600, k1: 11500 } as Record<string, number>,
   /** Tier ごとの最大レベル（守衛所＋7 棟ぶん。配列を超えた Tier は最後の値） */
@@ -310,5 +311,11 @@ export function useCourtyardCourse() {
   for (const id of Object.keys(UPGRADES) as UpgradeId[]) UPGRADES[id].maxLevel = COURTYARD.maxLevel[id]
   // 減らしてあればそのまま（学園祭で回転を早くする設定を消さない）
   TIME_ATTACK.goal = Math.min(TIME_ATTACK.goal, BUILDINGS.length)
-  TIME_ATTACK.course = 'courtyard'
+  TIME_ATTACK.course = COURTYARD.course
+}
+
+/** 中庭コースの記録の保存先（コース名とゴールの建物 id）。useCourtyardCourse を呼ぶ前でも、呼んだ後の TIME_ATTACK と同じ値を返す */
+export function courtyardRecord(): { course: string; goalIds: string[] } {
+  const ids = Object.keys(COURTYARD.buildings)
+  return { course: COURTYARD.course, goalIds: ids.slice(0, Math.min(TIME_ATTACK.goal, ids.length)) }
 }
