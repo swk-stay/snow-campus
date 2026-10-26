@@ -1,10 +1,10 @@
 import type { GameState } from './sim/game'
-import { paintGround } from './render/campusGround'
+import { skinById } from './skins'
 
 // 常時表示のミニマップ（右上）。向きは見下ろし視点と同じで固定（上が東。公式キャンパスマップと同じ向き）。
 // キャンパス全体は広いので、プレイヤーのまわり SPAN m 四方だけを映す（雪原の端では止める）。
 // タップ／M キーで全体マップ（俯瞰カメラ）に切り替える。
-// 地面（芝生・園路）の上に、0.3 秒ごとに縮小コピーした雪を重ねる。建物・除雪機・プレイヤーは毎フレーム描く。
+// 地面は塗らず、0.3 秒ごとに縮小コピーした雪だけを重ねる。建物・レア雪・プレイヤーは毎フレーム描く。
 // いま建てている建物が範囲の外にあるときは、縁にその方向の矢印を出す。
 
 /** 雪の縮小コピーの解像度（雪原全体で。1 ピクセル約 2m） */
@@ -18,7 +18,6 @@ export class Minimap {
   private readonly snow: HTMLCanvasElement
   private readonly snowCtx: CanvasRenderingContext2D
   private readonly snowImage: ImageData
-  private readonly ground = paintGround(1024)
   private snowTimer = 0
 
   constructor(root: HTMLElement, onTap: () => void) {
@@ -65,8 +64,9 @@ export class Minimap {
       this.snowTimer = 0.3
       this.drawSnow(s)
     }
+    g.fillStyle = '#7d8691'
+    g.fillRect(0, 0, W, W)
     g.imageSmoothingEnabled = true
-    blit(this.ground)
     blit(this.snow)
 
     // 建物：完成はカラー、いま建てているものは金色で点滅、未解放は点線
@@ -96,8 +96,6 @@ export class Minimap {
     }
     g.setLineDash([])
 
-    for (const m of s.machines) dot(g, toPxX(m.x), toPxZ(m.z), 3 * dpr, '#4a7fd6')
-    for (const p of s.plows) dot(g, toPxX(p.x), toPxZ(p.z), 3.5 * dpr, '#f28c28')
     // レア雪は点滅する水色の点
     for (const r of s.rares) dot(g, toPxX(r.x), toPxZ(r.z), (3 + Math.sin(time * 8) * 1.2) * dpr, '#5fe3ff')
 
@@ -133,8 +131,15 @@ export class Minimap {
       }
     }
 
-    // マルチプレイのほかのプレイヤー
-    for (const o of s.players) if (o !== s.player) dot(g, toPxX(o.x), toPxZ(o.z), 4 * dpr, '#2f7fd9')
+    // マルチプレイのほかのプレイヤーはスキンの色で。白や黒のスキンでも雪と背景に埋もれないよう、暗い縁と白い縁を重ねる
+    for (const o of s.players) {
+      if (o === s.player) continue
+      const x = toPxX(o.x)
+      const z = toPxZ(o.z)
+      dot(g, x, z, 6.5 * dpr, 'rgba(0, 0, 0, 0.45)')
+      dot(g, x, z, 5.5 * dpr, '#fff')
+      dot(g, x, z, 4 * dpr, '#' + skinById(o.skin).color.toString(16).padStart(6, '0'))
+    }
 
     // プレイヤー（向きつきの三角）とグランドレベル時の視野
     if (viewYaw !== null) {
