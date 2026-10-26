@@ -1,7 +1,7 @@
 import { networkInterfaces } from 'node:os'
 import { createEndpoint, createRouter, defineRoom, defineServer, matchMaker } from '@colyseus/core'
 import { WebSocketTransport } from '@colyseus/ws-transport'
-import { DEFAULT_PORT, ROOM_NAME, type RoomMeta, type RoomSummary } from '../src/net/protocol'
+import { DEFAULT_PORT, MAX_PLAYERS, ROOM_NAME, type RoomMeta, type RoomSummary } from '../src/net/protocol'
 import { CampusRoom } from './campusRoom'
 
 // マルチプレイのサーバー。`npm run server` で起動し、端末のタイトル画面で ws://<このマシンのアドレス>:<PORT> を入れて参加する。
@@ -18,8 +18,8 @@ const listRooms = createEndpoint('/rooms', { method: 'GET' }, async () => {
     return {
       roomId: r.roomId,
       name: meta?.name ?? r.roomId,
-      players: r.clients,
-      maxPlayers: r.maxClients,
+      players: meta?.players ?? 0,
+      maxPlayers: MAX_PLAYERS,
       completed: meta?.completed ?? 0,
       total: meta?.total ?? 0,
     }

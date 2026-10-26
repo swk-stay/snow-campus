@@ -221,6 +221,8 @@ body.cinematic #skill-bar, body.shop-open #skill-bar { opacity: 0; pointer-event
 .skill[hidden] { display: none; }
 #skill-bar { transition: opacity 0.2s; }
 body.god-view #skill-bar { display: none; }
+/* 観戦（?view=god&mode=multi）では自機がいないので、持っている雪とレア雪は出さない */
+body.spectator #hud .hud-row:first-child, body.spectator .hud-rare { display: none; }
 
 /* バランス調整ダッシュボード（?balance）。開いている間はゲーム画面を左に寄せる */
 body.balance-open { --balance-w: 400px; }
