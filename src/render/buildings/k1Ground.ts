@@ -1,5 +1,5 @@
-import { deskIsland, pcRow, plant, type Kit } from './kit'
-import { ORANGE, WOOD, type Pt } from './parts'
+import { cw, deskIsland, pcRow, plant, type Kit } from './kit'
+import { WOOD, type Pt } from './parts'
 
 // K1号館の 1 階の間取り（ユーザーの手書きの間取りと、ソフトウェア工房の写真から作った）。
 // 西（+Z）の外壁に沿って工房が並び、廊下をはさんで東にトイレ・エレベーターホール・階段、その東がテーブルの並ぶロビー。
@@ -53,12 +53,19 @@ export function k1Ground(k: Kit, X: number, Z: number, pz: number, y: number, ce
     k.box(11.57, y, z - 0.6, 11.6, y + 2.2, z + 0.6, 0x8d9296)
     k.box(11.56, y + 2.35, z - 0.15, 11.6, y + 2.65, z + 0.15, c)
   }
-  // 北の端の部屋（用途は聞いていない）：南の面に扉
-  k.box(xa, y, CORE_Z, -12.2, ceil, CORRIDOR_Z, CORE)
-  k.box(-12.2, y, 2.6, -12.17, y + 2.2, 3.8, 0x9aa0a5)
+  // 北の端の部屋（用途は分からないので机を置いておく）：南の面に扉
+  const nx1 = -12.2
+  k.box(xa, y, CORE_Z, nx1, ceil, CORE_Z + 0.12, CORE)
+  k.box(xa, y, CORRIDOR_Z - 0.12, nx1, ceil, CORRIDOR_Z, CORE)
+  k.box(nx1 - 0.12, y, CORE_Z, nx1, ceil, 2.6, CORE)
+  k.box(nx1 - 0.12, y, 3.8, nx1, ceil, CORRIDOR_Z, CORE)
+  k.box(nx1 - 0.12, y + 2.2, 2.6, nx1, ceil, 3.8, CORE)
+  k.box(nx1 - 0.02, y, 2.6, nx1, y + 2.2, 3.2, 0x9aa0a5)
 
   k.inside(() => {
     stairs(k, y, ceil + 0.35)
+    for (const z of [0.6, 5.2]) deskIsland(k, -15.4, y, z, 2.4, 0.9, 0xe8e6e0, 0x4a5a6a)
+    k.box(xa, y, 2.2, xa + 0.45, y + 1.8, 3.6, 0xe4e6e6)
     // ロビー：テーブルが 6 つ（3 つずつ 2 列）と植木
     for (const x of [-7, 0, 7]) for (const z of [-10.2, -7.4]) deskIsland(k, x, y, z, 1.8, 0.9, WOOD, 0x3a4a6a)
     for (const x of [-12, 12]) plant(k, x, y, -6.4, 2.0)
@@ -304,8 +311,11 @@ function mediaStudio(k: Kit, x0: number, x1: number, _z0: number, _z1: number, y
   k.box(x1 - 0.6, y, 13.4, x1 - 0.55, y + 2.4, 16.8, 0x3aa35a)
 }
 
-function meetingRoom(k: Kit, x0: number, x1: number, _z0: number, _z1: number, y: number) {
-  deskIsland(k, (x0 + x1) / 2, y, 14.2, 3.2, 1.2, 0xe8e6e0, 0x4a5a6a)
+/** 名前の無い部屋（用途は分からないので、机を 2 列と棚を置いておく） */
+function meetingRoom(k: Kit, x0: number, x1: number, _z0: number, z1: number, y: number) {
+  const cx = (x0 + x1) / 2
+  for (const z of [12.6, 15.4]) deskIsland(k, cx, y, z, 3.4, 0.9, 0xe8e6e0, 0x4a5a6a)
+  k.box(x0 + 0.8, y, z1 - 0.45, x1 - 0.8, y + 1.8, z1 - 0.05, 0xe4e6e6)
 }
 
 function serverRoom(k: Kit, x0: number, _x1: number, _z0: number, _z1: number, y: number) {
@@ -315,7 +325,41 @@ function serverRoom(k: Kit, x0: number, _x1: number, _z0: number, _z1: number, y
   }
 }
 
+/**
+ * KAIT PIA：北半分はロビーと同じ机と椅子の並び、南半分はソファーと角の丸いテーブルの組
+ */
 function kaitPia(k: Kit, x0: number, x1: number, _z0: number, _z1: number, y: number) {
-  for (let x = x0 + 2; x < x1 - 1.5; x += 3.2) for (const z of [12.6, 15.6]) deskIsland(k, x, y, z, 1.8, 1.0, WOOD, ORANGE)
+  for (const x of [x0 + 1.6, x0 + 4.0]) for (const z of [12.4, 15.6]) deskIsland(k, x, y, z, 1.8, 0.9, WOOD, 0x3a4a6a)
+  for (const z of [12.4, 15.6]) {
+    const cx = x1 - 2.3
+    k.prism(roundRect(cx, z, 1.5, 0.8, 0.3), y + 0.42, y + 0.46, WOOD)
+    k.box(cx - 0.04, y, z - 0.04, cx + 0.04, y + 0.42, z + 0.04, 0x9a9a9a)
+    for (const back of [-1, 1]) sofa(k, cx, y, z + back * 1.0, 1.7, back)
+  }
   plant(k, x1 - 0.6, y, 17.2, 1.8)
+  plant(k, x1 - 0.6, y, 11.0, 1.6)
+}
+
+/** ソファー（長手が x）。back は背もたれのある側（z の向き） */
+function sofa(k: Kit, cx: number, y: number, cz: number, len: number, back: number) {
+  const C = 0x4f6f7d
+  k.box(cx - len / 2, y, cz - 0.4, cx + len / 2, y + 0.42, cz + 0.4, C)
+  k.box(cx - len / 2, y + 0.42, cz + back * 0.22, cx + len / 2, y + 0.85, cz + back * 0.4, C)
+  for (const s of [-1, 1]) {
+    const ax = cx + s * (len / 2 - 0.06)
+    k.box(ax - 0.06, y + 0.42, cz - 0.4, ax + 0.06, y + 0.62, cz + 0.4, C)
+  }
+}
+
+/** 角の丸い長方形（中心・幅 w（x）・奥行き d（z）・角の半径 r）。prism に渡す時計回りの点列 */
+function roundRect(cx: number, cz: number, w: number, d: number, r: number): Pt[] {
+  const pts: Pt[] = []
+  const corners: [number, number, number][] = [[w / 2 - r, d / 2 - r, 0], [-(w / 2 - r), d / 2 - r, 1], [-(w / 2 - r), -(d / 2 - r), 2], [w / 2 - r, -(d / 2 - r), 3]]
+  for (const [ox, oz, q] of corners) {
+    for (let i = 0; i <= 4; i++) {
+      const a = ((q + i / 4) * Math.PI) / 2
+      pts.push([cx + ox + Math.cos(a) * r, cz + oz + Math.sin(a) * r])
+    }
+  }
+  return cw(pts)
 }
