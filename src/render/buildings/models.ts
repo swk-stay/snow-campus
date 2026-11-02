@@ -777,8 +777,8 @@ const k1: Model = (k, b) => {
   const top = lv[lv.length - 1]
   const cafe = 11 // 12 階
   const bays = 20
-  // ピロティの奥行き（東の面から 3 柱間 = 約 5.4m）
-  const pilotiBays = 3
+  // ピロティの奥行き（東の面から 2 柱間 = 約 3.6m）
+  const pilotiBays = 2
   const pz = -Z + ((2 * Z) / bays) * pilotiBays
   for (const s of rectSides(-X, -Z, X, Z)) {
     const len = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1])

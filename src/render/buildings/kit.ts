@@ -30,7 +30,9 @@ export function rng(seed: number): () => number {
 }
 
 /** 壁のサイン（文字）。頂点カラーでは文字を描けないので、Canvas のテクスチャを貼った板を別に作る */
-type Sign = { text: string; x: number; y: number; z: number; w: number; h: number; angle: number; color: string; logo: boolean }
+type Sign = { text: string; x: number; y: number; z: number; w: number; h: number; angle: number; color: string; logo: boolean; draw?: BoardDraw; ppm?: number }
+/** 板に描く絵。g は板の大きさの Canvas（幅 cw・高さ ch px） */
+export type BoardDraw = (g: CanvasRenderingContext2D, cw: number, ch: number) => void
 
 type Layer = 'shell' | 'interior'
 
@@ -155,15 +157,24 @@ export class Kit {
     this.signs.push({ text, x, y, z, w, h, angle, color, logo })
   }
 
+  /** 文字や絵を自由に描く板（ホワイトボードの書き込み・貼り紙）。置き方は sign と同じ。ppm は 1m あたりの Canvas の px */
+  board(x: number, y: number, z: number, w: number, h: number, angle: number, draw: BoardDraw, ppm = 256) {
+    this.signs.push({ text: '', x, y, z, w, h, angle, color: '', logo: false, draw, ppm })
+  }
+
   /** サインのメッシュ。マテリアルの opacity で完成時にフェードインさせる */
   buildSigns(): THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] {
     return this.signs.map((s) => {
-      const ch = 128
-      const cwid = Math.round((ch * s.w) / s.h)
+      const ch = s.draw ? Math.round(s.h * s.ppm!) : 128
+      const cwid = s.draw ? Math.round(s.w * s.ppm!) : Math.round((ch * s.w) / s.h)
       const canvas = document.createElement('canvas')
       canvas.width = cwid
       canvas.height = ch
       const g = canvas.getContext('2d')!
+      if (s.draw) {
+        s.draw(g, cwid, ch)
+        return this.signMesh(s, canvas)
+      }
       let left = 0
       if (s.logo) {
         g.fillStyle = '#1f4fa0'
@@ -187,18 +198,22 @@ export class Kit {
         g.font = `bold ${size}px "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif`
       }
       g.fillText(s.text, left + 4, ch / 2 + 4)
-      const tex = new THREE.CanvasTexture(canvas)
-      tex.colorSpace = THREE.SRGBColorSpace
-      tex.anisotropy = 4
-      const mesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(s.w, s.h),
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false }),
-      )
-      mesh.position.set(s.x, s.y, s.z)
-      mesh.rotation.y = s.angle
-      mesh.renderOrder = 2
-      return mesh
+      return this.signMesh(s, canvas)
     })
+  }
+
+  private signMesh(s: Sign, canvas: HTMLCanvasElement) {
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.anisotropy = 4
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(s.w, s.h),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false }),
+    )
+    mesh.position.set(s.x, s.y, s.z)
+    mesh.rotation.y = s.angle
+    mesh.renderOrder = 2
+    return mesh
   }
 
   /** slot ごとに 1 メッシュへまとめる。室内のメッシュは userData.interior = true */
