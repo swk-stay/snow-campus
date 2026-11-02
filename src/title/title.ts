@@ -171,7 +171,7 @@ export class Title {
     this.messageEl.hidden = !text
   }
 
-  /** スキンの選択肢。いまは上着の色の見本だけ（別のモデルを足すときは、kind ごとに見本の出し方を変える） */
+  /** スキンの選択肢。上着の色違いは色の見本、キャラクターは skin.swatch の見本 */
   private buildSkins(el: HTMLElement, selected: SkinId) {
     for (const skin of SKINS) {
       const option = document.createElement('label')
@@ -186,7 +186,7 @@ export class Title {
       radio.addEventListener('change', () => this.selectSkin(skin.id))
       const swatch = document.createElement('span')
       swatch.className = 'tp-skin-swatch'
-      swatch.style.background = `#${skin.color.toString(16).padStart(6, '0')}`
+      swatch.style.background = 'swatch' in skin ? skin.swatch : `#${skin.color.toString(16).padStart(6, '0')}`
       option.append(radio, swatch)
       el.append(option)
     }
