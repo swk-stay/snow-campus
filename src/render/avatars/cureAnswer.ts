@@ -119,11 +119,11 @@ function face(): THREE.Mesh {
   ctx.lineWidth = 2.5
   for (const sx of [-1, 1]) {
     ctx.beginPath()
-    ctx.moveTo(px(sx * 0.24), py(1.17))
-    ctx.quadraticCurveTo(px(sx * 0.43), py(1.2), px(sx * 0.65), py(1.345))
-    ctx.quadraticCurveTo(px(sx * 0.44), py(1.26), px(sx * 0.25), py(1.235))
+    ctx.moveTo(px(sx * 0.24), py(1.22))
+    ctx.quadraticCurveTo(px(sx * 0.43), py(1.25), px(sx * 0.65), py(1.395))
+    ctx.quadraticCurveTo(px(sx * 0.44), py(1.31), px(sx * 0.25), py(1.285))
     // 目頭側の端は丸める
-    ctx.quadraticCurveTo(px(sx * 0.21), py(1.2), px(sx * 0.24), py(1.17))
+    ctx.quadraticCurveTo(px(sx * 0.21), py(1.25), px(sx * 0.24), py(1.22))
     ctx.fill()
     ctx.stroke()
   }
