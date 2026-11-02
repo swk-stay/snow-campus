@@ -16,13 +16,12 @@ concurrency:
 jobs:
   # パッチノートの断片（パッチノート/未リリース/）があれば、まとめてバージョンを上げ、main に push する。
   # main は PR 必須なので、Ruleset の Bypass に入れたリリース用 GitHub App のトークンで push する。
-  # App の push はこのワークフローを起動し直すので、push したときのデプロイはその実行に任せる
+  # リリースのコミットは [skip ci] でワークフローを起動しないので、デプロイはこの実行の中で push 後のコミットから行う
   release:
     runs-on: ubuntu-latest
     # App の秘密鍵は main だけに絞った Environment に置いている
     environment: push-to-main
     outputs:
-      released: ${{ steps.push.outputs.released }}
       sha: ${{ steps.push.outputs.sha }}
     steps:
       - id: app-token
@@ -59,13 +58,11 @@ jobs:
             git add -A
             git commit -m "chore: v${version} をリリース（パッチノートをまとめる） [skip ci]"
             git push origin HEAD:main
-            echo "released=true" >> "$GITHUB_OUTPUT"
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
     needs: release
-    if: needs.release.outputs.released != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
