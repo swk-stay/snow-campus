@@ -113,16 +113,17 @@ function face(): THREE.Mesh {
     ctx.fill()
   }
 
-  // 眉：薄紫の太めの帯を濃い紫で縁取る。目頭側が太く、ゆるい山なりで目尻側へ細くなる（docs/cure-answer/face_04.png）
+  // 眉：薄紫の太めの帯を濃い紫で縁取る。目頭側を高く太くし、目尻側へ下がりながら細くなるハの字（docs/cure-answer/face_04.png）
   ctx.fillStyle = '#c497de'
   ctx.strokeStyle = '#6e4189'
   ctx.lineWidth = 2.5
   for (const sx of [-1, 1]) {
     ctx.beginPath()
-    ctx.moveTo(px(sx * 0.17), py(1.35))
-    ctx.quadraticCurveTo(px(sx * 0.36), py(1.24), px(sx * 0.6), py(1.335))
-    ctx.quadraticCurveTo(px(sx * 0.38), py(1.3), px(sx * 0.17), py(1.405))
-    ctx.closePath()
+    ctx.moveTo(px(sx * 0.16), py(1.24))
+    ctx.quadraticCurveTo(px(sx * 0.38), py(1.25), px(sx * 0.6), py(1.37))
+    ctx.quadraticCurveTo(px(sx * 0.38), py(1.3), px(sx * 0.17), py(1.3))
+    // 目頭側の端は丸める
+    ctx.quadraticCurveTo(px(sx * 0.13), py(1.27), px(sx * 0.16), py(1.24))
     ctx.fill()
     ctx.stroke()
   }
