@@ -81,13 +81,13 @@ function face(): THREE.Mesh {
     ctx.fill()
   }
 
-  // 眉：細い線のゆるい弧。目から離して高めに置く
+  // 眉：細い線のゆるい弧。目から離して高めに置き、目頭側を上げて目尻側へ下げる困り眉にする
   ctx.strokeStyle = ink
   ctx.lineWidth = 4
   for (const sx of [-1, 1]) {
     ctx.beginPath()
-    ctx.moveTo(px(sx * 0.32), py(1.27))
-    ctx.quadraticCurveTo(px(sx * 0.46), py(1.17), px(sx * 0.62), py(1.27))
+    ctx.moveTo(px(sx * 0.32), py(1.19))
+    ctx.quadraticCurveTo(px(sx * 0.46), py(1.17), px(sx * 0.62), py(1.31))
     ctx.stroke()
   }
 
