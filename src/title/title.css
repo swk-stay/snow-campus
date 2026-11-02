@@ -5,8 +5,8 @@ body.title-screen #shop, body.title-screen #skill-bar, body.title-screen #labels
 }
 #labels { transition: opacity 0.4s; }
 
-/* カットの変わり目と、タイトルを閉じるときに重ねる空の色（scene.background と同じ色） */
-#title-veil { position: fixed; inset: 0; z-index: 7; background: #b9cbe0; pointer-events: none; opacity: 1; }
+/* カットの変わり目と、タイトルを閉じるときに重ねる空の色（main がいまのフォグの色を --sky-color に入れる） */
+#title-veil { position: fixed; inset: 0; z-index: 7; background: var(--sky-color, #b9cbe0); pointer-events: none; opacity: 1; }
 #title-veil.leaving { transition: opacity 0.35s ease; }
 
 #title {

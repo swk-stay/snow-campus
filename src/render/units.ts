@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { SNOW_MACHINE } from '../config'
 import type { Plow, SnowMachine } from '../sim/game'
 import { applySubjectCut } from './subjectCut'
+import { enableShadows } from './daylight'
 
 // 自動除雪機と降雪機の見た目。sim 側の配列と id で突き合わせて、増減に追従する。
 // キャラクターではないので、被写体（演出中の建物やプレイヤー）に被る部分は抜く（render/subjectCut.ts）。
@@ -75,8 +76,8 @@ export class UnitsView {
   }
 
   update(dt: number, time: number, plows: Plow[], machines: SnowMachine[], onSpawn: (pos: THREE.Vector3) => void) {
-    sync(this.plows, plows, createPlowMesh, this.group, onSpawn)
-    sync(this.machines, machines, createMachineMesh, this.group, onSpawn)
+    sync(this.plows, plows, withShadows(createPlowMesh), this.group, onSpawn)
+    sync(this.machines, machines, withShadows(createMachineMesh), this.group, onSpawn)
 
     for (const p of plows) {
       const m = this.plows.get(p.id)!
@@ -101,6 +102,14 @@ export class UnitsView {
       }
       pos.needsUpdate = true
     }
+  }
+}
+
+function withShadows(create: () => THREE.Group): () => THREE.Group {
+  return () => {
+    const g = create()
+    enableShadows(g)
+    return g
   }
 }
 

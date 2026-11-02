@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { BUILDINGS } from '../config'
 import { BALLPARK, BALLPARK_AXIS, ballparkAt, ballparkEdge, HOME_PLATE, SOCCER, soccerAt, TENNIS_AREA, TRACK_HALF_WIDTH, TENNIS_COURTS, treeSpots, type TreeSpot } from './campusGround'
 import { createCampusProps } from './campusProps'
+import { enableShadows } from './daylight'
 
 // 建て直しの対象ではない景色：雪をかぶった並木、構内バス停と神奈中バス、
 // グラウンドの設備（野球場のバックネット・外野フェンス・照明塔、サッカーゴール、テニスコートのフェンス）、
@@ -18,6 +19,7 @@ export function createScenery(): THREE.Group {
   group.add(named(busStopSign(94.5, 72.4), 'バス停の標識'))
   group.add(named(sportsFacilities(), 'グラウンドの設備'))
   group.add(createCampusProps())
+  enableShadows(group)
   return group
 }
 

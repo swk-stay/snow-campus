@@ -4,6 +4,7 @@ import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer
 import { WORLD } from '../config'
 import { createGame, refillField } from '../sim/game'
 import { SnowSurface } from '../render/snowSurface'
+import { lighting } from '../render/daylight'
 import { Monolith } from '../render/monolith'
 import { section } from '../render/buildings/material'
 import { createScenery } from '../render/scenery'
@@ -27,21 +28,21 @@ document.body.appendChild(labelRenderer.domElement)
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0xb9cbe0)
 scene.fog = new THREE.Fog(0xb9cbe0, 450, 1200)
-const sunDir = new THREE.Vector3(0.45, 0.8, 0.35).normalize()
+// 置く場所を探しやすいように、空の時刻は進めず昼のまま（雪原と建物のシェーダーは daylight.ts の lighting の初期値＝昼で照らされる）
 scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.3))
 const sun = new THREE.DirectionalLight(0xffffff, 1.6)
-sun.position.copy(sunDir).multiplyScalar(30)
+sun.position.copy(lighting.uSunDir.value).multiplyScalar(30)
 scene.add(sun)
 
 const state = createGame()
-const snow = new SnowSurface(state.field, sunDir)
+const snow = new SnowSurface(state.field)
 scene.add(snow.mesh)
 const scenery = createScenery()
 scene.add(scenery)
 
 // 建物は全部完成・カラーの状態で建てておく（ガラス越しに中も見える）
 const monoliths = state.buildings.map((b) => {
-  const m = new Monolith(b, sunDir)
+  const m = new Monolith(b)
   m.update(0, 1, 1, 'done', false)
   m.group.userData.target = b.label
   scene.add(m.group)

@@ -1,6 +1,7 @@
 import GUI from 'lil-gui'
 import { ECONOMY, FX, ITEMS, PLAYER, RARE, SKILL_EFFECT, SKILLS, SNOW_MACHINE, UPGRADE_EFFECT, UPGRADES, WORLD, type ItemId, type SkillId, type UpgradeId } from './config'
 import { maxLevel, refillField, syncOwnedUnits, type GameState } from './sim/game'
+import { CLOUD_LABELS, CYCLE_SECONDS, type CloudKind, type Daylight } from './render/daylight'
 
 // ?debug のときだけ出す調整パネル。config のオブジェクトを直接書き換えるので即座に反映される。
 // 学園祭のライブ用：「回収半径を 8m にすると一瞬で雪が消える」のような見せ方を想定。
@@ -12,8 +13,29 @@ export type DebugHooks = {
   resetSave: () => void
 }
 
-export function createDebugGui(s: GameState, hooks: DebugHooks): GUI {
+export function createDebugGui(s: GameState, daylight: Daylight, hooks: DebugHooks): GUI {
   const gui = new GUI({ title: 'Snow Campus Debug' })
+
+  const sky = gui.addFolder('空')
+  const skyCtl = {
+    fixed: daylight.debug.time !== null,
+    time: daylight.debug.time ?? 0,
+    get hour() {
+      const h = Math.floor(daylight.hour)
+      return `${h}:${String(Math.floor((daylight.hour - h) * 60)).padStart(2, '0')}`
+    },
+  }
+  const applyTime = () => (daylight.debug.time = skyCtl.fixed ? skyCtl.time : null)
+  sky.add(skyCtl, 'fixed').name('時刻を止める').onChange(applyTime)
+  sky.add(skyCtl, 'time', 0, CYCLE_SECONDS, 1).name('一周のうちの秒').onChange(() => {
+    skyCtl.fixed = true
+    applyTime()
+    sky.controllersRecursive().forEach((c) => c.updateDisplay())
+  })
+  sky.add(skyCtl, 'hour').name('太陽時').listen().disable()
+  sky
+    .add(daylight.debug, 'cloud', { 周回で決める: 'auto', ...Object.fromEntries((Object.keys(CLOUD_LABELS) as CloudKind[]).map((k) => [CLOUD_LABELS[k], k])) })
+    .name('雲')
 
   const player = gui.addFolder('プレイヤー（基礎値）')
   player.add(PLAYER, 'speed', 1, 20, 0.5).name('移動速度')
