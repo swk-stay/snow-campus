@@ -39,6 +39,7 @@ export function normalizeRoomName(name: string): string {
 export type PosMessage = { x: number; z: number; facing: number }
 export type BuyMessage = { kind: 'upgrade'; id: UpgradeId } | { kind: 'item'; id: ItemId }
 export type SkillMessage = { id: SkillId }
+// 'start'（ペイロードなし）：待っている間に、参加者がそろったのでスタートする
 
 // ---- サーバー → 端末 ----
 
@@ -77,14 +78,21 @@ export type WorldSync = {
 /** 誰の出来事か（null は除雪機・降雪機・建物の完成など、プレイヤーによらないもの） */
 export type TaggedEvent = [playerId: string | null, event: GameEvent]
 
-/** playTime：ルームでプレイヤーが遊んでいた時間の合計（秒。誰もいない間は進まない） */
-export type TickMessage = { world: WorldSync; events: TaggedEvent[]; playTime: number }
+/**
+ * ルームのタイムアタックの進み（issue #112）。waiting：参加者がそろうのを待っている（sim を止める）、countdown：スタート前の秒読み、running：計測中。
+ * countdown：秒読みの残り（秒）。playTime：スタートしてから、ルームにプレイヤーがいた時間の合計（秒。誰もいない間は進まない）。
+ * players：スタートしたときの人数（建物の必要量の倍率と同じ数え方。スタート前は 0）
+ */
+export type RacePhase = 'waiting' | 'countdown' | 'running'
+export type RaceSync = { phase: RacePhase; countdown: number; playTime: number; players: number }
+
+export type TickMessage = { world: WorldSync; events: TaggedEvent[]; race: RaceSync }
 
 /**
  * 参加直後に 1 回だけ送る。field は量子化した雪原を deflate したもの。観戦の端末の you は world.players に入っていない。
  * buildingIds はサーバーの建てる順番（WorldSync の配列はこの順で並ぶので、端末と違えば参加させない）
  */
-export type WelcomeMessage = { you: string; roomName: string; world: WorldSync; field: Uint8Array; buildingIds: string[] }
+export type WelcomeMessage = { you: string; roomName: string; world: WorldSync; race: RaceSync; field: Uint8Array; buildingIds: string[] }
 
 export type NoticeMessage = { text: string }
 
