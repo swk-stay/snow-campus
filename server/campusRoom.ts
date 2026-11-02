@@ -1,6 +1,6 @@
 import { deflateSync } from 'node:zlib'
 import { Room, matchMaker, type Client, type RoomException, type RoomMethodName } from '@colyseus/core'
-import { ITEMS, SKILLS, UPGRADES } from '../src/config'
+import { ITEMS, SKILLS, TIME_ATTACK, UPGRADES } from '../src/config'
 import { isSkinId, randomSkinId } from '../src/skins'
 import { buyItem, buyUpgrade, createPlayer, createWorld, setRequiredMult, stepPlayer, stepWorld, useSkill, type GameEvent, type World } from '../src/sim/game'
 import {
@@ -14,6 +14,7 @@ import {
   type BuyMessage,
   type JoinOptions,
   type PosMessage,
+  type RaceSync,
   type RoomMeta,
   type SkillMessage,
   type TaggedEvent,
@@ -41,8 +42,12 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   /** 端末に送った雪原（量子化済み）。差分はこれと比べて作る */
   private sentField!: Uint8Array
   private events: TaggedEvent[] = []
-  /** プレイヤーがいる間だけ進めるルームの経過時間（秒）。マルチプレイの一区切り（K1号館の完成）までのタイムに使う */
-  private playTime = 0
+  /**
+   * ルームのタイムアタック（issue #112）。参加者がそろうまで sim を止めて待ち、誰かが「スタート」を押したら秒読みのあと一斉に始める。
+   * playTime はスタートしてからプレイヤーがいる間だけ進め、マルチプレイの一区切り（K1号館の完成）までのタイムに使う。
+   * players はスタートしたときの人数（あとから増減しても変えない。切断と再接続があるので、途中の増減は追わないことにした）
+   */
+  private readonly race: RaceSync = { phase: 'waiting', countdown: 0, playTime: 0, players: 0 }
   /** 神視点で観戦している端末の sessionId */
   private readonly spectators = new Set<string>()
   /** ?debug で遊んでいるプレイヤーの id。建物の必要量を決める人数に数えない */
@@ -59,13 +64,20 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
       p.facing = m.facing
     },
     buy: (client: Client, m: BuyMessage | undefined) => {
-      if (!this.player(client) || !m) return
+      if (!this.player(client) || !m || this.race.phase !== 'running') return
       if (m.kind === 'upgrade' && Object.hasOwn(UPGRADES, m.id)) this.tag(client.sessionId, buyUpgrade(this.world, m.id))
       else if (m.kind === 'item' && Object.hasOwn(ITEMS, m.id)) this.tag(client.sessionId, buyItem(this.world, m.id))
     },
     skill: (client: Client, m: SkillMessage | undefined) => {
       const p = this.player(client)
-      if (p && m && Object.hasOwn(SKILLS, m.id)) this.tag(p.id, useSkill(this.world, p, m.id))
+      if (p && m && this.race.phase === 'running' && Object.hasOwn(SKILLS, m.id)) this.tag(p.id, useSkill(this.world, p, m.id))
+    },
+    start: (client: Client) => {
+      const p = this.player(client)
+      if (!p || this.race.phase !== 'waiting') return
+      this.race.phase = 'countdown'
+      this.race.countdown = TIME_ATTACK.countdown
+      this.broadcast('notice', { text: `${p.name} がスタートしました（${this.world.players.length}人）` })
     },
   }
 
@@ -151,6 +163,7 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
       you: client.sessionId,
       roomName: this.metadata.roomName,
       world: worldSync(this.world),
+      race: { ...this.race },
       field: deflateSync(this.sentField),
       buildingIds: this.world.buildings.map((b) => b.id),
     }
@@ -168,7 +181,15 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   private step(dt: number) {
     // 止まっていたあとの最初の 1 回などで dt が大きくなると、除雪機や回収の挙動が変わるので抑える
     const t = Math.min(dt, 0.1)
-    if (this.world.players.length > 0) this.playTime += t
+    if (this.race.phase === 'waiting') return
+    if (this.race.phase === 'countdown') {
+      this.race.countdown -= t
+      if (this.race.countdown > 0) return
+      this.race.phase = 'running'
+      this.race.countdown = 0
+      this.race.players = this.world.requiredMult
+    }
+    if (this.world.players.length > 0) this.race.playTime += t
     for (const p of this.world.players) this.tag(p.id, stepPlayer(this.world, p, null, t))
     this.tag(null, stepWorld(this.world, t))
     if (this.events.some(([, e]) => e.type === 'complete')) {
@@ -177,7 +198,7 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   }
 
   private sendTick() {
-    const tick: TickMessage = { world: worldSync(this.world), events: this.events.splice(0), playTime: this.playTime }
+    const tick: TickMessage = { world: worldSync(this.world), events: this.events.splice(0), race: { ...this.race } }
     this.broadcast('tick', tick)
   }
 

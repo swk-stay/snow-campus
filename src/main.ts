@@ -33,6 +33,7 @@ import { Hud } from './hud'
 import { Shop, type ShopAction } from './shop'
 import { TimeAttack } from './timeAttack'
 import { MilestoneCard } from './milestone'
+import { RaceStart } from './raceStart'
 import { Minimap } from './minimap'
 import { PlayerList } from './playerList'
 import { CameraRig, overviewPose, type Shot, type ViewMode } from './camera'
@@ -239,6 +240,7 @@ function leaveRoom() {
   session?.leave()
   backToTitle()
 }
+const raceStart = session ? new RaceStart(document.body, isSpectator, { start: () => session.start(), leave: leaveRoom }) : null
 const shopActions: ShopAction[] = session
   ? [{ label: 'ルームから抜ける', onClick: leaveRoom, confirm: 'ルームから抜けてタイトルに戻りますか？（ルームの進行はサーバーに残ります）', danger: true }]
   : isTimeAttack
@@ -259,8 +261,8 @@ const shop = isGodView
       (id) => (session ? session.buyItem(id) : pendingEvents.push(...buyItem(state, id))),
       shopActions,
     )
-/** 演出中・全体マップ中・タイムアタックのカウントダウン中・一区切りのカードを出している間・タイトル画面では操作できない */
-const inputLocked = () => rig.inputLocked || !!timeAttack?.locked || !!milestone?.open || !!title?.active
+/** 演出中・全体マップ中・タイムアタックのカウントダウン中・ルームのスタート前・一区切りのカードを出している間・タイトル画面では操作できない */
+const inputLocked = () => rig.inputLocked || !!timeAttack?.locked || !!raceStart?.locked || !!milestone?.open || !!title?.active
 const skillBar = isGodView
   ? null
   : new SkillBar(document.body, (id) => {
@@ -645,11 +647,12 @@ renderer.setAnimationLoop((now: number) => {
   const time = now / 1000
 
   timeAttack?.update(dt, rig.cinematic)
+  if (session) raceStart!.update(session.race, state.players.length)
   if (milestonePending && !rig.cinematic) {
     milestonePending = false
     input.release()
     const next = currentBuilding(state)
-    milestone!.show(milestoneTime ?? session!.playTime, next?.label ?? null, () => {
+    milestone!.show(milestoneTime ?? session!.race.playTime, session!.race.players, next?.label ?? null, () => {
       if (next) hud.toast(`次は「${next.label}」！ 光の柱が目印`, 2600)
     })
   }
@@ -717,7 +720,7 @@ renderer.setAnimationLoop((now: number) => {
     } else if (e.type === 'complete') {
       // 完成演出自体は雪玉の着弾と表示の追従を待ってから（下のループ）
       save()
-      if (session && e.buildingId === MULTI_MILESTONE) milestoneTime = session.playTime
+      if (session && e.buildingId === MULTI_MILESTONE) milestoneTime = session.race.playTime
     } else if (e.type === 'throw') {
       const b = state.buildings.find((b) => b.id === e.buildingId)!
       const view = buildingViews.get(b.id)!

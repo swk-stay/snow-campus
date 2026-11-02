@@ -1,7 +1,7 @@
 import { formatTime } from './timeAttack'
 
 // マルチプレイの一区切り（issue #92）。中庭まわりの 8 棟（タイムアタックと同じ並びで、最後は K1号館）が建ったら、
-// ルームで遊んだ時間をカードで出す。閉じたら残りの棟へ進む。
+// スタートしてからのタイムと、スタートしたときの人数（issue #112）をカードで出す。閉じたら残りの棟へ進む。
 // 観戦の端末は会場のモニターで誰も触らないことがあるので、ボタンを出さずにしばらくして閉じる
 
 const SPECTATOR_SECONDS = 10
@@ -23,14 +23,14 @@ export class MilestoneCard {
     return !this.el.hidden
   }
 
-  /** next は次に建てる建物の名前 */
-  show(playTime: number, next: string | null, onClose: () => void) {
+  /** players はスタートしたときの人数、next は次に建てる建物の名前 */
+  show(playTime: number, players: number, next: string | null, onClose: () => void) {
     this.onClose = onClose
     this.el.innerHTML = `
       <div class="ta-card">
         <h2>中庭まわりが復活！</h2>
         <div class="ta-final">${formatTime(playTime)}</div>
-        <div class="ta-sub">このルームで遊んだ時間</div>
+        <div class="ta-sub"><b class="ms-players">${players}人</b>でスタートしてからのタイム</div>
         ${next ? `<p class="ms-next">ここからはキャンパス全体へ。次は「${next}」</p>` : ''}
         ${this.spectator ? '' : '<div class="ta-actions"><button data-close>続ける</button></div>'}
       </div>`

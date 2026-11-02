@@ -9,6 +9,7 @@ import {
   type JoinOptions,
   type NoticeMessage,
   type PlayerSync,
+  type RaceSync,
   type RoomSummary,
   type TaggedEvent,
   type TickMessage,
@@ -63,8 +64,8 @@ export class MultiSession {
   /** 届いたメッセージを届いた順に処理するための鎖（welcome の展開を待つ間に届いた差分を、展開のあとに当てるため） */
   private chain: Promise<void> = Promise.resolve()
   roomName = ''
-  /** ルームの経過時間（秒。最後に届いた tick の値） */
-  playTime = 0
+  /** ルームのタイムアタックの進み（最後に届いた welcome か tick の値） */
+  race: RaceSync = { phase: 'waiting', countdown: 0, playTime: 0, players: 0 }
   onNotice: (text: string) => void = () => {}
   onDisconnect: () => void = () => {}
 
@@ -131,6 +132,7 @@ export class MultiSession {
     s.player.id = m.you
     s.player.name = this.name
     this.roomName = m.roomName
+    this.race = m.race
     this.applyWorld(m.world, true)
     this.welcomed()
   }
@@ -153,6 +155,11 @@ export class MultiSession {
 
   skill(id: SkillId) {
     this.room.send('skill', { id })
+  }
+
+  /** 参加者がそろったので、ルームのタイムアタックを始める（待っている間だけサーバーが受け付ける） */
+  start() {
+    this.room.send('start')
   }
 
   leave() {
@@ -190,7 +197,7 @@ export class MultiSession {
 
   private applyTick(m: TickMessage) {
     this.applyWorld(m.world, false)
-    this.playTime = m.playTime
+    this.race = m.race
     for (const [pid, e] of m.events) {
       // ダッシュとブーストは自分の移動に効くので、サーバーが受け付けたら手元でも始める
       if (pid === this.state.player.id && e.type === 'skill') {
