@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { lighting, lightUniforms } from '../daylight'
 
 // 建物モデル共通のシェーダー。Monolith（写真の箱）の頃の仕組みをそのまま使う：
 //   - ワールド座標 y < 0 は discard（地面からせり上がる）
@@ -30,7 +31,9 @@ const vertexShader = /* glsl */ `
   varying vec3 vLocal;
   varying vec3 vWorld;
   varying vec3 vNormal;
+  #include <common>
   #include <fog_pars_vertex>
+  #include <shadowmap_pars_vertex>
 
   void main() {
     vColor = color;
@@ -40,6 +43,10 @@ const vertexShader = /* glsl */ `
     vNormal = normalize(mat3(modelMatrix) * normal);
     vec4 mvPosition = viewMatrix * wp;
     gl_Position = projectionMatrix * mvPosition;
+    // three.js の影の計算（shadowmap_vertex）が使う変数
+    vec4 worldPosition = wp;
+    vec3 transformedNormal = normalMatrix * normal;
+    #include <shadowmap_vertex>
     #include <fog_vertex>
   }
 `
@@ -48,6 +55,11 @@ const fragmentShader = /* glsl */ `
   uniform float uColorize; // 0: 雪の状態, 1: 完全にカラー
   uniform float uHeight;
   uniform vec3 uSunDir;
+  uniform vec3 uSunColor;
+  uniform vec3 uAmbSky;
+  uniform vec3 uAmbGround;
+  uniform vec3 uSkyHorizon;
+  uniform vec3 uSkyZenith;
   uniform vec3 uCamPos;
   uniform vec3 uFocus;
   uniform float uOccl;
@@ -57,7 +69,12 @@ const fragmentShader = /* glsl */ `
   varying vec3 vLocal;
   varying vec3 vWorld;
   varying vec3 vNormal;
+  #include <common>
   #include <fog_pars_fragment>
+  #include <bsdfs>
+  #include <lights_pars_begin>
+  #include <shadowmap_pars_fragment>
+  #include <shadowmask_pars_fragment>
 
   float hash31(vec3 p) {
     p = fract(p * 0.3183099 + 0.1);
@@ -100,8 +117,11 @@ const fragmentShader = /* glsl */ `
 
     vec3 n = normalize(vNormal);
     if (!gl_FrontFacing) n = -n;
-    float diff = max(dot(n, uSunDir), 0.0);
+    float shadow = getShadowMask();
+    float diff = max(dot(n, uSunDir), 0.0) * shadow;
     float sky = 0.5 + 0.5 * n.y;
+    // 空からの光（上を向いた面ほど空の色、下を向いた面ほど地面の照り返し）
+    vec3 amb = mix(uAmbGround, uAmbSky, sky);
     // 足元を少し暗く（接地感）
     float ao = mix(0.72, 1.0, smoothstep(0.0, 2.2, vLocal.y));
 
@@ -111,7 +131,7 @@ const fragmentShader = /* glsl */ `
     vec3 snowy = mix(vec3(lum), vec3(1.0), 0.6) * vec3(0.9, 0.95, 1.05);
     snowy *= 0.92 + 0.08 * grain;
     snowy *= 1.0 - 0.14 * (1.0 - smoothstep(0.0, 0.06, fract(vLocal.y * 0.8)));
-    snowy *= (0.6 + 0.45 * diff) * ao;
+    snowy *= (amb * 0.62 + uSunColor * 0.45 * diff) * ao;
 
     // 下からノイズ混じりに色が広がるディゾルブ
     float nz = vnoise(vLocal * 0.35);
@@ -127,19 +147,19 @@ const fragmentShader = /* glsl */ `
   #if defined(SLOT_GLASS)
     // 空を映す反射（フレネル）＋色ガラス。中が透けて見えるように薄く
     float fres = pow(1.0 - abs(dot(n, viewDir)), 3.0);
-    vec3 skyCol = mix(vec3(0.62, 0.72, 0.84), vec3(0.85, 0.9, 0.97), n.y * 0.5 + 0.5);
-    vec3 color = mix(vColor * 0.42, skyCol, 0.22 + 0.6 * fres);
-    color += pow(max(dot(reflect(-viewDir, n), uSunDir), 0.0), 60.0) * 0.8;
+    vec3 skyCol = mix(uSkyHorizon, mix(uSkyHorizon, uSkyZenith, 0.4), n.y * 0.5 + 0.5);
+    vec3 color = mix(vColor * amb * 0.42, skyCol, 0.22 + 0.6 * fres);
+    color += pow(max(dot(reflect(-viewDir, n), uSunDir), 0.0), 60.0) * uSunColor * shadow * 0.8;
     float clearAlpha = 0.34 + 0.5 * fres;
     // 雪の状態は氷のブロック（ほぼ不透明）
-    vec3 ice = mix(vec3(0.78, 0.86, 0.95), vec3(1.0), 0.35 * diff) * (0.85 + 0.1 * grain);
+    vec3 ice = vec3(0.78, 0.86, 0.95) * (amb * 1.15 + uSunColor * 0.4 * diff) * (0.85 + 0.1 * grain);
     snowy = ice;
     alpha = mix(0.9, clearAlpha, colored);
   #elif defined(SLOT_LIGHT)
     vec3 color = vColor;
   #else
-    // 日の当たらない面はわずかに青く（空の照り返し）
-    vec3 color = vColor * (0.38 + 0.24 * sky + 0.5 * diff) * ao * mix(vec3(0.88, 0.92, 1.0), vec3(1.0, 0.98, 0.95), diff);
+    // 日の当たらない面は空の色を受けて青みがかる
+    vec3 color = vColor * (amb * 0.62 + uSunColor * 0.55 * diff) * ao;
   #endif
 
     vec3 col = mix(snowy, color, colored);
@@ -159,13 +179,12 @@ const fragmentShader = /* glsl */ `
 export type BuildingUniforms = {
   uColorize: { value: number }
   uHeight: { value: number }
-  uSunDir: { value: THREE.Vector3 }
   /** 演出で手前に被ったときの薄さ（1 でそのまま） */
   uFade: { value: number }
 }
 
 export function createBuildingMaterials(u: BuildingUniforms): Record<Slot, THREE.ShaderMaterial> {
-  const uniforms = { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...u, ...occlusion, ...section }
+  const uniforms = { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...lightUniforms(), ...lighting, ...u, ...occlusion, ...section }
   const make = (slot: Slot) =>
     new THREE.ShaderMaterial({
       uniforms,
@@ -174,6 +193,7 @@ export function createBuildingMaterials(u: BuildingUniforms): Record<Slot, THREE
       defines: slot === 'glass' ? { SLOT_GLASS: '' } : slot === 'light' ? { SLOT_LIGHT: '' } : {},
       vertexColors: true,
       fog: true,
+      lights: true,
       side: THREE.DoubleSide,
       transparent: slot === 'glass',
       depthWrite: slot !== 'glass',

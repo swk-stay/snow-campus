@@ -15,6 +15,7 @@ import {
   type GameEvent,
 } from './sim/game'
 import { SnowSurface } from './render/snowSurface'
+import { CYCLE_SECONDS, Daylight, lighting } from './render/daylight'
 import { Monolith } from './render/monolith'
 import { occlusion } from './render/buildings/material'
 import { createScenery } from './render/scenery'
@@ -77,14 +78,19 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
 app.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xb9cbe0)
 const fog = new THREE.Fog(0xb9cbe0, 90, 260)
 scene.fog = fog
-const sunDir = new THREE.Vector3(0.45, 0.8, 0.35).normalize()
-scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.3))
-const sun = new THREE.DirectionalLight(0xffffff, 1.6)
-sun.position.copy(sunDir).multiplyScalar(30)
-scene.add(sun)
+renderer.shadowMap.enabled = true
+// スマホは影の解像度を下げる
+const daylight = new Daylight(scene, matchMedia('(pointer: coarse)').matches ? 2048 : 4096)
+// ?sky=<秒> で空の時刻（一周 600 秒のうちの秒）を止める。夕焼けで止めて見せたいときや、見た目の確認用
+const skyParam = params.get('sky')
+if (skyParam !== null && Number.isFinite(Number(skyParam))) daylight.debug.time = THREE.MathUtils.euclideanModulo(Number(skyParam), CYCLE_SECONDS)
+/**
+ * 空の時計（秒）。タイムアタックは計測時間、マルチプレイはルームの playTime（全員の空をそろえる）に合わせる。
+ * それ以外は夕焼けの少し前から始めて、タイトル画面から遊び始めまで止めずに流す
+ */
+let skyClock = 450
 
 const state = createGame()
 // マルチプレイはルームの状態をサーバーから受け取ってから描画を作る（完成済みの建物を最初からカラーで建てるため）
@@ -109,14 +115,12 @@ function backToTitle() {
   location.href = location.pathname
 }
 
-const snow = new SnowSurface(state.field, sunDir)
+const snow = new SnowSurface(state.field)
 scene.add(snow.mesh)
 // 雪原の外側（回収できない背景の雪面）。高さは雪原外周の初期値 0.75 に合わせる
-const outer = new THREE.Mesh(
-  new THREE.RingGeometry(WORLD.size * 0.7, WORLD.size * 6, 4, 1, Math.PI / 4),
-  // 日向の雪面（SnowSurface の平地）とほぼ同じ色を無ライティングで出す
-  new THREE.MeshBasicMaterial({ color: 0xf0f3fa }),
-)
+// 日向の雪面（SnowSurface の平地）とほぼ同じ色を無ライティングで出す。色は空の時刻に合わせて updateSky で変える
+const outerSnow = new THREE.MeshBasicMaterial({ color: 0xf0f3fa })
+const outer = new THREE.Mesh(new THREE.RingGeometry(WORLD.size * 0.7, WORLD.size * 6, 4, 1, Math.PI / 4), outerSnow)
 outer.rotation.x = -Math.PI / 2
 outer.position.set(WORLD.centerX, 0.75 * WORLD.snowMaxHeight, WORLD.centerZ)
 scene.add(outer)
@@ -152,7 +156,7 @@ const buildingViews = new Map<string, BuildingView>()
 state.buildings.forEach((b) => {
   // セーブから再開した場合、完成済みの建物は最初からカラーで建っている
   const view: BuildingView = {
-    monolith: new Monolith(b, sunDir),
+    monolith: new Monolith(b),
     display: b.deposited / b.required,
     inFlight: 0,
     colorize: b.completed ? 1 : -1,
@@ -323,7 +327,7 @@ renderer.domElement.addEventListener('pointerdown', () => {
 const dashboard = isBalance ? new BalanceDashboard(document.body, state) : null
 
 if (params.has('debug')) {
-  createDebugGui(state, {
+  createDebugGui(state, daylight, {
     replayColorize: () => {
       for (const view of buildingViews.values()) if (view.colorize >= 0) view.colorize = 0
     },
@@ -631,6 +635,35 @@ function cutScenery(dt: number) {
   u.value += (target - u.value) * Math.min(1, dt * 6)
 }
 
+const skyCss = new THREE.Color()
+let skyCssTimer = 0
+function updateSky(dt: number) {
+  if (timeAttack) skyClock = timeAttack.elapsed
+  else if (session) {
+    // playTime はサーバーの tick ごとにしか届かないので、手元で進めながら寄せていく
+    skyClock += dt
+    const gap = session.playTime - skyClock
+    skyClock = Math.abs(gap) > 5 ? session.playTime : skyClock + gap * Math.min(1, dt * 2)
+  } else skyClock += dt
+  daylight.update(skyClock, camera, isGodView || rig.overview || rig.cinematic || !!title?.active)
+  fog.color.copy(daylight.fogColor)
+  // 雪原の外の雪面は、日なたの平らな雪と同じ色にする（SnowSurface と同じ式）
+  const { uAmbSky, uSunColor, uSunDir } = lighting
+  const sunY = uSunDir.value.y
+  const sunLit = 0.25 + 0.4 * (1 - THREE.MathUtils.smoothstep(sunY, 0.1, 0.45)) + 0.55 * Math.pow(Math.max(sunY, 0), 0.7)
+  outerSnow.color.setRGB(
+    uAmbSky.value.r * 0.4 + uSunColor.value.r * sunLit,
+    uAmbSky.value.g * 0.48 + uSunColor.value.g * sunLit,
+    uAmbSky.value.b * 0.68 + uSunColor.value.b * sunLit,
+  )
+  // タイトルのカット割りで重ねるベールも空の色にそろえる（毎フレーム style を書き換えるほどの変化はないので間引く）
+  skyCssTimer -= dt
+  if (skyCssTimer <= 0) {
+    skyCssTimer = 0.2
+    document.documentElement.style.setProperty('--sky-color', `#${skyCss.copy(daylight.fogColor).getHexString()}`)
+  }
+}
+
 /** これより遠い建物は室内を描かない (m)。キャンパス全体だと全棟の家具で頂点が多くなりすぎるため */
 const INTERIOR_DISTANCE = 120
 
@@ -874,6 +907,8 @@ renderer.setAnimationLoop((now: number) => {
     fog.far = rig.fog.far
   }
 
+  updateSky(dt)
+
   // カメラとプレイヤーの間にある建物の部分を抜く（実寸の校舎は高いので、見下ろしでも隠れてしまう）
   const occlude = !isGodView && !rig.cinematic && !rig.overview && !title?.active
   occlusion.uOccl.value += ((occlude ? 1 : 0) - occlusion.uOccl.value) * Math.min(1, dt * 6)
@@ -888,5 +923,5 @@ renderer.setAnimationLoop((now: number) => {
 
 // 開発時のみ、コンソールから状態をいじれるようにする（例: game.buildings[0].deposited = 890, buy('plow')）
 if (import.meta.env.DEV) {
-  Object.assign(window, { game: state, session, rig, camera, god, scene, renderer, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
+  Object.assign(window, { game: state, session, rig, camera, god, scene, renderer, daylight, buy: (id: UpgradeId) => pendingEvents.push(...buyUpgrade(state, id)) })
 }
