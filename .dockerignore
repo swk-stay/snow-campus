@@ -1,0 +1,6 @@
+# イメージに入れるのは package.json・package-lock.json・server/・src/ だけ（Dockerfile）。それ以外は送らない
+*
+!package.json
+!package-lock.json
+!server
+!src

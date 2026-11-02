@@ -16,8 +16,10 @@ function git(args: string[]): string | undefined {
 }
 
 const pkg = JSON.parse(readFileSync(new URL('package.json', root), 'utf8')) as { version: string }
-const commit = git(['rev-parse', '--short', 'HEAD'])
+const gitCommit = git(['rev-parse', '--short', 'HEAD'])
 // 追跡していないファイル（エディタの設定など）はサーバーの動きに関わらないので数えない
-const dirty = commit !== undefined && git(['status', '--porcelain', '--untracked-files=no']) !== ''
+const dirty = gitCommit !== undefined && git(['status', '--porcelain', '--untracked-files=no']) !== ''
+// コンテナ（Dockerfile）には git も .git も無いので、ビルド時に渡されたコミットを使う
+const commit = gitCommit ?? (process.env.SERVER_COMMIT || undefined)
 
 export const SERVER_VERSION = `snow-campus-server/${pkg.version} (${commit ?? 'git不明'}${dirty ? '-dirty' : ''}; node ${process.version})`
