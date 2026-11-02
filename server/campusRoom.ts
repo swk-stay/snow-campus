@@ -1,5 +1,5 @@
 import { deflateSync } from 'node:zlib'
-import { Room, matchMaker, type Client } from '@colyseus/core'
+import { Room, matchMaker, type Client, type RoomException, type RoomMethodName } from '@colyseus/core'
 import { ITEMS, SKILLS, UPGRADES } from '../src/config'
 import { isSkinId, randomSkinId } from '../src/skins'
 import { buyItem, buyUpgrade, createPlayer, createWorld, setRequiredMult, stepPlayer, stepWorld, useSkill, type GameEvent, type World } from '../src/sim/game'
@@ -48,23 +48,31 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
   /** ?debug で遊んでいるプレイヤーの id。建物の必要量を決める人数に数えない */
   private readonly debugPlayers = new Set<string>()
 
+  // 中身は端末がいくらでも書き換えられるので、ペイロードが無い・null の場合も読めるようにする。
+  // id は in ではなく hasOwn で調べる（in だと constructor や toString も通り、sim が undefined を読んで落ちる）
   messages = {
-    pos: (client: Client, m: PosMessage) => {
+    pos: (client: Client, m: PosMessage | undefined) => {
       const p = this.player(client)
-      if (!p || ![m.x, m.z, m.facing].every(Number.isFinite)) return
+      if (!p || !m || ![m.x, m.z, m.facing].every(Number.isFinite)) return
       p.x = m.x
       p.z = m.z
       p.facing = m.facing
     },
-    buy: (client: Client, m: BuyMessage) => {
-      if (!this.player(client)) return
-      if (m.kind === 'upgrade' && m.id in UPGRADES) this.tag(client.sessionId, buyUpgrade(this.world, m.id))
-      else if (m.kind === 'item' && m.id in ITEMS) this.tag(client.sessionId, buyItem(this.world, m.id))
+    buy: (client: Client, m: BuyMessage | undefined) => {
+      if (!this.player(client) || !m) return
+      if (m.kind === 'upgrade' && Object.hasOwn(UPGRADES, m.id)) this.tag(client.sessionId, buyUpgrade(this.world, m.id))
+      else if (m.kind === 'item' && Object.hasOwn(ITEMS, m.id)) this.tag(client.sessionId, buyItem(this.world, m.id))
     },
-    skill: (client: Client, m: SkillMessage) => {
+    skill: (client: Client, m: SkillMessage | undefined) => {
       const p = this.player(client)
-      if (p && m.id in SKILLS) this.tag(p.id, useSkill(this.world, p, m.id))
+      if (p && m && Object.hasOwn(SKILLS, m.id)) this.tag(p.id, useSkill(this.world, p, m.id))
     },
+  }
+
+  // 定義しておくと、Colyseus がメッセージのハンドラ・タイマー・sim の例外をここへ回す。
+  // 定義しないと例外がそのまま投げられ、サーバーごと止まって全ルームの人が切れる
+  onUncaughtException(error: RoomException, methodName: RoomMethodName) {
+    console.error(`[${this.roomId}] ${methodName} で例外:`, error.cause ?? error)
   }
 
   async onCreate(options: JoinOptions) {
