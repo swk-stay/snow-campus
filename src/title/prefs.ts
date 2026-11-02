@@ -39,6 +39,16 @@ export function saveServer(server: string) {
   write(SERVER_KEY, server)
 }
 
+/**
+ * タイトル画面の URL の ?server=…（issue #109）。配るリンクからサーバーの入力欄を埋める用。
+ * 値は encodeURIComponent したもの（?server=ws%3A%2F%2F192.168.0.10%3A2567）。ws:// も wss:// も無い game.example.com なら wss:// を補う
+ */
+export function serverFromQuery(search: string): string | null {
+  const server = new URLSearchParams(search).get('server')?.trim()
+  if (!server) return null
+  return /^wss?:\/\//.test(server) ? server : `wss://${server}`
+}
+
 export function loadPlayerName(): string {
   return read(PLAYER_NAME_KEY) ?? ''
 }

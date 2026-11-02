@@ -6,7 +6,7 @@ import { bestTime, formatTime } from '../timeAttack'
 import { SKINS, skinById, type SkinId } from '../skins'
 import { GAME_VERSION } from '../version'
 import { lobby as defaultLobby, type Lobby, type RoomSummary } from './lobby'
-import { loadPlayerName, loadPlayerSkin, loadServer, savePlayerName, savePlayerSkin, saveServer } from './prefs'
+import { loadPlayerName, loadPlayerSkin, loadServer, savePlayerName, savePlayerSkin, saveServer, serverFromQuery } from './prefs'
 import { CampusTour } from './tour'
 
 // タイトル画面。URL に mode が無いときに main が作る。
@@ -123,7 +123,10 @@ export class Title {
 
     this.nameInput.value = loadPlayerName()
     this.buildSkins($('[data-skins]'), loadPlayerSkin())
-    this.serverInput.value = loadServer()
+    // ?server=… 付きのリンクで開いたら、そのサーバーを入れてマルチプレイの画面を開く（覚えておく値も置き換える）
+    const linked = serverFromQuery(location.search)
+    if (linked) saveServer(linked)
+    this.serverInput.value = linked ?? loadServer()
     this.nameInput.addEventListener('change', () => savePlayerName(this.nameInput.value.trim()))
     this.serverInput.addEventListener('change', () => saveServer(this.serverInput.value.trim()))
 
@@ -133,7 +136,8 @@ export class Title {
     addEventListener('keydown', (e) => !this.root.contains(e.target as Node) && e.stopImmediatePropagation(), { capture: true, signal })
     this.root.addEventListener('keydown', (e) => e.stopPropagation(), { signal })
 
-    $<HTMLButtonElement>('[data-play]').focus({ preventScroll: true })
+    if (linked) this.showMulti(true)
+    else $<HTMLButtonElement>('[data-play]').focus({ preventScroll: true })
   }
 
   /** タイトル表示中だけ main が毎フレーム呼ぶ（カメラとフォグを動かす） */
