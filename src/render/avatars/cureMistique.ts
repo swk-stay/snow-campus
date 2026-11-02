@@ -159,11 +159,16 @@ export function cureMistiqueModel(): THREE.Group {
   g.add(hairCap(hair))
   const hairMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
 
-  // 前髪：まっすぐそろえて眉の上で切り、真ん中で軽く分ける
-  for (const phi of [-0.62, -0.44, -0.26, -0.09, 0.09, 0.26, 0.44, 0.62]) {
-    const end = 1.12 + Math.abs(phi) * 0.06
-    const points = [onHead(phi * 0.6, 0.35, 0.325), onHead(phi * 0.9, 0.75, 0.325), onHead(phi, end, 0.31)]
-    g.add(new THREE.Mesh(strand(points, 0.065, 0.05, 0, 0, 'head'), hairMat))
+  // 前髪：おでこの真ん中で分け、分け目から左右の外へ流して、目尻の上あたりで終える。
+  // 分け目の下はおでこが逆 V 字に見え、そこへ細い毛を 1 本ずつ垂らす
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < 5; k++) {
+      const t = k / 4
+      const points = [onHead(s * 0.04, 0.45, 0.33), onHead(s * (0.16 + 0.34 * t), 0.72 + 0.1 * t, 0.33), onHead(s * (0.3 + 0.45 * t), 1.04 + 0.14 * t, 0.31)]
+      g.add(new THREE.Mesh(strand(points, 0.06, 0.04, 0, 0, 'head'), hairMat))
+    }
+    const wisp = [onHead(s * 0.04, 0.5, 0.33), onHead(s * 0.08, 0.8, 0.315), onHead(s * 0.14, 1.04, 0.306)]
+    g.add(new THREE.Mesh(strand(wisp, 0.018, 0.006, 0, 0, 'head'), hairMat))
   }
   for (const s of [-1, 1]) {
     // 胸まで垂れる横髪と、その前に混ざる水色の毛
