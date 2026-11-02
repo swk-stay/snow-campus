@@ -3,10 +3,11 @@ import { WORLD } from '../config'
 import type { SnowField } from '../sim/field'
 import type { Player } from '../sim/game'
 import { DEFAULT_SKIN, skinById, type Skin } from '../skins'
+import { enableShadows } from './daylight'
 import { cureAnswerModel } from './avatars/cureAnswer'
 
 // プレイヤーの見た目。背中の雪玉が所持量に応じて膨らむ。
-// 影と回収範囲リングは SnowSurface のシェーダー側で描いている。
+// 足元の丸い影と回収範囲リングは SnowSurface のシェーダー側で描いている（太陽による影は daylight.ts の影）。
 
 export class PlayerView {
   readonly group = new THREE.Group()
@@ -27,6 +28,7 @@ export class PlayerView {
 
     this.body.add(this.pack)
     this.group.add(this.body)
+    enableShadows(this.body)
   }
 
   /** 吸い込み演出の目標点（背中の雪玉） */

@@ -73,7 +73,7 @@ export class Monolith {
   private readonly footprint: { x: number; z: number; hw: number; hd: number }
   private colorize = 0
 
-  constructor(b: Building, sunDir: THREE.Vector3) {
+  constructor(b: Building) {
     this.height = b.height
     this.group.position.set(b.x, 0, b.z)
     this.footprint = { x: b.x, z: b.z, hw: b.width / 2, hd: b.depth / 2 }
@@ -81,13 +81,14 @@ export class Monolith {
     this.shared = {
       uColorize: { value: 0 },
       uHeight: { value: b.height },
-      uSunDir: { value: sunDir.clone().normalize() },
       uFade: { value: 1 },
     }
     const kit = new Kit()
     MODELS[b.id](kit, b)
     this.body = kit.build(createBuildingMaterials(this.shared))
     this.interior = this.body.children.filter((m) => m.userData.interior)
+    // 室内は影を落とさず、受けもしない。外壁とガラスの影に入ると、ガラス越しに見える室内が暗く沈むため
+    for (const m of this.body.children) m.castShadow = m.receiveShadow = !m.userData.interior
     const signs = kit.buildSigns()
     if (signs.length) this.body.add(...signs)
     this.signs = signs.map((m) => m.material)
@@ -97,6 +98,7 @@ export class Monolith {
     this.pad = new THREE.Mesh(new THREE.PlaneGeometry(b.width, b.depth), new THREE.MeshLambertMaterial({ color: 0x8a6e4f }))
     this.pad.rotation.x = -Math.PI / 2
     this.pad.position.y = 0.3
+    this.pad.receiveShadow = true
     this.group.add(this.pad)
 
     // 完成形のゴースト（ゴールを見せる）。敷地の外接矩形の箱

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { WORLD } from '../config'
 import type { SnowField } from '../sim/field'
 import { paintGround } from './campusGround'
+import { lighting, lightUniforms } from './daylight'
 
 // 雪原の描画。SnowField を R8 テクスチャに詰め、頂点シェーダーで高さに変換する。
 // 法線は高さマップの差分から求めるので、削った跡の縁にちゃんと陰影が付く。
@@ -19,7 +20,9 @@ const vertexShader = /* glsl */ `
   uniform float uMaxH;
   varying vec3 vNormal;
   varying vec3 vWorld;
+  #include <common>
   #include <fog_pars_vertex>
+  #include <shadowmap_pars_vertex>
 
   float h(vec2 xz) {
     return texture2D(uField, (xz - uCenter) / uSize + 0.5).r;
@@ -36,6 +39,10 @@ const vertexShader = /* glsl */ `
     vWorld = wp.xyz;
     vec4 mvPosition = viewMatrix * wp;
     gl_Position = projectionMatrix * mvPosition;
+    // three.js の影の計算（shadowmap_vertex）が使う変数
+    vec4 worldPosition = wp;
+    vec3 transformedNormal = mat3(viewMatrix) * vNormal;
+    #include <shadowmap_vertex>
     #include <fog_vertex>
   }
 `
@@ -44,6 +51,9 @@ const fragmentShader = /* glsl */ `
   uniform sampler2D uField;
   uniform vec2 uCenter;
   uniform vec3 uSunDir;
+  uniform vec3 uSunColor;
+  uniform vec3 uAmbSky;
+  uniform vec3 uAmbGround;
   uniform float uTime;
   uniform vec3 uPlayer; // xy = プレイヤーの xz, z = 回収半径
   uniform vec3 uFacing; // xy = 向きの単位ベクトル (x, z), z = 回収の扇形の半角
@@ -52,7 +62,12 @@ const fragmentShader = /* glsl */ `
   uniform float uMaxH;
   varying vec3 vNormal;
   varying vec3 vWorld;
+  #include <common>
   #include <fog_pars_fragment>
+  #include <bsdfs>
+  #include <lights_pars_begin>
+  #include <shadowmap_pars_fragment>
+  #include <shadowmask_pars_fragment>
 
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -63,13 +78,22 @@ const fragmentShader = /* glsl */ `
     vec2 uv = (vWorld.xz - uCenter) / uSize + 0.5;
     float vH = texture2D(uField, uv).r;
     vec3 n = normalize(vNormal);
-    float diff = max(dot(n, uSunDir), 0.0);
+    float shadow = getShadowMask();
+    float diff = max(dot(n, uSunDir), 0.0) * shadow;
+    // 空からの光。日陰の雪は空の色を映して青く見える
+    vec3 amb = mix(uAmbGround, uAmbSky, 0.5 + 0.5 * n.y);
 
     // 雪の下の地面（芝生・園路・構内道路。campusGround.ts で描いたもの）。地面は平らなので、雪の縁の斜面の向きでは照らさない
     vec3 ground = texture2D(uGround, uv).rgb;
-    vec3 groundLit = ground * (0.55 + 0.45 * max(uSunDir.y, 0.0));
+    vec3 groundLit = ground * (amb * 0.62 + uSunColor * max(uSunDir.y, 0.0) * shadow * 0.75);
 
-    vec3 snow = mix(vec3(0.42, 0.52, 0.78), vec3(1.0), diff);
+    // 日なたの雪は、太陽が低くても平らな面までその色に染まるよう、向きによらない分も受ける（夕日で日なたは橙、日陰は青になる）。
+    // 向きによらない分は太陽が低いほど増やす。昼に増やすと白く飛んで、削った跡の陰影が消えるため
+    float flatLit = 0.25 + 0.4 * (1.0 - smoothstep(0.1, 0.45, uSunDir.y));
+    vec3 snow = amb * vec3(0.4, 0.48, 0.68) + uSunColor * (flatLit * shadow + 0.55 * pow(diff, 0.7));
+    // 太陽のほうを向いたときの雪面の照り返し（低い太陽ほど広く光る）
+    vec3 viewDir = normalize(cameraPosition - vWorld);
+    snow += uSunColor * pow(max(dot(reflect(-viewDir, n), uSunDir), 0.0), 10.0) * 0.45 * shadow;
     // 面が持ち上がっているところは雪にする。高さは頂点（2 セルごと）で決まるので、セルだけで見ると
     // 雪の縁の斜面に地面が貼られて、地面が盛り上がったように見える
     float cover = max(smoothstep(0.02, 0.18, vH), smoothstep(0.12, 0.25, vWorld.y / uMaxH));
@@ -110,7 +134,7 @@ export class SnowSurface {
   private readonly texture: THREE.DataTexture
   private readonly uniforms
 
-  constructor(field: SnowField, sunDir: THREE.Vector3) {
+  constructor(field: SnowField) {
     this.field = field
     this.texData = new Uint8Array(field.res * field.res)
     this.texture = new THREE.DataTexture(this.texData, field.res, field.res, THREE.RedFormat, THREE.UnsignedByteType)
@@ -120,12 +144,13 @@ export class SnowSurface {
 
     this.uniforms = {
       ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      ...lightUniforms(),
+      ...lighting,
       uField: { value: this.texture },
       uSize: { value: field.size },
       uCenter: { value: new THREE.Vector2(field.centerX, field.centerZ) },
       uTexel: { value: 1 / field.res },
       uMaxH: { value: WORLD.snowMaxHeight },
-      uSunDir: { value: sunDir.clone().normalize() },
       uTime: { value: 0 },
       uPlayer: { value: new THREE.Vector3() },
       uFacing: { value: new THREE.Vector3(0, 1, Math.PI) },
@@ -137,8 +162,9 @@ export class SnowSurface {
     const geo = new THREE.PlaneGeometry(field.size, field.size, seg, seg)
     geo.rotateX(-Math.PI / 2)
     geo.translate(field.centerX, 0, field.centerZ)
-    this.mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader, fragmentShader, fog: true }))
+    this.mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader, fragmentShader, fog: true, lights: true }))
     this.mesh.frustumCulled = false
+    this.mesh.receiveShadow = true
   }
 
   /** facing: プレイヤーの向き（+Z 方向が 0）、arc: 回収の扇形の角度（ラジアン） */
