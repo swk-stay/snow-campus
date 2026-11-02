@@ -90,8 +90,8 @@ function redBow(size: number, material: THREE.Material): THREE.Group {
 
 /**
  * ツインテール 1 本（docs/cure-mistique/back.png）。side は +1 が左（+x）。
- * 頭の後ろの横から、丸くふくらんだ房が 2 つ外へ下がって金の輪を通る。輪の下で髪が左右に分かれ、
- * 上へふくらんで回り込むハート形の輪になり、ハートの下の先を赤いリボンで結んで、まっすぐ長く垂れる。
+ * 頭の後ろの横から、丸くふくらんだ房が 2 つ外へ下がって金の輪を通る。輪の下で髪を 3 つに分け、真ん中はまっすぐ下ろし、
+ * 左右は上へふくらんで回り込むハート形の輪にする。ハートの下の先で 3 つを赤いリボンで結び、まっすぐ長く垂らす。
  * ハートは真後ろより少し外を向けて、横からも見えるようにする
  */
 function twinTail(side: 1 | -1, hairMat: THREE.Material, red: THREE.Material, gold: THREE.Material): THREE.Group {
@@ -109,13 +109,15 @@ function twinTail(side: 1 | -1, hairMat: THREE.Material, red: THREE.Material, go
   ring.rotation.x = Math.PI / 2
   g.add(ring)
 
-  // ハート形の輪：輪の下から左右に分かれ、上へふくらんで外を回り、下の先で合わさる
+  // ハート形の輪：髪を 3 つに分けて作る。真ん中の束は輪から下の先までまっすぐ下り（ハートの対称の軸）、
+  // 左右の束は輪の下から分かれて上へふくらみ、外を回って下の先で真ん中の束と合わさる
   const facing = 0.5 // 真後ろから外へ向ける角度
   const u = new THREE.Vector3(Math.cos(facing), 0, Math.sin(facing) * side)
   const origin = new THREE.Vector3(cx * side, ringY - 0.02, -0.21)
   const at = (du: number, dv: number) => origin.clone().addScaledVector(u, du * side).add(new THREE.Vector3(0, dv, 0))
   const lobe: [number, number][] = [[0, 0], [0.05, 0.04], [0.11, 0.03], [0.14, -0.03], [0.12, -0.11], [0.06, -0.18], [0, -0.22]]
   for (const sx of [-1, 1]) g.add(new THREE.Mesh(loopStrand(lobe.map(([du, dv]) => at(du * sx, dv)), 0.03, 0.025, 0, 0.6), hairMat))
+  g.add(new THREE.Mesh(strand([at(0, 0.01), at(0, -0.1), at(0, -0.22)], 0.034, 0.028), hairMat))
 
   // 下の先の赤いリボンと、垂れる 2 本の赤いリボン
   const tip = at(0, -0.22)
