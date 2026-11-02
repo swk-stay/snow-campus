@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
 // キュアアンサー（「名探偵プリキュア！」、issue #105）をデフォルメしたモデル。
 // 参考：https://www.toei-anim.co.jp/tv/precure/character/answer.php （前・横・後ろの立ち絵は docs/cure-answer/）
@@ -21,7 +20,6 @@ const C = {
   wing: 0xa9e4f2,
   gold: 0xe8c25a,
   veil: 0xf6e48a,
-  shine: 0xf7f0a6,
   white: 0xfbf8ff,
   boot: 0x9a63d6,
 } as const
@@ -379,16 +377,6 @@ function twinTail(side: 1 | -1): THREE.Group {
   return g
 }
 
-/** 髪のツヤのクローバー形（4 枚の丸い葉）。原点が中心で xy 平面に置く */
-function clover(): THREE.BufferGeometry {
-  const r = 0.022
-  const leaves = [0, 1, 2, 3].map((i) => {
-    const a = (i * Math.PI) / 2 + Math.PI / 4
-    return new THREE.CircleGeometry(r, 14).translate(Math.cos(a) * r, Math.sin(a) * r, 0)
-  })
-  return mergeGeometries(leaves)
-}
-
 /**
  * 天使の羽（片方）。根元が原点で +y へ伸び、+x 側に羽根の丸みが 3 つ並ぶ。薄く押し出し、
  * 根元の白から先の水色へ変える（頂点カラー）
@@ -478,9 +466,6 @@ export function cureAnswerModel(): THREE.Group {
   g.add(back)
   g.add(face())
   const hairMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
-  const cloverGeometry = clover()
-  const dotGeometry = new THREE.CircleGeometry(0.025, 12)
-  const shine = new THREE.MeshBasicMaterial({ color: C.shine, side: THREE.DoubleSide })
   // 頭の中心から、横の角度 phi（正面が 0、+ が左）・天頂からの角度 theta・距離 r の点
   const onHead = (phi: number, theta: number, r: number) =>
     new THREE.Vector3(Math.sin(theta) * Math.sin(phi), Math.cos(theta), Math.sin(theta) * Math.cos(phi)).multiplyScalar(r).add(HEAD)
@@ -491,15 +476,6 @@ export function cureAnswerModel(): THREE.Group {
     // おでこにかかる細い毛：前髪のアーチの内側から外へ流れ、眉の上で止める
     const wisp = [onHead(0.3 * s, 0.86, 0.36), onHead(0.25 * s, 0.98, 0.318), onHead(0.3 * s, 1.05, 0.307), onHead(0.4 * s, 1.07, 0.305)]
     g.add(new THREE.Mesh(hairStrand(wisp, 0.016, 0.004, 0, 0, 'head'), hairMat))
-    // 髪のツヤ：前髪のアーチの上に、黄色いクローバー形と丸い光の点を貼る
-    for (const [phi, theta, r, size] of [[0.3, 0.7, 0.47, 1], [0.6, 0.98, 0.43, 0.5], [0.13, 0.6, 0.445, 0.35]]) {
-      const n = onHead(phi * s, theta, 1).sub(HEAD)
-      const spot = new THREE.Mesh(size === 1 ? cloverGeometry : dotGeometry, shine)
-      spot.position.copy(n).multiplyScalar(r).add(HEAD)
-      spot.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n)
-      spot.scale.setScalar(size)
-      g.add(spot)
-    }
     // 前髪の後ろで、顔のまわりを肩まで垂れる横髪
     const side = [onHead(0.95 * s, 0.9, 0.33), onHead(1.1 * s, 1.4, 0.35), onHead(1.05 * s, 1.9, 0.34), onHead(0.98 * s, 2.35, 0.31)]
     g.add(new THREE.Mesh(hairStrand(side, 0.09, 0.03, 0, 0, 'head'), hairMat))
