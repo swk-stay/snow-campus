@@ -11,8 +11,8 @@ const CORE = 0xe2ded6
 const CAP = 0x24272a
 
 /** 工房の並びの東の壁（廊下に面する）と、廊下の東の端 */
-const ROOM_Z = 10.5
-const CORRIDOR_Z = 8.0
+const ROOM_Z = 9.5
+const CORRIDOR_Z = 7.0
 /** トイレ・エレベーター・北の部屋が並ぶ帯の東の端 */
 const CORE_Z = -1.5
 
@@ -20,13 +20,13 @@ type Room = { name: string; x0: number; x1: number; doors: [number, number][]; f
 
 /**
  * 工房の並び（北から）。x0 が北、x1 が南の境目。広さは KAIT PIA > メディア工房 > ネットワーク工房 = ソフトウェア工房 = 北隣の部屋 > サーバールーム。
- * 扉は廊下側の壁の北寄り（ソフトウェア工房の写真で、扉が北の端にあるのに合わせた）
+ * 扉は廊下側の壁に付ける。ソフトウェア工房は手書きの配置に合わせて真ん中寄り、ほかは北寄り
  */
 const ROOMS: Room[] = [
   { name: 'KAIT PIA', x0: -17.75, x1: -8.65, doors: [[-16.4, 1.8], [-10.0, 1.8]], furnish: kaitPia },
   { name: 'サーバールーム', x0: -8.65, x1: -6.25, doors: [[-7.9, 0.9]], furnish: serverRoom },
   { name: '', x0: -6.25, x1: -0.45, doors: [[-5.0, 1.8]], furnish: meetingRoom },
-  { name: 'ソフトウェア工房', x0: -0.45, x1: 5.35, doors: [[0.85, 1.8]], furnish: softwareStudio },
+  { name: 'ソフトウェア工房', x0: -0.45, x1: 5.35, doors: [[2.37, 1.8]], furnish: softwareStudio },
   { name: 'ネットワーク工房', x0: 5.35, x1: 11.15, doors: [[6.6, 1.8]], furnish: networkStudio },
   { name: 'メディア工房', x0: 11.15, x1: 17.75, doors: [[12.4, 1.8]], furnish: mediaStudio },
 ]
@@ -167,37 +167,38 @@ function stairs(k: Kit, y: number, yTop: number) {
   k.box(-2.6, y, -4.1, 3.0, yTop, -4.0, WALL)
 }
 
-/** 背中合わせの机の島。真ん中の仕切り（z = zc）の両側に、x0..x1 を n 席ずつ。lit は画面がついている席（0 から、東側が先） */
-function cubicleIsland(k: Kit, x0: number, x1: number, zc: number, y: number, n: number, lit: number[], laptop = -1) {
-  const GREEN = 0x6f9a8c, PANEL = 0xc89c62, DESK = 0xd9b47e
-  const d = 0.65
-  const partition = (bx0: number, bz0: number, bx1: number, bz1: number) => {
-    k.box(bx0, y, bz0, bx1, y + 1.0, bz1, GREEN)
-    k.box(bx0, y + 1.0, bz0, bx1, y + 1.27, bz1, PANEL)
-    k.box(bx0, y + 1.27, bz0 - 0.01, bx1, y + 1.3, bz1 + 0.01, CAP)
-  }
-  partition(x0, zc - 0.03, x1, zc + 0.03)
-  for (const x of [x0, x1]) partition(x - 0.03, zc - d, x + 0.03, zc + d)
-  const sw = (x1 - x0) / n
-  let seat = 0
-  for (const side of [-1, 1]) {
-    k.box(x0 + 0.03, y + 0.7, zc + side * 0.03, x1 - 0.03, y + 0.73, zc + side * d, DESK)
-    for (let i = 0; i < n; i++, seat++) {
-      const cx = x0 + sw * (i + 0.5)
-      // モニターはアームで仕切りから浮かせる
-      const pz = zc + side * 0.07
-      k.box(cx - 0.02, y + 0.73, pz - 0.02, cx + 0.02, y + 1.2, pz + 0.02, CAP)
-      const mz = zc + side * 0.22
-      k.box(cx - 0.28, y + 0.95, mz - 0.02, cx + 0.28, y + 1.29, mz + 0.02, 0x1b1e21)
-      if (lit.includes(seat)) k.box(cx - 0.25, y + 0.98, mz + side * 0.02, cx + 0.25, y + 1.26, mz + side * 0.025, 0x8fc3f0, 'light')
-      k.box(cx - 0.22, y + 0.73, zc + side * 0.42 - 0.07, cx + 0.22, y + 0.75, zc + side * 0.42 + 0.07, 0x2a2d30)
-      if (seat === laptop) {
-        k.box(cx + 0.2, y + 0.73, zc + side * 0.5 - 0.12, cx + 0.52, y + 0.75, zc + side * 0.5 + 0.12, 0xe8e8e6)
-        k.box(cx + 0.2, y + 0.75, zc + side * 0.38 - 0.01, cx + 0.52, y + 0.97, zc + side * 0.38 + 0.01, 0xe8e8e6)
-        k.box(cx + 0.22, y + 0.77, zc + side * 0.39, cx + 0.5, y + 0.95, zc + side * 0.395, 0xb6d4f2, 'light')
-      }
-      chair(k, cx, y, zc + side * (d + 0.35), side)
+/** 木と緑の仕切り（高さ 1.3m）。z 一定なら z0 = z1 - 0.06 のように薄い箱で渡す */
+function partition(k: Kit, x0: number, z0: number, x1: number, z1: number, y: number) {
+  k.box(x0, y, z0, x1, y + 1.0, z1, 0x6f9a8c)
+  k.box(x0, y + 1.0, z0, x1, y + 1.27, z1, 0xc89c62)
+  k.box(x0, y + 1.27, z0 - 0.01, x1, y + 1.3, z1 + 0.01, CAP)
+}
+
+type RowOpts = { lit?: number[]; laptop?: number; tower?: number[] }
+
+/**
+ * 仕切り（z = zp）に付けた机の列。机は仕切りから side（z の向き）の側に奥行き 0.55m、xs..xn に n 席。
+ * 席ごとにアームのモニター・キーボード・椅子。lit は画面がついている席、tower は机の下にタワー型 PC がある席
+ */
+function deskRow(k: Kit, xs: number, xn: number, zp: number, side: number, y: number, n: number, o: RowOpts = {}) {
+  const d = 0.55
+  k.box(xs, y + 0.7, zp + side * 0.03, xn, y + 0.73, zp + side * d, 0xd9b47e)
+  const sw = (xn - xs) / n
+  for (let i = 0; i < n; i++) {
+    const cx = xs + sw * (i + 0.5)
+    const pz = zp + side * 0.07
+    k.box(cx - 0.02, y + 0.73, pz - 0.02, cx + 0.02, y + 1.2, pz + 0.02, CAP)
+    const mz = zp + side * 0.2
+    k.box(cx - 0.28, y + 0.95, mz - 0.02, cx + 0.28, y + 1.29, mz + 0.02, 0x1b1e21)
+    if (o.lit?.includes(i)) k.box(cx - 0.25, y + 0.98, mz + side * 0.02, cx + 0.25, y + 1.26, mz + side * 0.025, 0x8fc3f0, 'light')
+    k.box(cx - 0.22, y + 0.73, zp + side * 0.38 - 0.07, cx + 0.22, y + 0.75, zp + side * 0.38 + 0.07, 0x2a2d30)
+    if (o.laptop === i) {
+      k.box(cx + 0.2, y + 0.73, zp + side * 0.42 - 0.11, cx + 0.5, y + 0.75, zp + side * 0.42 + 0.11, 0xe8e8e6)
+      k.box(cx + 0.2, y + 0.75, zp + side * 0.31 - 0.01, cx + 0.5, y + 0.96, zp + side * 0.31 + 0.01, 0xe8e8e6)
+      k.box(cx + 0.22, y + 0.77, zp + side * 0.32, cx + 0.48, y + 0.94, zp + side * 0.325, 0xb6d4f2, 'light')
     }
+    if (o.tower?.includes(i)) k.box(cx - sw / 2 + 0.08, y, zp + side * 0.08, cx - sw / 2 + 0.28, y + 0.45, zp + side * 0.5, 0x2a2d31)
+    chair(k, cx, y, zp + side * (d + 0.35), side)
   }
 }
 
@@ -226,50 +227,73 @@ function drop(k: Kit, x: number, z: number, y0: number, y1: number) {
 // ---- 部屋ごとの家具（x0 北・x1 南・z0 東（廊下側）・z1 西（外壁）） ----
 
 /**
- * ソフトウェア工房（写真：北の壁ぎわから南を向いて撮ったパノラマ。左＝東が廊下とエレベーターホール、右＝西が外壁の窓）。
- * 背中合わせの机の島が 2 つ（木と緑の仕切り、アームのモニター、黒いメッシュの椅子）、南の壁いっぱいのホワイトボードと
- * 天井のプロジェクター、南西の角に倉庫用のスチールラックに並べたサーバー用途のデスクトップ PC。
- * LAN ケーブルはラックから天井へ上がり、天井の下を通って各島の仕切りの上のハブへ下りる
+ * ソフトウェア工房（ユーザーの手書きの配置と、北の壁ぎわから南を向いて撮ったパノラマの写真）。
+ * 西半分は、北の壁から南へ伸びる机の島が 3 つ：窓側は棚（バインダー・電気ポット・炊飯器など）と机 1 列が背中合わせ、
+ * 真ん中は机 2 列が背中合わせ、東は机 1 列で、その東の仕切りが入口側との区切り。机の列はモニター 3 台で、ところどころに PC。
+ * 南の壁に壁張りのホワイトボード・ほっともっとのメニューの掲示・空気清浄機・簡易靴箱、南西の角にサーバーラック
+ * （倉庫用のスチールラックにデスクトップ PC。LAN ケーブルは天井を通って各島のハブへ下りる）。
+ * 東半分（入口側）は机が 1 台、北の壁に本棚、北東の角に展示用のモニター、南東の角にペッパーくん、移動式のホワイトボード
  */
 function softwareStudio(k: Kit, x0: number, x1: number, z0: number, z1: number, y: number, ceil: number) {
-  // 床はグレーのタイルカーペット、ホワイトボードの前にジョイントマット
   k.box(x0, y, z0, x1, y + 0.01, z1, 0x7f858a)
-  for (let i = 0; i < 2; i++) {
-    for (let j = 0; j < 2; j++) k.box(x1 - 0.8 + i * 0.4, y + 0.01, 13.4 + j * 0.6, x1 - 0.4 + i * 0.4, y + 0.025, 14.0 + j * 0.6, (i + j) % 2 ? 0xe7dcc6 : 0x6b4a36)
+
+  // 机の島（南の端 xs から北の壁まで）
+  const xn = x0 + 0.05
+  // 窓側の島：西に棚、東に机
+  const p1 = 17.2
+  partition(k, xn, p1 - 0.03, 3.25, p1 + 0.03, y)
+  shelfCounter(k, xn, 3.25, p1, z1 - 0.2, y)
+  deskRow(k, 3.25, xn, p1, -1, y, 3, { lit: [1], tower: [0, 2] })
+  // 真ん中の島：背中合わせ
+  const p2 = 14.7
+  partition(k, xn, p2 - 0.03, 3.2, p2 + 0.03, y)
+  deskRow(k, 3.2, xn, p2, 1, y, 3, { tower: [1] })
+  deskRow(k, 3.2, xn, p2, -1, y, 3, { lit: [0, 2], laptop: 0, tower: [2] })
+  // 東の島：机は西向き、東の仕切りが入口側との区切り
+  const p3 = 12.2
+  partition(k, xn, p3 - 0.03, 3.0, p3 + 0.03, y)
+  deskRow(k, 3.0, xn, p3, 1, y, 3, { lit: [1], tower: [0] })
+  // 島の南の端の袖の仕切り（机と棚の奥行きの分）
+  for (const [xa, za, zb] of [[3.25, p1 - 0.58, z1 - 0.2], [3.2, p2 - 0.58, p2 + 0.58], [3.0, p3 - 0.03, p3 + 0.58]] as const) {
+    partition(k, xa - 0.03, za, xa + 0.03, zb, y)
   }
 
-  cubicleIsland(k, 0.5, 4.4, 12.6, y, 3, [1, 4], 4)
-  cubicleIsland(k, 0.0, 3.3, 15.9, y, 3, [2])
-
-  // 南の壁：ホワイトボード 2 枚と時計、天井のプロジェクター
-  for (const [za, zb] of [[11.3, 13.1], [13.2, 15.0]]) {
+  // 南の壁：ほっともっとのメニューの掲示、壁張りのホワイトボード 2 枚と時計、簡易靴箱、空気清浄機
+  k.box(x1 - 0.03, y + 1.2, 15.75, x1, y + 1.95, 16.35, 0xb08a5a)
+  for (const [za, ya, c] of [[15.8, 1.55, 0xf5f0e6], [16.05, 1.25, 0xe85a3a], [16.0, 1.6, 0xffffff]] as const) {
+    k.box(x1 - 0.035, y + ya, za, x1 - 0.03, y + ya + 0.3, za + 0.22, c)
+  }
+  for (const [za, zb] of [[13.65, 14.55], [14.6, 15.5]]) {
     k.box(x1 - 0.04, y + 0.85, za, x1, y + 2.15, zb, 0xb0b4b8)
     k.box(x1 - 0.05, y + 0.88, za + 0.03, x1 - 0.04, y + 2.12, zb - 0.03, 0xfbfbfa)
     k.box(x1 - 0.12, y + 0.85, za, x1 - 0.04, y + 0.88, zb, 0xb0b4b8)
   }
-  k.box(x1 - 0.03, y + 2.7, 12.98, x1, y + 3.04, 13.32, 0x3a3e42)
-  k.box(x1 - 0.04, y + 2.72, 13.0, x1 - 0.03, y + 3.02, 13.3, 0xf7f7f5)
-  k.box(2.3, ceil - 0.25, 12.95, 2.34, ceil, 12.99, 0x9aa0a5)
-  k.box(2.1, ceil - 0.42, 12.75, 2.55, ceil - 0.25, 13.2, 0xf2f2f0)
-  // 空気清浄機
-  k.box(x1 - 0.45, y, 14.75, x1 - 0.1, y + 0.6, 15.1, 0xf0f0ee)
-
-  // 北の壁ぎわの白いスチール棚
-  k.box(x0, y, 12.2, x0 + 0.4, y + 2.0, 13.4, 0xe4e6e6)
+  k.box(x1 - 0.03, y + 2.7, 14.4, x1, y + 3.04, 14.74, 0x3a3e42)
+  k.box(x1 - 0.04, y + 2.72, 14.42, x1 - 0.03, y + 3.02, 14.72, 0xf7f7f5)
+  shoeRack(k, x1 - 0.35, x1 - 0.05, 12.8, 13.4, y)
+  k.box(x1 - 0.45, y, 13.85, x1 - 0.1, y + 0.6, 14.2, 0xf0f0ee)
+  // ジョイントマット（東の島の南隣）
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 2; j++) k.box(3.35 + i * 0.37, y + 0.01, 12.75 + j * 0.35, 3.72 + i * 0.37, y + 0.025, 13.1 + j * 0.35, (i + j) % 2 ? 0xe7dcc6 : 0x6b4a36)
+  }
+  // 天井のプロジェクター（南の壁のホワイトボードに向ける）
+  k.box(2.4, ceil - 0.25, 14.55, 2.44, ceil, 14.59, 0x9aa0a5)
+  k.box(2.2, ceil - 0.42, 14.35, 2.65, ceil - 0.25, 14.8, 0xf2f2f0)
 
   // 西の外壁の窓（K1号館の 1 階の西面の窓のうち、この部屋に入るもの）に濃いグレーのブラインド
   const bx = 2.71, bw = 0.77
-  k.box(bx - bw, y + 0.88, z1 - 0.24, bx + bw, y + 3.38, z1 - 0.21, 0x3b4542)
-  for (let yy = y + 1.0; yy < y + 3.35; yy += 0.12) k.box(bx - bw, yy, z1 - 0.25, bx + bw, yy + 0.02, z1 - 0.24, 0x55605c)
+  k.box(bx - bw, y + 0.95, z1 - 0.24, bx + bw, y + 3.38, z1 - 0.21, 0x3b4542)
+  for (let yy = y + 1.05; yy < y + 3.35; yy += 0.12) k.box(bx - bw, yy, z1 - 0.25, bx + bw, yy + 0.02, z1 - 0.24, 0x55605c)
 
-  // 南西の角のスチールラック：棚 4 段にタワー型の PC が並び、天板に青いコンテナとモニター
-  const rx0 = 3.5, rx1 = 5.2, rz0 = z1 - 0.65, rz1 = z1 - 0.05
+  // 南西の角のサーバーラック：倉庫用のスチールラックの棚 4 段にタワー型の PC、天板に青いコンテナとモニター。北側は仕切りで囲う
+  const rx0 = 4.1, rx1 = 5.2, rz0 = z1 - 0.8, rz1 = z1 - 0.2
+  partition(k, 3.92, 16.75, 3.98, z1 - 0.05, y)
   const RACK = 0xd3d7d9
   for (const x of [rx0, rx1 - 0.04]) for (const z of [rz0, rz1 - 0.04]) k.box(x, y, z, x + 0.04, y + 1.9, z + 0.04, RACK)
   const shelves = [0.1, 0.6, 1.1, 1.6]
   for (const sy of shelves) k.box(rx0, y + sy, rz0, rx1, y + sy + 0.03, rz1, RACK)
   for (const sy of shelves.slice(0, 3)) {
-    for (let x = rx0 + 0.08, i = 0; x < rx1 - 0.25; x += 0.27, i++) {
+    for (let x = rx0 + 0.06, i = 0; x < rx1 - 0.24; x += 0.25, i++) {
       k.box(x, y + sy + 0.03, rz0 + 0.08, x + 0.2, y + sy + 0.45, rz1 - 0.05, i % 3 === 1 ? 0xb8bcc0 : 0x2a2d31)
       k.box(x + 0.08, y + sy + 0.35, rz0 + 0.075, x + 0.12, y + sy + 0.38, rz0 + 0.08, i % 2 ? 0x7cf28f : 0x6fb6ff, 'light')
     }
@@ -279,9 +303,9 @@ function softwareStudio(k: Kit, x0: number, x1: number, z0: number, z1: number, 
 
   // LAN ケーブル：ラックの上から天井へ、天井の下を通って各島の仕切りの上のハブへ
   const cy = ceil - 0.05
-  const rackTop: Pt = [4.35, z1 - 0.35]
+  const rackTop: Pt = [4.65, (rz0 + rz1) / 2]
   drop(k, rackTop[0], rackTop[1], y + 1.85, cy)
-  for (const [hx, hz] of [[2.45, 12.6], [1.65, 15.9]] as Pt[]) {
+  for (const [hx, hz] of [[1.6, p1], [1.6, p2], [1.5, p3]] as Pt[]) {
     for (const o of [0, 0.05]) {
       cable(k, [[rackTop[0] + o, rackTop[1]], [rackTop[0] + o, hz + o], [hx, hz + o]], cy - o)
       drop(k, hx, hz + o, y + 1.3, cy - o)
@@ -289,11 +313,78 @@ function softwareStudio(k: Kit, x0: number, x1: number, z0: number, z1: number, 
     k.box(hx - 0.12, y + 1.3, hz - 0.06, hx + 0.12, y + 1.35, hz + 0.08, 0xf2f2f0)
   }
 
+  // 入口側：机 1 台（椅子は南側）、北の壁の本棚、北東の角の展示用モニター、南東の角のペッパーくん、移動式のホワイトボード
+  k.box(0.65, y + 0.7, 10.5, 1.55, y + 0.74, 12.0, 0xd9b47e)
+  for (const [lx, lz] of [[0.7, 10.55], [1.5, 10.55], [0.7, 11.95], [1.5, 11.95]] as const) k.box(lx - 0.025, y, lz - 0.025, lx + 0.025, y + 0.7, lz + 0.025, 0x9a9a9a)
+  for (const z of [10.9, 11.6]) chair(k, 1.95, y, z, 0)
+  bookshelf(k, x0, x0 + 0.4, 9.7, 12.0, y)
+  k.box(0.45, y, 9.7, 1.25, y + 0.9, 9.9, 0x2a2d30)
+  k.box(0.2, y + 0.9, 9.72, 1.5, y + 1.65, 9.78, 0x1b1e21)
+  k.box(0.24, y + 0.94, 9.78, 1.46, y + 1.61, 9.785, 0x7fb6e6, 'light')
+  pepper(k, 4.6, 10.2, y)
+  movableBoard(k, 4.9, 10.9, 12.0, y)
+
   // 天井の空調（カセット形）
-  for (const [ax, az] of [[1.2, 12.0], [3.6, 16.2]] as Pt[]) {
+  for (const [ax, az] of [[1.4, 15.9], [1.4, 11.2]] as Pt[]) {
     k.box(ax - 0.45, ceil - 0.06, az - 0.45, ax + 0.45, ceil, az + 0.45, 0xf2f2f0)
     k.box(ax - 0.3, ceil - 0.065, az - 0.3, ax + 0.3, ceil - 0.06, az + 0.3, 0x8a8f94)
   }
+}
+
+/** 窓側の島の、仕切り（z = zp）の西の棚。上にバインダー・電気ポット・炊飯器・カップと箸立て */
+function shelfCounter(k: Kit, x0: number, x1: number, zp: number, zw: number, y: number) {
+  const top = y + 0.85
+  k.box(x0, y, zp + 0.03, x1, top, zw, 0xe3ddd2)
+  k.box(x0, y + 0.42, zp + 0.03, x1, y + 0.44, zw + 0.005, 0xc9c2b6)
+  const colors = [0x2f5fa8, 0xc8322a, 0x3c9a5a, 0x222428, 0xe0b030]
+  for (let i = 0; i < 12; i++) {
+    const x = x0 + 0.15 + i * 0.09
+    k.box(x, top, zp + 0.12, x + 0.07, top + 0.3, zp + 0.38, colors[i % colors.length])
+  }
+  k.cylinder(1.7, zp + 0.22, 0.1, top, top + 0.3, 0xf2f2f0, 10)
+  k.box(2.05, top, zp + 0.08, 2.4, top + 0.25, zp + 0.38, 0xf4f4f2)
+  k.box(2.08, top + 0.25, zp + 0.11, 2.37, top + 0.27, zp + 0.35, 0x8a8f94)
+  for (let i = 0; i < 4; i++) k.cylinder(2.65, zp + 0.22, 0.045, top + i * 0.04, top + i * 0.04 + 0.1, 0xf6f3ea, 8)
+  k.cylinder(2.9, zp + 0.22, 0.04, top, top + 0.15, 0x6b5136, 8)
+}
+
+/** 本棚（x0..x1 が奥行き、z0..z1 が幅）。背表紙は +X（部屋の中）を向く */
+function bookshelf(k: Kit, x0: number, x1: number, z0: number, z1: number, y: number) {
+  k.box(x0, y, z0, x1, y + 1.8, z1, 0xd8cdb8)
+  const colors = [0x7a3b2e, 0x2e4f7a, 0x3c6b45, 0xb08a3e, 0x6b4a7a, 0xd9d2c0]
+  let c = 0
+  for (let sy = y + 0.15; sy < y + 1.7; sy += 0.4) {
+    for (let z = z0 + 0.05; z < z1 - 0.25; z += 0.28) k.box(x1, sy, z, x1 + 0.005, sy + 0.3, z + 0.24, colors[c++ % colors.length])
+  }
+}
+
+/** 簡易靴箱（黒い鉄の枠に棒が 3 段、靴がいくつか） */
+function shoeRack(k: Kit, x0: number, x1: number, z0: number, z1: number, y: number) {
+  for (const z of [z0, z1 - 0.04]) k.box(x0, y, z, x1, y + 0.85, z + 0.04, 0x1e2124)
+  for (const sy of [0.15, 0.45, 0.75]) for (const x of [x0 + 0.05, x1 - 0.05]) k.box(x - 0.01, y + sy, z0, x + 0.01, y + sy + 0.02, z1, 0x1e2124)
+  for (const [sy, z, c] of [[0.17, z0 + 0.1, 0x2a2d31], [0.47, z0 + 0.3, 0xe8e8e6], [0.17, z0 + 0.35, 0x8a4a2a]] as const) k.box(x0 + 0.03, y + sy, z, x1 - 0.03, y + sy + 0.1, z + 0.12, c)
+}
+
+/** 移動式のホワイトボード（脚にキャスター。板は x 一定の面で z0..z1） */
+function movableBoard(k: Kit, x: number, z0: number, z1: number, y: number) {
+  for (const z of [z0, z1]) {
+    k.box(x - 0.02, y, z - 0.02, x + 0.02, y + 1.9, z + 0.02, 0x9aa0a5)
+    k.box(x - 0.25, y, z - 0.02, x + 0.25, y + 0.05, z + 0.02, 0x9aa0a5)
+  }
+  k.box(x - 0.025, y + 0.8, z0 + 0.02, x + 0.025, y + 1.85, z1 - 0.02, 0xfbfbfa)
+}
+
+/** ペッパーくん（白い人型ロボット、高さ 1.2m。胸にタブレット）。正面は -X（部屋の北）を向く */
+function pepper(k: Kit, x: number, z: number, y: number) {
+  const W = 0xf4f4f2
+  k.cylinder(x, z, 0.24, y, y + 0.1, W, 12)
+  k.cylinder(x, z, 0.16, y + 0.1, y + 0.55, W, 12)
+  k.box(x - 0.15, y + 0.55, z - 0.17, x + 0.13, y + 0.92, z + 0.17, W)
+  k.box(x - 0.16, y + 0.66, z - 0.1, x - 0.15, y + 0.82, z + 0.1, 0x6fa8dc, 'light')
+  for (const s of [-1, 1]) k.box(x - 0.05, y + 0.5, z + s * 0.17, x + 0.05, y + 0.9, z + s * 0.24, W)
+  k.box(x - 0.03, y + 0.92, z - 0.03, x + 0.03, y + 0.98, z + 0.03, 0x2a2d31)
+  k.box(x - 0.12, y + 0.98, z - 0.12, x + 0.12, y + 1.22, z + 0.12, W)
+  for (const s of [-1, 1]) k.box(x - 0.125, y + 1.1, z + s * 0.055 - 0.025, x - 0.12, y + 1.14, z + s * 0.055 + 0.025, 0x5fd0ff, 'light')
 }
 
 function networkStudio(k: Kit, x0: number, x1: number, _z0: number, z1: number, y: number) {
