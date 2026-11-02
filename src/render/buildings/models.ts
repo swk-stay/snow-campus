@@ -1,4 +1,5 @@
 import { cw, deskIsland, facade, insetPoly, insidePoly, interior, pcRow, plant, rectSides, rng, shelfRow, type CellKind, type Kit } from './kit'
+import { k1Core, k1Ground } from './k1Ground'
 import { OUTER_MODELS } from './outerModels'
 import {
   car,
@@ -36,6 +37,10 @@ const d2: Model = (k) => {
 
   // 1 階：床・ガラスの壁・マリオン
   k.prism(inner, 0, 0.12, 0xd9d3c8)
+  // 南面の張り出しの下はウッドデッキ（ガラスの壁の外から張り出しの縁まで）
+  const deck = cw([[8, -14.1], [13.5, -10.5], [13.5, 10.5], [8, 14.1]])
+  k.prism(deck, 0, 0.1, 0xa8794a)
+  for (let x = 11.9; x < 13.5; x += 0.3) k.box(x, 0.1, -10.4, x + 0.02, 0.102, 10.4, 0x7d5733)
   ringWalls(k, inner, 0.12, y1, 1.6, CLEAR, WHITE)
   // 外周の細い柱（張り出しを支える）
   for (let i = 0; i < outer.length; i++) {
@@ -187,6 +192,8 @@ const d1: Model = (k) => {
 // ---------------------------------------------------------------------------
 // C1号館 附属図書館：3 階建て。1 階は白い列柱の奥にガラス（ピロティ）、2・3 階は白い枠の中に
 // 細い縦長の窓が並ぶ。中は本棚の列と閲覧席、1 階には半円形の木の書架とアーチ（HUG）。
+// 入口は南面の真ん中より少し東（Editor のリクエストの位置）
+const ENTRANCE_Z = -3.5
 const c1: Model = (k, b) => {
   const X = b.width / 2, Z = b.depth / 2
   const lv = [0, 5.6, 10.4, 15.2]
@@ -241,8 +248,11 @@ const c1: Model = (k, b) => {
       }
       // 展示ケース
       for (let z = -16; z <= -6; z += 5) kk.box(-10, y, z - 0.6, -8.8, y + 1.4, z + 0.6, 0xdde8ec, 'glass')
+      libraryGates(kk, X - gi - 1.0, ENTRANCE_Z, y)
     },
   })
+  // 入口（南面）。中庭からの園路に面している
+  doorSouth(k, X - gi, ENTRANCE_Z, 0, 3.6)
   interior(k, {
     x0: -X, z0: -Z, x1: X, z1: Z, levels: [lv[1] + 0.9, lv[2], lv[3]], seed: 4,
     furnish: (_kk, _f, y, h) => {
@@ -256,6 +266,29 @@ const c1: Model = (k, b) => {
       }
     },
   })
+}
+
+/**
+ * 附属図書館の入場ゲート。入口から入って 1m 奥（北）に、白い筐体と黒い天板の台を 5 本並べて 4 レーンにする。
+ * 入って右（東 = -Z）の 2 レーンが入場、左の 2 レーンが退場。バーは細い黒い棒で、各レーンの片側の台からだけ出る。
+ * xs はゲートの南の端（入口側）、zc は入口の中心
+ */
+function libraryGates(k: Kit, xs: number, zc: number, y: number) {
+  const len = 1.2, lane = 0.9, w = 0.2
+  const x0 = xs - len
+  for (let i = -2; i <= 2; i++) {
+    const z = zc + i * (lane + w)
+    k.box(x0, y, z - w / 2, xs, y + 0.95, z + w / 2, 0xf4f4f2)
+    k.box(x0 - 0.02, y + 0.95, z - w / 2 - 0.02, xs + 0.02, y + 1.0, z + w / 2 + 0.02, 0x1e2124)
+    if (i === 2) continue
+    // レーンの中の矢印のランプ：入場は入口側の端、退場は奥側の端で緑に光る
+    const entry = i < 0
+    const lx = entry ? xs + 0.005 : x0 - 0.005
+    k.box(lx - 0.005, y + 0.75, z + w / 2 - 0.02, lx + 0.005, y + 0.88, z + w / 2 + 0.06, 0x6be08a, 'light')
+    // バー：台の真ん中の高さから、隣の台の手前まで
+    const bz = z + w / 2
+    k.box(x0 + len / 2 - 0.02, y + 0.78, bz, x0 + len / 2 + 0.02, y + 0.82, bz + lane - 0.08, 0x1e2124)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -574,6 +607,8 @@ const k3: Model = (k, b) => {
     facade(k, { a, b: bb, levels: [lv[1], lv[2]], bays: 4, cell: () => 'curtain', wall: WHITE, glass: 0x3e4c55, frame: 0x6f777c, depth: 0.15 })
   }
   k3Stairs(k, Z, nx, nz, lv[1])
+  // 西面の入口（バス停の庇の北の端）
+  doorWest(k, -2, Z - gi, 0, 3.0)
 
   // サイン「神奈川工科大学」：青い K のマークと濃紺の文字（西の妻面）
   k.sign('神奈川工科大学', -5.5, lv[1] + 2.0, Z + 0.33, 8.4, 1.2, 0, '#1d2a44', true)
@@ -701,6 +736,26 @@ function doorEast(k: Kit, xc: number, z: number, y: number, w: number) {
   k.wall([xc + w / 2, z - 0.06], [xc - w / 2, z - 0.06], y, y + 2.4, 0x5b6f7a, 'glass')
 }
 
+/** ガラスの扉（z 一定の面に、西 = +Z を向けて付ける）。中心 xc、床 y、幅 w */
+function doorWest(k: Kit, xc: number, z: number, y: number, w: number) {
+  const FR = 0x4a5258
+  k.box(xc - w / 2 - 0.08, y, z, xc - w / 2, y + 2.4, z + 0.12, FR)
+  k.box(xc + w / 2, y, z, xc + w / 2 + 0.08, y + 2.4, z + 0.12, FR)
+  k.box(xc - w / 2 - 0.08, y + 2.4, z, xc + w / 2 + 0.08, y + 2.5, z + 0.12, FR)
+  k.box(xc - 0.03, y, z + 0.02, xc + 0.03, y + 2.4, z + 0.1, FR)
+  k.wall([xc - w / 2, z + 0.06], [xc + w / 2, z + 0.06], y, y + 2.4, 0x5b6f7a, 'glass')
+}
+
+/** ガラスの扉（x 一定の面に、南 = +X を向けて付ける）。中心 zc、床 y、幅 w */
+function doorSouth(k: Kit, x: number, zc: number, y: number, w: number) {
+  const FR = 0x4a5258
+  k.box(x, y, zc - w / 2 - 0.08, x + 0.12, y + 2.4, zc - w / 2, FR)
+  k.box(x, y, zc + w / 2, x + 0.12, y + 2.4, zc + w / 2 + 0.08, FR)
+  k.box(x, y + 2.4, zc - w / 2 - 0.08, x + 0.12, y + 2.5, zc + w / 2 + 0.08, FR)
+  k.box(x + 0.02, y, zc - 0.03, x + 0.1, y + 2.4, zc + 0.03, FR)
+  k.wall([x + 0.06, zc + w / 2], [x + 0.06, zc - w / 2], y, y + 2.4, 0x5b6f7a, 'glass')
+}
+
 /** ガラスの扉（x 一定の面に、北 = -X を向けて付ける）。中心 zc、床 y、幅 w */
 function door(k: Kit, x: number, zc: number, y: number, w: number) {
   const FR = 0x4a5258
@@ -714,15 +769,16 @@ function door(k: Kit, x: number, zc: number, y: number, w: number) {
 // ---------------------------------------------------------------------------
 // K1号館 情報学部棟：13 階建て・高さ 54m のタワー。白いグリッドに窓と白いパネルが市松のように
 // ばらばらに並ぶ。12 階は全面ガラスのカフェテリア（オレンジの椅子）。各階に PC が並ぶ。
-// 1 階の東側は柱と天井だけのピロティ（壁がない）。K2号館・K3号館からの渡り廊下がここに着く。
+// 1 階の東側（中庭の側）は柱と天井だけのピロティ（壁がない）。K2号館・K3号館からの渡り廊下がここに着く。
+// 1 階の中は西の外壁に沿って工房が並び、ピロティに面してロビーと 2 つの風除室がある（k1Ground.ts）。
 const k1: Model = (k, b) => {
   const X = b.width / 2, Z = b.depth / 2
   const lv = levels(5.0, 4.0, 13)
   const top = lv[lv.length - 1]
   const cafe = 11 // 12 階
   const bays = 20
-  // ピロティの奥行き（東の面から 5 柱間）。K2号館からの渡り廊下（OSM）が北面に着く位置まで含める
-  const pilotiBays = 5
+  // ピロティの奥行き（東の面から 3 柱間 = 約 5.4m）
+  const pilotiBays = 3
   const pz = -Z + ((2 * Z) / bays) * pilotiBays
   for (const s of rectSides(-X, -Z, X, Z)) {
     const len = Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1])
@@ -733,6 +789,8 @@ const k1: Model = (k, b) => {
       a: s.a, b: s.b, levels: lv, bays,
       cell: (f, i): CellKind | ({ kind: 'window' } & { w: number; h: number; sill: number }) => {
         if (f === 0 && piloti(i)) return 'open'
+        // 1 階の西面は工房の外壁：腰壁の上に窓
+        if (f === 0 && s.side === 'w') return i % 3 === 2 ? { kind: 'window', w: 0.85, h: 0.5, sill: 0.2 } : 'wall'
         if (f === 0) return i === 0 || i === bays - 1 ? 'wall' : 'curtain'
         if (f === cafe) return 'curtain'
         if (f === 12) return i % 3 === 1 ? { kind: 'window', w: 0.7, h: 0.35, sill: 0.45 } : 'wall'
@@ -753,10 +811,12 @@ const k1: Model = (k, b) => {
   roof(k, -X, -Z, X, Z, top, 1.0, 0xf4f5f4)
   k.sign('神奈川工科大学', 0, top - 1.6, Z + 0.25, 12, 1.6, 0, '#1d2a44', true)
   rooftop(k, -X + 2, -Z + 2, X - 2, Z - 2, top, rng(71))
-  // 1 階の入口の庇（西）
-  k.box(-8, 3.8, Z, 8, 4.1, Z + 3, WHITE)
-  // ピロティ：奥のガラスの壁（東向き）と、外周の柱。天井は 2 階の床の裏
-  facade(k, { a: [-X, pz], b: [X, pz], levels: [0, lv[1]], bays: 12, cell: (_f, i) => (i === 5 || i === 6 ? 'curtain' : i % 3 === 0 ? 'wall' : 'curtain'), wall: 0xf4f5f4, glass: CLEAR, frame: 0x8f989f, depth: 0.15 })
+  // ピロティ：奥のガラスの壁（東向き）と、外周の柱。天井は 2 階の床の裏。
+  // 両端の柱間は風除室の入口（ピロティ側の扉と、北面・南面の扉）
+  facade(k, { a: [-X, pz], b: [X, pz], levels: [0, lv[1]], bays: 12, cell: (_f, i) => (i === 0 || i === 5 || i === 6 || i === 11 ? 'curtain' : i % 3 === 0 ? 'wall' : 'curtain'), wall: 0xf4f5f4, glass: CLEAR, frame: 0x8f989f, depth: 0.15 })
+  for (const s of [-1, 1]) doorEast(k, s * (X - 2.25), pz, 0, 2.0)
+  door(k, -X, pz + 1.7, 0, 1.8)
+  doorSouth(k, X, pz + 1.7, 0, 1.8)
   for (let i = 0; i <= 5; i++) {
     const x = -X + 0.45 + ((2 * X - 0.9) * i) / 5
     k.box(x - 0.45, 0, -Z, x + 0.45, lv[1], -Z + 0.9, 0xe9ebeb)
@@ -765,10 +825,7 @@ const k1: Model = (k, b) => {
   k.box(-X, lv[1] - 0.5, -Z, X, lv[1], -Z + 0.3, 0xf4f5f4)
   // 1 階はピロティの奥から、2 階より上は外周いっぱいに室内を作る（f は建物全体の階に合わせる）
   const furnishK1 = (kk: typeof k, f: number, y: number) => {
-    if (f === 0) {
-      for (const [x, z] of [[-8, 8], [8, 8], [-8, -8], [8, -8]] as Pt[]) plant(kk, x, y, z, 2.2)
-      deskIsland(kk, 0, y, Z - 6, 6, 1.0, WOOD, 0x3a4a6a)
-    } else if (f === cafe) {
+    if (f === cafe) {
       for (let x = -X + 3; x < X - 2; x += 3.2) {
         for (const z of [-Z + 2.5, -Z + 6, Z - 6, Z - 2.5]) deskIsland(kk, x, y, z, 1.4, 1.0, 0xf6f3ee, ORANGE)
       }
@@ -780,10 +837,9 @@ const k1: Model = (k, b) => {
       pcRow(kk, -X + 3, X - 3, y, Z - 7, 1)
     }
   }
-  interior(k, { x0: -X, z0: pz, x1: X, z1: Z, levels: lv.slice(0, 2), seed: 14, inset: 0.3, furnish: (kk, _f, y) => furnishK1(kk, 0, y) })
+  interior(k, { x0: -X, z0: pz, x1: X, z1: Z, levels: lv.slice(0, 2), seed: 14, inset: 0.3, columns: false, furnish: (kk, _f, y, h) => k1Ground(kk, X, Z, pz, y, h - 0.35) })
   interior(k, { x0: -X, z0: -Z, x1: X, z1: Z, levels: lv.slice(1), seed: 15, inset: 0.3, furnish: (kk, f, y) => furnishK1(kk, f + 1, y) })
-  // 中央のコア（エレベーター・階段）
-  k.box(-6, 0, -5, 6, top, 5, 0xdadad6)
+  k1Core(k, lv, top)
 }
 
 export const MODELS: Record<string, Model> = { d1, d2, c1, d3, k2, c6, b5, k4, k3, k1, ...OUTER_MODELS }
