@@ -291,10 +291,11 @@ function drop(k: Kit, x: number, z: number, y0: number, y1: number) {
  * 西半分は、北の壁から南へ伸びる机の島が 3 つ：窓側は棚（バインダー・電気ポット・炊飯器など）と机 1 列が背中合わせで、
  * 棚と窓のあいだが給湯室のように使える通路。真ん中は机 2 列が背中合わせ、東は机 1 列で、その東の仕切りが入口側との区切り。
  * 机の列はモニター 3 台で、ところどころに PC。向かい合う机の縁のあいだは 1.6m。
- * 南の壁にマグネットで貼る 1 枚のホワイトボード（書き込みとペン・消し）・空気清浄機・簡易靴箱、南西の角に給湯室のほうを向いた
- * サーバーラック（倉庫用のスチールラックにデスクトップ PC。LAN ケーブルは天井を通って各島のハブへ下りる）。
- * 東半分（入口側）は机が 1 台、北の壁に本棚、北東の角に展示用のモニター、南東の角にペッパーくん、移動式のホワイトボード、
- * 天板の無い机の枠（お弁当のチラシをマグネットで貼ってある）と、足元に散らかった分解された古い PC・使わないモニター・モニターの足
+ * 南の壁は西から、給湯室のほうを向いたサーバーラック（倉庫用のスチールラックにデスクトップ PC。LAN ケーブルは天井を通って
+ * 各島のハブへ下りる）、天板に電子レンジを載せた冷蔵庫、仕切りのパネルを机の形に組んだだけの枠（天板なし。茶色の帯の高さに
+ * 開いた 3 ページのお弁当のチラシ、足元に分解された古い PC・使わないモニター・モニターの足）、マグネットで貼る 1 枚の
+ * ホワイトボード（書き込みとペン・消し）。その前に空気清浄機・簡易靴箱。
+ * 東半分（入口側）は机が 1 台、北の壁に本棚、北東の角に展示用のモニター、南東の角にペッパーくん、移動式のホワイトボード
  */
 function softwareStudio(k: Kit, x0: number, x1: number, z0: number, z1: number, y: number, ceil: number) {
   k.box(x0, y, z0, x1, y + 0.01, z1, 0x7f858a)
@@ -321,15 +322,15 @@ function softwareStudio(k: Kit, x0: number, x1: number, z0: number, z1: number, 
   }
 
   // 南の壁：マグネットで貼る 1 枚のホワイトボード（書き込み、ペンと消し）と時計、簡易靴箱、空気清浄機
-  const wb0 = 11.2, wb1 = 15.9, wbY0 = y + 0.9, wbY1 = y + 2.2
+  const wb0 = 11.2, wb1 = 14.55, wbY0 = y + 0.9, wbY1 = y + 2.2
   k.box(x1 - 0.012, wbY0, wb0, x1, wbY1, wb1, 0xfbfbfa)
   k.board(x1 - 0.014, (wbY0 + wbY1) / 2, (wb0 + wb1) / 2, wb1 - wb0, wbY1 - wbY0, -Math.PI / 2, whiteboardNotes)
-  for (const [z, c] of [[15.2, 0x1e2124], [15.32, 0xd23a2a], [15.44, 0x2f5fa8]] as const) {
+  for (const [z, c] of [[13.9, 0x1e2124], [14.02, 0xd23a2a], [14.14, 0x2f5fa8]] as const) {
     k.box(x1 - 0.035, wbY0 + 0.1, z - 0.012, x1 - 0.012, wbY0 + 0.24, z + 0.012, c)
   }
-  k.box(x1 - 0.06, wbY0 + 0.08, 15.55, x1 - 0.012, wbY0 + 0.13, 15.72, 0x2a3a6a)
-  k.box(x1 - 0.03, y + 2.6, 13.4, x1, y + 2.94, 13.74, 0x3a3e42)
-  k.box(x1 - 0.04, y + 2.62, 13.42, x1 - 0.03, y + 2.92, 13.72, 0xf7f7f5)
+  k.box(x1 - 0.06, wbY0 + 0.08, 14.24, x1 - 0.012, wbY0 + 0.13, 14.41, 0x2a3a6a)
+  k.box(x1 - 0.03, y + 2.6, 12.7, x1, y + 2.94, 13.04, 0x3a3e42)
+  k.box(x1 - 0.04, y + 2.62, 12.72, x1 - 0.03, y + 2.92, 13.02, 0xf7f7f5)
   shoeRack(k, x1 - 0.35, x1 - 0.05, 11.4, 12.0, y)
   k.box(x1 - 0.45, y, 13.1, x1 - 0.1, y + 0.6, 13.45, 0xf0f0ee)
   // ジョイントマット（東の島の南隣）
@@ -337,8 +338,8 @@ function softwareStudio(k: Kit, x0: number, x1: number, z0: number, z1: number, 
     for (let j = 0; j < 2; j++) k.box(3.3 + i * 0.37, y + 0.01, 11.5 + j * 0.35, 3.67 + i * 0.37, y + 0.025, 11.85 + j * 0.35, (i + j) % 2 ? 0xe7dcc6 : 0x6b4a36)
   }
   // 天井のプロジェクター（南の壁のホワイトボードに向ける）
-  k.box(2.4, ceil - 0.25, 13.5, 2.44, ceil, 13.54, 0x9aa0a5)
-  k.box(2.2, ceil - 0.42, 13.3, 2.65, ceil - 0.25, 13.75, 0xf2f2f0)
+  k.box(2.4, ceil - 0.25, 12.85, 2.44, ceil, 12.89, 0x9aa0a5)
+  k.box(2.2, ceil - 0.42, 12.65, 2.65, ceil - 0.25, 13.1, 0xf2f2f0)
 
   // 西の外壁の窓（K1号館の 1 階の西面の窓のうち、この部屋に入るもの）に濃いグレーのブラインド
   const bx = 2.71, bw = 0.77
@@ -360,6 +361,32 @@ function softwareStudio(k: Kit, x0: number, x1: number, z0: number, z1: number, 
   }
   for (let z = rz0 + 0.05; z < rz1 - 0.35; z += 0.4) k.box(rx0 + 0.05, y + 1.63, z, rx1 - 0.05, y + 1.85, z + 0.36, 0x2f7fd8)
   k.box(rx0 + 0.2, y + 1.63, rz1 - 0.4, rx0 + 0.24, y + 2.0, rz1 - 0.05, 0x1b1e21)
+
+  // サーバーラックの東隣：冷蔵庫と、天板に載せた電子レンジ
+  const fr0 = 15.58, fr1 = 16.2
+  k.box(x1 - 0.67, y, fr0, x1 - 0.05, y + 1.3, fr1, 0xe9ebec)
+  k.box(x1 - 0.675, y + 0.85, fr0 + 0.02, x1 - 0.67, y + 0.87, fr1 - 0.02, 0xb8bcc0)
+  k.box(x1 - 0.69, y + 0.95, fr0 + 0.06, x1 - 0.67, y + 1.2, fr0 + 0.09, 0x9aa0a5)
+  k.box(x1 - 0.57, y + 1.3, fr0 + 0.04, x1 - 0.1, y + 1.6, fr1 - 0.04, 0xdadcdc)
+  k.box(x1 - 0.575, y + 1.34, fr0 + 0.08, x1 - 0.57, y + 1.56, fr1 - 0.18, 0x22262a)
+  k.box(x1 - 0.575, y + 1.45, fr1 - 0.15, x1 - 0.57, y + 1.5, fr1 - 0.08, 0x7cf28f, 'light')
+
+  // 冷蔵庫の東隣：仕切りのパネルを机の形に組んだだけの枠（天板なし）。奥のパネルの茶色の帯の高さに、
+  // 開いた 3 ページのお弁当のチラシ。足元に分解された古い PC・使わないモニター・モニターの足
+  const fb0 = 14.65, fb1 = 15.5, fbx = x1 - 0.6
+  partition(k, x1 - 0.09, fb0, x1 - 0.03, fb1, y)
+  for (const z of [fb0, fb1]) partition(k, fbx, z - 0.03, x1 - 0.03, z + 0.03, y)
+  k.board(x1 - 0.095, y + 1.135, (fb0 + fb1) / 2, 0.66, 0.28, -Math.PI / 2, bentoFlyer, 1200)
+  // 横倒しの古いタワー PC（側板が外れて中の基板が見える）と、伏せたモニター
+  k.box(fbx + 0.1, y, fb0 + 0.08, x1 - 0.15, y + 0.2, fb0 + 0.5, 0xb8bcc0)
+  k.box(fbx + 0.14, y + 0.2, fb0 + 0.12, x1 - 0.19, y + 0.205, fb0 + 0.46, 0x2f6b3a)
+  k.box(fbx + 0.08, y, fb0 + 0.53, x1 - 0.12, y + 0.04, fb1 - 0.06, 0x1b1e21)
+  // 枠の前に立てかけたモニターと、散らばったモニターの足（台座と首）
+  k.obox(fbx - 0.1, y, (fb0 + fb1) / 2 + 0.15, 0.04, 0.36, 0.56, 0, 0x1b1e21)
+  for (const [sx, sz, a] of [[fbx - 0.35, fb0 + 0.1, 0.4], [fbx - 0.3, fb1 - 0.05, -0.6], [fbx - 0.6, (fb0 + fb1) / 2, 1.2]] as const) {
+    k.obox(sx, y, sz, 0.24, 0.02, 0.18, a, 0x2a2d31)
+    k.obox(sx, y + 0.02, sz, 0.05, 0.2, 0.03, a, 0x2a2d31)
+  }
 
   // LAN ケーブル：ラックの上から天井へ、天井の下を通って各島の仕切りの上のハブへ
   const cy = ceil - 0.05
@@ -383,26 +410,6 @@ function softwareStudio(k: Kit, x0: number, x1: number, z0: number, z1: number, 
   k.box(0.24, y + 0.94, 7.06, 1.41, y + 1.61, 7.065, 0x7fb6e6, 'light')
   pepper(k, 4.6, 7.6, y)
   movableBoard(k, 4.9, 8.4, 9.8, y)
-
-  // 天板の無い机の枠：東の面の幕板にお弁当のチラシ。足元に分解された古い PC・使わないモニター・モニターの足
-  const fx0 = 3.0, fx1 = 4.4, fz0 = 9.95, fz1 = 10.65
-  for (const x of [fx0, fx1 - 0.04]) for (const z of [fz0, fz1 - 0.04]) k.box(x, y, z, x + 0.04, y + 0.72, z + 0.04, 0x9a9a9a)
-  for (const z of [fz0, fz1 - 0.04]) k.box(fx0, y + 0.68, z, fx1, y + 0.72, z + 0.04, 0x9a9a9a)
-  for (const x of [fx0, fx1 - 0.04]) k.box(x, y + 0.68, fz0, x + 0.04, y + 0.72, fz1, 0x9a9a9a)
-  k.box(fx0 + 0.04, y + 0.22, fz0, fx1 - 0.04, y + 0.68, fz0 + 0.02, 0xa9aeb2)
-  k.board(3.7, y + 0.45, fz0 - 0.004, 0.3, 0.42, Math.PI, bentoFlyer, 900)
-  // 横倒しの古いタワー PC（側板が外れて中の基板が見える）と、床に置いた基板
-  k.box(3.2, y, 10.1, 3.65, y + 0.2, 10.55, 0xb8bcc0)
-  k.box(3.24, y + 0.2, 10.14, 3.61, y + 0.205, 10.51, 0x2f6b3a)
-  k.box(3.8, y, 10.15, 4.1, y + 0.01, 10.4, 0x2f6b3a)
-  // 使わないモニター（壁に立てかけたものと、伏せたもの）
-  k.obox(2.75, y, 10.75, 0.56, 0.36, 0.04, 0, 0x1b1e21)
-  k.box(2.2, y, 10.2, 2.75, y + 0.04, 10.55, 0x1b1e21)
-  // モニターの足（台座と首）
-  for (const [sx, sz, a] of [[2.6, 9.7, 0.4], [3.9, 9.6, -0.6], [4.3, 10.75, 1.2], [2.4, 10.6, -0.2]] as const) {
-    k.obox(sx, y, sz, 0.24, 0.02, 0.18, a, 0x2a2d31)
-    k.obox(sx, y + 0.02, sz, 0.05, 0.2, 0.03, a, 0x2a2d31)
-  }
 
   // 天井の空調（カセット形）
   for (const [ax, az] of [[1.4, 15.0], [1.4, 9.0]] as Pt[]) {
@@ -456,58 +463,65 @@ const whiteboardNotes: BoardDraw = (g, w, h) => {
   for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) g.strokeRect(692 + c * 26, 108 + r * 30, 16, 18)
   text('寄付すると にょきにょき', 470, 245, 24, BLUE)
   text('削ると気持ちいい!!', 470, 285, 24, RED)
-  // 右：締切と技術メモ、ゆるいバーンダウン
-  g.strokeStyle = RED
-  g.strokeRect(840, 28, 320, 58)
-  text('学園祭まで あと 3 日!!', 856, 68, 30, RED)
-  text('three.js + Vite（HMR で見せる）', 840, 130, 22)
-  text('Colyseus のルームで協力プレイ', 840, 165, 22)
-  text('スマホ縦持ちでも 60fps', 840, 200, 22)
-  g.strokeStyle = BLACK
-  g.beginPath()
-  g.moveTo(860, 225)
-  g.lineTo(860, 315)
-  g.lineTo(1170, 315)
-  g.stroke()
-  g.strokeStyle = BLUE
-  g.beginPath()
-  g.moveTo(860, 235)
-  g.lineTo(940, 245)
-  g.lineTo(1000, 280)
-  g.lineTo(1060, 285)
-  g.lineTo(1120, 305)
-  g.stroke()
 }
 
-/** お弁当のチラシ（A3 くらい、マグネットで貼ってある） */
+/** お弁当のチラシ（3 つ折りを開いた 3 ページ。マグネットで貼ってある） */
 const bentoFlyer: BoardDraw = (g, w, h) => {
+  const RED = '#d2352a', INK = '#3a2a1a'
+  const jp = (px: number, bold = true) => `${bold ? 'bold ' : ''}${px}px "Hiragino Sans", "Noto Sans JP", sans-serif`
+  const pw = w / 3
   g.fillStyle = '#fffdf6'
   g.fillRect(0, 0, w, h)
-  g.fillStyle = '#d2352a'
-  g.fillRect(0, 0, w, h * 0.14)
+  // 折り目
+  g.strokeStyle = '#d9cfbd'
+  g.lineWidth = 2
+  for (const x of [pw, pw * 2]) {
+    g.beginPath()
+    g.moveTo(x, 0)
+    g.lineTo(x, h)
+    g.stroke()
+  }
+  const pages: [string, string][][] = [
+    [['唐揚げ弁当', '490円'], ['海苔弁', '390円']],
+    [['ステーキ弁当', '890円'], ['おろし竜田弁当', '590円'], ['野菜炒め丼', '520円']],
+    [['親子丼', '540円'], ['豚汁', '150円']],
+  ]
+  // 1 ページ目の上に見出し
+  g.fillStyle = RED
+  g.fillRect(pw * 0.06, h * 0.05, pw * 0.88, h * 0.2)
+  // 文字がページの幅に収まらなければ縮める
+  const fit = (t: string, px: number, max: number) => {
+    g.font = jp(px)
+    const tw = g.measureText(t).width
+    if (tw > max) g.font = jp((px * max) / tw)
+  }
   g.fillStyle = '#fff'
   g.textAlign = 'center'
   g.textBaseline = 'middle'
-  g.font = `bold ${h * 0.075}px "Hiragino Sans", "Noto Sans JP", sans-serif`
-  g.fillText('お弁当 メニュー', w / 2, h * 0.07)
-  const items: [string, string][] = [['唐揚げ弁当', '490円'], ['海苔弁', '390円'], ['ステーキ弁当', '890円'], ['おろし竜田弁当', '590円'], ['野菜炒め丼', '520円'], ['親子丼', '540円'], ['豚汁', '150円']]
+  fit('お弁当 メニュー', h * 0.12, pw * 0.8)
+  g.fillText('お弁当 メニュー', pw / 2, h * 0.15)
   g.textBaseline = 'alphabetic'
-  items.forEach(([name, price], i) => {
-    const yy = h * (0.24 + i * 0.105)
-    g.fillStyle = i % 2 ? '#f6e7c8' : '#fdf1dc'
-    g.fillRect(w * 0.05, yy - h * 0.07, w * 0.9, h * 0.09)
-    g.fillStyle = '#3a2a1a'
-    g.textAlign = 'left'
-    g.font = `bold ${h * 0.05}px "Hiragino Sans", "Noto Sans JP", sans-serif`
-    g.fillText(name, w * 0.09, yy)
-    g.fillStyle = '#d2352a'
-    g.textAlign = 'right'
-    g.fillText(price, w * 0.91, yy)
+  // 品名の下に値段を右寄せ
+  pages.forEach((items, p) => {
+    const top = p === 0 ? 0.32 : 0.06
+    items.forEach(([name, price], i) => {
+      const y0 = h * (top + i * 0.28)
+      g.fillStyle = i % 2 ? '#f6e7c8' : '#fdf1dc'
+      g.fillRect(pw * p + pw * 0.06, y0, pw * 0.88, h * 0.25)
+      g.fillStyle = INK
+      g.textAlign = 'left'
+      fit(name, h * 0.085, pw * 0.8)
+      g.fillText(name, pw * p + pw * 0.1, y0 + h * 0.1)
+      g.fillStyle = RED
+      g.textAlign = 'right'
+      g.font = jp(h * 0.08)
+      g.fillText(price, pw * (p + 1) - pw * 0.1, y0 + h * 0.21)
+    })
   })
-  g.fillStyle = '#3a2a1a'
+  g.fillStyle = INK
   g.textAlign = 'center'
-  g.font = `${h * 0.035}px "Hiragino Sans", "Noto Sans JP", sans-serif`
-  g.fillText('ご注文はお電話で　お届けもできます', w / 2, h * 0.97)
+  g.font = jp(h * 0.06, false)
+  g.fillText('ご注文はお電話で', pw * 2.5, h * 0.9)
 }
 
 /** 窓側の島の、仕切り（z = zp）の西の棚。上にバインダー・電気ポット・炊飯器・カップと箸立て */
