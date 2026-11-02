@@ -1,0 +1,13 @@
+# マルチプレイのサーバーをコンテナで立てる（issue #103）
+#   GIT_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build
+# タイトル画面の「マルチプレイ」で ws://<このマシンのアドレス>:2567 を入れて参加する。
+# ルームの進行はメモリにしか無いので、コンテナを作り直すと消える（ファイルへの保存は #75）
+services:
+  server:
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-2567}:2567"
