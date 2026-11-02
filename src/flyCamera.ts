@@ -1,5 +1,6 @@
 import './flyCamera.css'
 import * as THREE from 'three'
+import { FlyTrace } from './flyTrace'
 
 // 神視点（?view=god）と Editor で共通の、FPS のスペクテイター風カメラ（issue #42）。
 // - 見回す：Pointer Lock 中はマウスを動かすだけ、ロックしていないときはドラッグ（タッチも）
@@ -34,6 +35,13 @@ const BASE_SENSITIVITY = 0.002
 const MAX_PITCH = THREE.MathUtils.degToRad(89)
 const STORAGE_KEY = 'snow-campus-fly'
 const AXES = ['x', 'z', 'y'] as const
+/**
+ * ロック中の mousemove で、1 回の移動量が OUTLIER_PX を超え、しかも直近 OUTLIER_WINDOW_MS に採用した移動量の最大の
+ * OUTLIER_RATIO 倍を超えていたら捨てる。Windows の Chrome はロック中に数百 px の値をときどき返し、同じ値が続けて届くこともある
+ */
+const OUTLIER_PX = 200
+const OUTLIER_RATIO = 4
+const OUTLIER_WINDOW_MS = 50
 
 const forward = new THREE.Vector3()
 const right = new THREE.Vector3()
@@ -54,6 +62,8 @@ function loadSettings(fov: number): Settings {
   }
 }
 
+const fmt = (v: THREE.Vector3) => `(${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)})`
+
 const isTyping = (t: EventTarget | null) => t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement
 
 export class FlyCamera {
@@ -67,6 +77,8 @@ export class FlyCamera {
   /** 最後にロックが外れた時刻（Esc でロックを外したキーを、ほかの Esc の操作と区別するため） */
   unlockedAt = -Infinity
   readonly settingsPanel: HTMLDivElement
+  /** 急に飛んだときの前後を console に出す記録 */
+  readonly trace: FlyTrace
   private readonly camera: THREE.PerspectiveCamera
   private readonly dom: HTMLElement
   private readonly options: FlyOptions
@@ -79,6 +91,8 @@ export class FlyCamera {
   private pinch = 0
   /** Ctrl を単独で押しているあいだ true（Ctrl+Enter などのショートカットでは切り替えない） */
   private ctrlAlone = false
+  /** 採用したロック中の移動量（捨てた値は入れない。入れると、続けて届いた 2 つ目の外れ値が通ってしまう） */
+  private recentMoves: { t: number; size: number }[] = []
 
   constructor(camera: THREE.PerspectiveCamera, dom: HTMLElement, options: FlyOptions) {
     this.camera = camera
@@ -88,6 +102,7 @@ export class FlyCamera {
     this.settings.speed = THREE.MathUtils.clamp(Math.round(this.settings.speed), 0, SPEEDS.length - 1)
     camera.rotation.order = 'YXZ'
     this.applyFov()
+    this.trace = new FlyTrace(camera, () => `設定: 感度=${this.settings.sensitivity} 視野角=${this.settings.fov} 速度=${this.speedLabel} 建物=${this.collision} ロック=${this.locked}`)
 
     this.crosshair = document.createElement('div')
     this.crosshair.className = 'fly-crosshair'
@@ -162,8 +177,17 @@ export class FlyCamera {
   lock() {
     if (this.locked) return
     // Pointer Lock が使えない環境（スマホなど）では何もしない。ドラッグで見回せる
-    const result = this.dom.requestPointerLock?.() as Promise<void> | undefined
-    result?.catch?.(() => {})
+    if (!this.dom.requestPointerLock) return
+    // OS のマウス加速を通さない移動量を使う。対応していないブラウザでは断られるので、普通にロックし直す
+    const result = this.dom.requestPointerLock({ unadjustedMovement: true }) as Promise<void> | undefined
+    result?.then?.(
+      () => this.trace.log('lock unadjustedMovement'),
+      () => {
+        this.trace.log('lock unadjustedMovement が断られたので普通にロック')
+        const retry = this.dom.requestPointerLock() as Promise<void> | undefined
+        retry?.catch?.(() => {})
+      },
+    )
   }
 
   unlock() {
@@ -188,6 +212,7 @@ export class FlyCamera {
     this.yaw = Math.atan2(-d.x, -d.z)
     this.pitch = THREE.MathUtils.clamp(Math.atan2(d.y, Math.hypot(d.x, d.z)), -MAX_PITCH, MAX_PITCH)
     this.applyRotation()
+    this.trace.log(`lookAt target=(${target.x.toFixed(1)}, ${target.y.toFixed(1)}, ${target.z.toFixed(1)})`)
   }
 
   /** 画面の中央に見えている地面の点のまわりを、水平に angle（rad）だけ回る（神視点の自動回転） */
@@ -201,9 +226,11 @@ export class FlyCamera {
     pos.copy(pivot).add(delta)
     this.yaw += angle
     this.applyRotation()
+    this.trace.log(`orbit angle=${angle.toFixed(4)} dist=${dist.toFixed(1)}`)
   }
 
   update(dt: number) {
+    this.trace.frame(dt, this.yaw, this.pitch, this.locked, this.options.blocked ? this.options.blocked(this.camera.position) : null)
     let x = 0
     let z = 0
     let y = 0
@@ -221,11 +248,13 @@ export class FlyCamera {
     right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw))
     delta.copy(right).multiplyScalar(x * step).addScaledVector(forward, z * step)
     delta.y += y * step
+    this.trace.log(`keys move=(${x}, ${y}, ${z}) step=${step.toFixed(2)}`)
     this.move(delta)
   }
 
   /** 見ている方向へ distance（m）だけ進む（ホイール・ピンチ） */
   private dolly(distance: number) {
+    this.trace.log(`dolly ${distance.toFixed(2)}m`)
     this.onUserInput?.()
     this.move(this.getDirection(delta).multiplyScalar(distance))
   }
@@ -234,9 +263,11 @@ export class FlyCamera {
   private move(d: THREE.Vector3) {
     const pos = this.camera.position
     const { area, minY, maxY } = this.options
+    const want = next.copy(d)
     d.x = THREE.MathUtils.clamp(pos.x + d.x, area.x - area.half, area.x + area.half) - pos.x
     d.y = THREE.MathUtils.clamp(pos.y + d.y, minY, maxY) - pos.y
     d.z = THREE.MathUtils.clamp(pos.z + d.z, area.z - area.half, area.z + area.half) - pos.z
+    if (want.distanceToSquared(d) > 1e-6) this.trace.log(`move 範囲の端で削った ${fmt(want)} → ${fmt(d)}`)
     this.collide(d)
     pos.add(d)
   }
@@ -245,12 +276,18 @@ export class FlyCamera {
   private collide(d: THREE.Vector3) {
     const blocked = this.options.blocked
     const pos = this.camera.position
-    if (!blocked || this.collision === 'pass' || blocked(pos)) return
+    if (!blocked || this.collision === 'pass') return
+    if (blocked(pos)) {
+      this.trace.log('collide 建物の中にいるので削らない')
+      return
+    }
     if (!blocked(next.copy(pos).add(d))) return
     if (this.collision === 'stop') {
+      this.trace.log(`collide 止まる ${fmt(d)} → 0`)
       d.set(0, 0, 0)
       return
     }
+    const before = fmt(d)
     // 軸ごとに動かしてみて、ぶつかる軸だけ止める（建物は軸に沿った箱なので、壁や屋根に沿って滑る）
     next.copy(pos)
     for (const axis of AXES) {
@@ -260,9 +297,11 @@ export class FlyCamera {
         d[axis] = 0
       }
     }
+    this.trace.log(`collide 回り込む ${before} → ${fmt(d)}`)
   }
 
-  private look(dx: number, dy: number) {
+  private look(dx: number, dy: number, source: string) {
+    this.trace.log(`look ${source} d=(${dx.toFixed(1)}, ${dy.toFixed(1)})`)
     const k = BASE_SENSITIVITY * this.settings.sensitivity
     this.yaw -= dx * k
     this.pitch = THREE.MathUtils.clamp(this.pitch - dy * k, -MAX_PITCH, MAX_PITCH)
@@ -322,7 +361,12 @@ export class FlyCamera {
   private bindPointer() {
     const dom = this.dom
     dom.addEventListener('mousemove', (e) => {
-      if (this.locked) this.look(e.movementX, e.movementY)
+      if (!this.locked) return
+      if (this.isOutlier(e.movementX, e.movementY, e.timeStamp)) {
+        this.trace.log(`look 外れ値を捨てた d=(${e.movementX}, ${e.movementY})`)
+        return
+      }
+      this.look(e.movementX, e.movementY, 'ロック中のマウス')
     })
     dom.addEventListener('pointerdown', (e) => {
       if (this.locked || (e.pointerType === 'mouse' && e.button !== 0)) return
@@ -339,7 +383,7 @@ export class FlyCamera {
       p.x = e.clientX
       p.y = e.clientY
       if (this.pointers.size === 1) {
-        this.look(dx, dy)
+        this.look(dx, dy, `ドラッグ ${e.pointerType}`)
       } else {
         // 2 本指はピンチで前後に進む
         const dist = this.pinchDistance()
@@ -365,6 +409,15 @@ export class FlyCamera {
       },
       { passive: false },
     )
+  }
+
+  private isOutlier(dx: number, dy: number, t: number): boolean {
+    this.recentMoves = this.recentMoves.filter((m) => t - m.t <= OUTLIER_WINDOW_MS)
+    const size = Math.hypot(dx, dy)
+    const recentMax = this.recentMoves.reduce((max, m) => Math.max(max, m.size), 0)
+    if (size > OUTLIER_PX && size > recentMax * OUTLIER_RATIO) return true
+    this.recentMoves.push({ t, size })
+    return false
   }
 
   private pinchDistance(): number {

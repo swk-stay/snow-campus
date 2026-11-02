@@ -765,7 +765,10 @@ renderer.setAnimationLoop((now: number) => {
       const from = e.from ? units.plowPosition(e.from.plowId, tmp) : other ? remotePlayers.packPosition(pid!, tmp) : packPos
       if (!from) continue
       view.inFlight += e.amount
+      const ball = `雪玉 ${b.id} 量=${e.amount.toFixed(1)}${e.from ? ' 除雪機から' : other ? ' 他のプレイヤーから' : ''}`
+      god?.fly.trace.log(`${ball} 投げた (${from.x.toFixed(1)}, ${from.y.toFixed(1)}, ${from.z.toFixed(1)}) → (${to.x.toFixed(1)}, ${to.y.toFixed(1)}, ${to.z.toFixed(1)})`)
       projectiles.launch(from, to, () => {
+        god?.fly.trace.log(`${ball} 着いた`)
         view.inFlight = Math.max(0, view.inFlight - e.amount)
         sparkles.burst(to, e.rare ? 14 : 5, e.rare ? 0x7fe9ff : 0xffffff, 3)
       }, e.rare ? 1.6 : Math.min(2.5, Math.sqrt(e.amount / 4)), e.rare ? 0x7fe9ff : 0xffffff)
