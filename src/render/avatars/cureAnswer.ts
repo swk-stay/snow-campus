@@ -113,17 +113,17 @@ function face(): THREE.Mesh {
     ctx.fill()
   }
 
-  // 眉：薄紫の太めの帯を濃い紫で縁取る。目頭側を高く太くし、目尻側へ下がりながら細くなるハの字（docs/cure-answer/face_04.png）
+  // 眉：薄紫の太めの帯を濃い紫で縁取る。目から離して高めに置き、目頭側を高く太くして、目尻側へ下がりながら細くなる困り眉（docs/cure-answer/face_04.png）
   ctx.fillStyle = '#c497de'
   ctx.strokeStyle = '#6e4189'
   ctx.lineWidth = 2.5
   for (const sx of [-1, 1]) {
     ctx.beginPath()
-    ctx.moveTo(px(sx * 0.16), py(1.24))
-    ctx.quadraticCurveTo(px(sx * 0.38), py(1.25), px(sx * 0.6), py(1.37))
-    ctx.quadraticCurveTo(px(sx * 0.38), py(1.3), px(sx * 0.17), py(1.3))
+    ctx.moveTo(px(sx * 0.16), py(1.1))
+    ctx.quadraticCurveTo(px(sx * 0.36), py(1.13), px(sx * 0.58), py(1.28))
+    ctx.quadraticCurveTo(px(sx * 0.37), py(1.19), px(sx * 0.17), py(1.165))
     // 目頭側の端は丸める
-    ctx.quadraticCurveTo(px(sx * 0.13), py(1.27), px(sx * 0.16), py(1.24))
+    ctx.quadraticCurveTo(px(sx * 0.13), py(1.13), px(sx * 0.16), py(1.1))
     ctx.fill()
     ctx.stroke()
   }
@@ -488,8 +488,8 @@ export function cureAnswerModel(): THREE.Group {
     // 前髪（エアインテーク）：分け目から、おでこから浮いたアーチになって外へ曲がり、顔の横をあごまで垂れる
     const intake = [onHead(0.04 * s, 0.5, 0.33), onHead(0.2 * s, 0.6, 0.41), onHead(0.48 * s, 0.8, 0.42), onHead(0.74 * s, 1.12, 0.36), onHead(0.84 * s, 1.5, 0.33), onHead(0.78 * s, 1.85, 0.32), onHead(0.66 * s, 2.12, 0.3)]
     g.add(new THREE.Mesh(hairStrand(intake, 0.08, 0.02, 0, 0, 'head'), hairMat))
-    // おでこにかかる細い毛：前髪のアーチの内側から、目尻のほうへ流れる
-    const wisp = [onHead(0.3 * s, 0.86, 0.36), onHead(0.24 * s, 1.04, 0.318), onHead(0.3 * s, 1.18, 0.307), onHead(0.42 * s, 1.27, 0.305)]
+    // おでこにかかる細い毛：前髪のアーチの内側から外へ流れ、眉の上で止める
+    const wisp = [onHead(0.3 * s, 0.86, 0.36), onHead(0.25 * s, 0.98, 0.318), onHead(0.3 * s, 1.05, 0.307), onHead(0.4 * s, 1.07, 0.305)]
     g.add(new THREE.Mesh(hairStrand(wisp, 0.016, 0.004, 0, 0, 'head'), hairMat))
     // 髪のツヤ：前髪のアーチの上に、黄色いクローバー形と丸い光の点を貼る
     for (const [phi, theta, r, size] of [[0.3, 0.7, 0.47, 1], [0.6, 0.98, 0.43, 0.5], [0.13, 0.6, 0.445, 0.35]]) {
