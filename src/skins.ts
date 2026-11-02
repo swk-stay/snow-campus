@@ -1,7 +1,11 @@
 // マルチプレイで選べるプレイヤーのスキン（issue #87）。サーバーも ID の確認に読むので、Three.js と DOM に依存させない。
-// いまは同じモデルの上着の色違いだけ。別のモデルを足すときは Skin に kind を増やし、PlayerView で kind ごとに組み立てる。
+// kind がモデルの種類。'jacket' は同じモデルの上着の色違い、それ以外はキャラクターごとのモデル（PlayerView で kind ごとに組み立てる）。
 
-export type Skin = { id: string; label: string; kind: 'jacket'; color: number }
+/**
+ * color：ミニマップの点やプレイヤー一覧に出す代表色（jacket では上着の色）
+ * swatch：タイトル画面の見本の CSS の background（省略すると color の単色）
+ */
+export type Skin = { id: string; label: string; kind: 'jacket' | 'cureAnswer'; color: number; swatch?: string }
 
 export const SKINS = [
   { id: 'red', label: '赤', kind: 'jacket', color: 0xd9443a },
@@ -13,6 +17,8 @@ export const SKINS = [
   { id: 'purple', label: '紫', kind: 'jacket', color: 0x9b4fd1 },
   { id: 'white', label: '白', kind: 'jacket', color: 0xf2f2f0 },
   { id: 'black', label: '黒', kind: 'jacket', color: 0x2a2b30 },
+  // 「名探偵プリキュア！」のキュアアンサー（issue #105）。見本は髪の色（薄紫から毛先のピンク）
+  { id: 'cure-answer', label: 'キュアアンサー', kind: 'cureAnswer', color: 0xc58be8, swatch: 'linear-gradient(160deg, #dba6f2 45%, #f28fb8)' },
 ] as const satisfies readonly Skin[]
 
 export type SkinId = (typeof SKINS)[number]['id']
