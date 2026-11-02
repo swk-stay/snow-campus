@@ -642,8 +642,8 @@ function updateSky(dt: number) {
   else if (session) {
     // playTime はサーバーの tick ごとにしか届かないので、手元で進めながら寄せていく
     skyClock += dt
-    const gap = session.playTime - skyClock
-    skyClock = Math.abs(gap) > 5 ? session.playTime : skyClock + gap * Math.min(1, dt * 2)
+    const gap = session.race.playTime - skyClock
+    skyClock = Math.abs(gap) > 5 ? session.race.playTime : skyClock + gap * Math.min(1, dt * 2)
   } else skyClock += dt
   daylight.update(skyClock, camera, isGodView || rig.overview || rig.cinematic || !!title?.active)
   fog.color.copy(daylight.fogColor)
