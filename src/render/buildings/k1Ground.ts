@@ -1,4 +1,4 @@
-import { cw, deskIsland, pcRow, plant, type Kit } from './kit'
+import { cw, deskIsland, pcRow, plant, type BoardDraw, type Kit } from './kit'
 import { WOOD, type Pt } from './parts'
 
 // K1号館の 1 階の間取り（ユーザーの手書きの間取りと、ソフトウェア工房の写真から作った）。
@@ -11,22 +11,22 @@ const CORE = 0xe2ded6
 const CAP = 0x24272a
 
 /** 工房の並びの東の壁（廊下に面する）と、廊下の東の端 */
-const ROOM_Z = 9.5
-const CORRIDOR_Z = 7.0
+const ROOM_Z = 6.8
+const CORRIDOR_Z = 4.3
 /** トイレ・エレベーター・北の部屋が並ぶ帯の東の端 */
-const CORE_Z = -1.5
+const CORE_Z = -1.7
 
-type Room = { name: string; x0: number; x1: number; doors: [number, number][]; furnish: (k: Kit, x0: number, x1: number, z0: number, z1: number, y: number, ceil: number) => void }
+type Room = { name: string; x0: number; x1: number; doors: [number, number][]; glazed?: boolean; furnish: (k: Kit, x0: number, x1: number, z0: number, z1: number, y: number, ceil: number) => void }
 
 /**
  * 工房の並び（北から）。x0 が北、x1 が南の境目。広さは KAIT PIA > メディア工房 > ネットワーク工房 = ソフトウェア工房 = 北隣の部屋 > サーバールーム。
- * 扉は廊下側の壁に付ける。ソフトウェア工房は手書きの配置に合わせて真ん中寄り、ほかは北寄り
+ * 扉は廊下側の壁に付ける。ソフトウェア工房は手書きの配置に合わせて真ん中寄りで、廊下側はほぼガラス張り（glazed）
  */
 const ROOMS: Room[] = [
   { name: 'KAIT PIA', x0: -17.75, x1: -8.65, doors: [[-16.4, 1.8], [-10.0, 1.8]], furnish: kaitPia },
   { name: 'サーバールーム', x0: -8.65, x1: -6.25, doors: [[-7.9, 0.9]], furnish: serverRoom },
   { name: '', x0: -6.25, x1: -0.45, doors: [[-5.0, 1.8]], furnish: meetingRoom },
-  { name: 'ソフトウェア工房', x0: -0.45, x1: 5.35, doors: [[2.37, 1.8]], furnish: softwareStudio },
+  { name: 'ソフトウェア工房', x0: -0.45, x1: 5.35, doors: [[2.37, 1.8]], glazed: true, furnish: softwareStudio },
   { name: 'ネットワーク工房', x0: 5.35, x1: 11.15, doors: [[6.6, 1.8]], furnish: networkStudio },
   { name: 'メディア工房', x0: 11.15, x1: 17.75, doors: [[12.4, 1.8]], furnish: mediaStudio },
 ]
@@ -39,17 +39,18 @@ export function k1Ground(k: Kit, X: number, Z: number, pz: number, y: number, ce
   const xa = -X + 0.3, xb = X - 0.3
 
   // 工房の並び：廊下側の壁（扉の開口つき）と、部屋どうしの仕切り
-  wallZ(k, ROOM_Z, xa, xb, y, ceil, ROOMS.flatMap((r) => r.doors))
+  wallZ(k, ROOM_Z, xa, xb, y, ceil, ROOMS.flatMap((r) => (r.glazed ? [[(r.x0 + r.x1) / 2, r.x1 - r.x0 - 0.12] as [number, number]] : r.doors)))
   for (const r of ROOMS) {
     if (r.x0 > xa) k.box(r.x0 - 0.06, y, ROOM_Z, r.x0 + 0.06, ceil, Z, WALL)
-    for (const [c, w] of r.doors) slidingDoor(k, c, ROOM_Z, y, w)
+    if (r.glazed) glazedFront(k, r.x0 + 0.06, r.x1 - 0.06, ROOM_Z, y, r.doors[0])
+    else for (const [c, w] of r.doors) slidingDoor(k, c, ROOM_Z, y, w)
     if (r.name) k.sign(r.name, r.doors[0][0], y + 2.65, ROOM_Z - 0.08, 1.5, 0.3, Math.PI)
     k.inside(() => r.furnish(k, r.x0 + 0.06, r.x1 - 0.06, ROOM_Z + 0.06, Z, y, ceil))
   }
 
   // トイレ（南の端）：北の面に男女の入口
   k.box(11.6, y, CORE_Z, xb, ceil, CORRIDOR_Z, CORE)
-  for (const [z, c] of [[1.2, 0x2f5fa8], [5.4, 0xc8322a]] as const) {
+  for (const [z, c] of [[-0.2, 0x2f5fa8], [2.8, 0xc8322a]] as const) {
     k.box(11.57, y, z - 0.6, 11.6, y + 2.2, z + 0.6, 0x8d9296)
     k.box(11.56, y + 2.35, z - 0.15, 11.6, y + 2.65, z + 0.15, c)
   }
@@ -57,17 +58,17 @@ export function k1Ground(k: Kit, X: number, Z: number, pz: number, y: number, ce
   const nx1 = -12.2
   k.box(xa, y, CORE_Z, nx1, ceil, CORE_Z + 0.12, CORE)
   k.box(xa, y, CORRIDOR_Z - 0.12, nx1, ceil, CORRIDOR_Z, CORE)
-  k.box(nx1 - 0.12, y, CORE_Z, nx1, ceil, 2.6, CORE)
-  k.box(nx1 - 0.12, y, 3.8, nx1, ceil, CORRIDOR_Z, CORE)
-  k.box(nx1 - 0.12, y + 2.2, 2.6, nx1, ceil, 3.8, CORE)
-  k.box(nx1 - 0.02, y, 2.6, nx1, y + 2.2, 3.2, 0x9aa0a5)
+  k.box(nx1 - 0.12, y, CORE_Z, nx1, ceil, 1.2, CORE)
+  k.box(nx1 - 0.12, y, 2.4, nx1, ceil, CORRIDOR_Z, CORE)
+  k.box(nx1 - 0.12, y + 2.2, 1.2, nx1, ceil, 2.4, CORE)
+  k.box(nx1 - 0.02, y, 1.2, nx1, y + 2.2, 1.8, 0x9aa0a5)
 
   k.inside(() => {
     stairs(k, y, ceil + 0.35)
-    for (const z of [0.6, 5.2]) deskIsland(k, -15.4, y, z, 2.4, 0.9, 0xe8e6e0, 0x4a5a6a)
-    k.box(xa, y, 2.2, xa + 0.45, y + 1.8, 3.6, 0xe4e6e6)
-    // ロビー：テーブルが 6 つ（3 つずつ 2 列）と植木
-    for (const x of [-7, 0, 7]) for (const z of [-10.2, -7.4]) deskIsland(k, x, y, z, 1.8, 0.9, WOOD, 0x3a4a6a)
+    for (const z of [-0.6, 2.9]) deskIsland(k, -15.4, y, z, 2.4, 0.9, 0xe8e6e0, 0x4a5a6a)
+    k.box(xa, y, 0.6, xa + 0.45, y + 1.8, 2.0, 0xe4e6e6)
+    // ロビー：長手を東西に向けたテーブルが南北に 5 つ並ぶ。植木
+    for (const x of [-8, -4, 0, 4, 8]) lobbyTable(k, x, y, -9.6)
     for (const x of [-12, 12]) plant(k, x, y, -6.4, 2.0)
   })
 
@@ -93,12 +94,12 @@ export function k1Core(k: Kit, lv: number[], top: number) {
     { x0: 2.0, x1: 5.2, face: 2.0, out: -1 },
     { x0: -5.2, x1: -2.0, face: -2.0, out: 1 },
   ]
-  for (const b of banks) k.box(b.x0, 0, -0.5, b.x1, top, 5.5, 0xdadad6)
+  for (const b of banks) k.box(b.x0, 0, -1.6, b.x1, top, 4.2, 0xdadad6)
   k.inside(() => {
     for (let f = 0; f < lv.length - 1; f++) {
       const y = f === 0 ? 0.12 : lv[f] + 0.05
       for (const b of banks) {
-        for (const z of [1.0, 4.0]) {
+        for (const z of [-0.15, 2.75]) {
           const x = b.face
           k.box(x, y, z - 0.7, x + b.out * 0.04, y + 2.45, z + 0.7, 0x8f979d)
           k.box(x + b.out * 0.04, y, z - 0.55, x + b.out * 0.05, y + 2.3, z + 0.55, 0xc3c9ce)
@@ -146,25 +147,74 @@ function glassPart(k: Kit, a: Pt, b: Pt, y: number, ceil: number) {
   for (const p of [a, b]) k.box(p[0] - 0.04, y, p[1] - 0.04, p[0] + 0.04, y + 2.6, p[1] + 0.04, 0x6f777c)
 }
 
-/** ロビーとエレベーターホールのあいだの階段：南から北へ上がって踊り場で折り返し、南へ 2 階まで */
+/** ロビーとエレベーターホールのあいだの階段：折り返しのない 1 本で、南の足元から北へ 2 階まで。壁は無く、両脇に手すり */
 function stairs(k: Kit, y: number, yTop: number) {
-  const C = 0xd9dad6
-  const mid = (y + yTop) / 2
-  const run = (x0: number, y0: number, x1: number, y1: number, z0: number, z1: number) => {
-    const n = Math.max(2, Math.round((y1 - y0) / 0.17))
-    for (let i = 0; i < n; i++) {
-      const xs = x0 + ((x1 - x0) * i) / n, xe = x0 + ((x1 - x0) * (i + 1)) / n
-      const yy = y0 + ((y1 - y0) * (i + 1)) / n
-      k.box(xs, Math.max(y0, yy - 0.3), z0, xe, yy, z1, C)
-    }
-    // 手すり（外側）
-    const zr = z0 < -4.05 ? z0 : z1
-    k.quad([x0, y0 + 0.9, zr], [x1, y1 + 0.9, zr], [x1, y1 + 0.95, zr], [x0, y0 + 0.95, zr], 0x8a9399)
+  const C = 0xd9dad6, RAIL = 0x8a9399
+  const x0 = 4.5, x1 = -4.5, z0 = -5.2, z1 = -3.2
+  const n = Math.round((yTop - y) / 0.17)
+  for (let i = 0; i < n; i++) {
+    const xs = x0 + ((x1 - x0) * i) / n, xe = x0 + ((x1 - x0) * (i + 1)) / n
+    const yy = y + ((yTop - y) * (i + 1)) / n
+    k.box(xs, Math.max(y, yy - 0.3), z0, xe, yy, z1, C)
   }
-  run(3.0, y, -2.6, mid, -4.0, -2.5)
-  k.box(-5.0, mid - 0.25, -5.6, -2.6, mid, -2.5, C)
-  run(-2.6, mid, 3.0, yTop, -5.6, -4.1)
-  k.box(-2.6, y, -4.1, 3.0, yTop, -4.0, WALL)
+  // 裏面と側板
+  k.quad([x0, y, z1], [x1, yTop - 0.3, z1], [x1, yTop - 0.3, z0], [x0, y, z0], C)
+  for (const z of [z0, z1]) {
+    k.quad([x0, y, z], [x1, yTop - 0.3, z], [x1, yTop + 0.05, z], [x0, y + 0.22, z], 0xc9cbc9)
+    // 手すり：細い支柱と、勾配に沿った笠木
+    for (let i = 1; i < 8; i++) {
+      const t = i / 8
+      const px = x0 + (x1 - x0) * t, py = y + (yTop - y) * t
+      k.box(px - 0.02, py, z - 0.02, px + 0.02, py + 0.9, z + 0.02, RAIL)
+    }
+    k.quad([x0, y + 0.9, z], [x1, yTop + 0.9, z], [x1, yTop + 0.95, z], [x0, y + 0.95, z], RAIL)
+  }
+}
+
+/** ロビーのテーブル（長手が z）。椅子は東西の両側に 2 脚ずつ */
+function lobbyTable(k: Kit, cx: number, y: number, cz: number) {
+  const w = 0.9, len = 1.8, CH = 0x3a4a6a
+  k.box(cx - w / 2, y + 0.7, cz - len / 2, cx + w / 2, y + 0.75, cz + len / 2, WOOD)
+  k.box(cx - 0.05, y, cz - len / 2 + 0.05, cx + 0.05, y + 0.7, cz + len / 2 - 0.05, 0x9a9a9a)
+  for (const s of [-1, 1]) {
+    const x = cx + s * (w / 2 + 0.35)
+    for (const z of [cz - 0.45, cz + 0.45]) {
+      k.box(x - 0.22, y + 0.42, z - 0.22, x + 0.22, y + 0.48, z + 0.22, CH)
+      k.box(x + s * 0.18, y + 0.48, z - 0.22, x + s * 0.22, y + 0.95, z + 0.22, CH)
+    }
+  }
+}
+
+/**
+ * 廊下側がほぼガラス張りの面（x0..x1、z 一定）。木の柱と、床から 80cm の高さの横桟。扉は 1 枚の引き戸で、
+ * 南（ネットワーク工房の側）へ開く。door は [中心 x, 幅]
+ */
+function glazedFront(k: Kit, x0: number, x1: number, z: number, y: number, [dc, dw]: [number, number]) {
+  const FR = 0xb5874f, h = 2.3
+  const bar = (xa: number, ya: number, xb: number, yb: number, zz = z) => k.box(xa, ya, zz - 0.03, xb, yb, zz + 0.03, FR)
+  const d0 = dc - dw / 2, d1 = dc + dw / 2
+  // はめ殺しのガラス（扉の開口の左右）
+  for (const [a, b] of [[x0, d0], [d1, x1]]) {
+    if (b - a < 0.1) continue
+    const n = Math.max(1, Math.round((b - a) / 1.3))
+    for (let i = 0; i <= n; i++) {
+      const x = a + ((b - a) * i) / n
+      bar(x - 0.04, y, x + 0.04, y + h)
+    }
+    bar(a, y, b, y + 0.08)
+    bar(a, y + 0.78, b, y + 0.84)
+    k.wall([a, z], [b, z], y, y + h, 0xd6e0e3, 'glass')
+  }
+  bar(x0, y + h - 0.08, x1, y + h)
+  // 引き戸：開口の廊下側に吊った 1 枚。上に戸車のレール
+  const zd = z - 0.07
+  bar(d0, y, d0 + 0.06, y + h - 0.08, zd)
+  bar(d1 - 0.06, y, d1, y + h - 0.08, zd)
+  bar(d0, y, d1, y + 0.08, zd)
+  bar(d0, y + 0.78, d1, y + 0.84, zd)
+  bar(d0, y + h - 0.16, d1, y + h - 0.08, zd)
+  k.wall([d0, zd], [d1, zd], y, y + h - 0.08, 0xd6e0e3, 'glass')
+  k.box(d0, y + h - 0.08, zd - 0.04, d1 + dw, y + h, zd + 0.02, 0x8a8f94)
 }
 
 /** 木と緑の仕切り（高さ 1.3m）。z 一定なら z0 = z1 - 0.06 のように薄い箱で渡す */
@@ -212,6 +262,16 @@ function chair(k: Kit, x: number, y: number, z: number, back: number) {
   k.box(x - 0.23, y + 0.5, z + back * 0.2, x + 0.23, y + 1.0, z + back * 0.25, SEAT)
 }
 
+/** chair の背もたれが x の向きのもの */
+function chairX(k: Kit, x: number, y: number, z: number, back: number) {
+  const LEG = 0x4a4e52, SEAT = 0x2c3034
+  k.box(x - 0.3, y, z - 0.03, x + 0.3, y + 0.05, z + 0.03, LEG)
+  k.box(x - 0.03, y, z - 0.3, x + 0.03, y + 0.05, z + 0.3, LEG)
+  k.box(x - 0.03, y + 0.05, z - 0.03, x + 0.03, y + 0.42, z + 0.03, LEG)
+  k.box(x - 0.24, y + 0.42, z - 0.24, x + 0.24, y + 0.48, z + 0.24, SEAT)
+  k.box(x + back * 0.2, y + 0.5, z - 0.23, x + back * 0.25, y + 1.0, z + 0.23, SEAT)
+}
+
 /** LAN ケーブル（青）。天井の下を折れ線で通す。pts は [x, z]、y は高さ */
 function cable(k: Kit, pts: Pt[], y: number) {
   const C = 0x4f86d6
@@ -228,82 +288,82 @@ function drop(k: Kit, x: number, z: number, y0: number, y1: number) {
 
 /**
  * ソフトウェア工房（ユーザーの手書きの配置と、北の壁ぎわから南を向いて撮ったパノラマの写真）。
- * 西半分は、北の壁から南へ伸びる机の島が 3 つ：窓側は棚（バインダー・電気ポット・炊飯器など）と机 1 列が背中合わせ、
- * 真ん中は机 2 列が背中合わせ、東は机 1 列で、その東の仕切りが入口側との区切り。机の列はモニター 3 台で、ところどころに PC。
- * 南の壁に壁張りのホワイトボード・ほっともっとのメニューの掲示・空気清浄機・簡易靴箱、南西の角にサーバーラック
- * （倉庫用のスチールラックにデスクトップ PC。LAN ケーブルは天井を通って各島のハブへ下りる）。
- * 東半分（入口側）は机が 1 台、北の壁に本棚、北東の角に展示用のモニター、南東の角にペッパーくん、移動式のホワイトボード
+ * 西半分は、北の壁から南へ伸びる机の島が 3 つ：窓側は棚（バインダー・電気ポット・炊飯器など）と机 1 列が背中合わせで、
+ * 棚と窓のあいだが給湯室のように使える通路。真ん中は机 2 列が背中合わせ、東は机 1 列で、その東の仕切りが入口側との区切り。
+ * 机の列はモニター 3 台で、ところどころに PC。向かい合う机の縁のあいだは 1.6m。
+ * 南の壁にマグネットで貼る 1 枚のホワイトボード（書き込みとペン・消し）・空気清浄機・簡易靴箱、南西の角に給湯室のほうを向いた
+ * サーバーラック（倉庫用のスチールラックにデスクトップ PC。LAN ケーブルは天井を通って各島のハブへ下りる）。
+ * 東半分（入口側）は机が 1 台、北の壁に本棚、北東の角に展示用のモニター、南東の角にペッパーくん、移動式のホワイトボード、
+ * 天板の無い机の枠（お弁当のチラシをマグネットで貼ってある）と、足元に散らかった分解された古い PC・使わないモニター・モニターの足
  */
 function softwareStudio(k: Kit, x0: number, x1: number, z0: number, z1: number, y: number, ceil: number) {
   k.box(x0, y, z0, x1, y + 0.01, z1, 0x7f858a)
 
   // 机の島（南の端 xs から北の壁まで）
   const xn = x0 + 0.05
-  // 窓側の島：西に棚、東に机
-  const p1 = 17.2
+  // 窓側の島：西に棚、東に机。棚の西（窓とのあいだ）は約 1.1m の通路
+  const p1 = 16.3, shelfW = 16.75
   partition(k, xn, p1 - 0.03, 3.25, p1 + 0.03, y)
-  shelfCounter(k, xn, 3.25, p1, z1 - 0.2, y)
+  shelfCounter(k, xn, 3.25, p1, shelfW, y)
   deskRow(k, 3.25, xn, p1, -1, y, 3, { lit: [1], tower: [0, 2] })
   // 真ん中の島：背中合わせ
-  const p2 = 14.7
+  const p2 = 13.6
   partition(k, xn, p2 - 0.03, 3.2, p2 + 0.03, y)
   deskRow(k, 3.2, xn, p2, 1, y, 3, { tower: [1] })
   deskRow(k, 3.2, xn, p2, -1, y, 3, { lit: [0, 2], laptop: 0, tower: [2] })
   // 東の島：机は西向き、東の仕切りが入口側との区切り
-  const p3 = 12.2
+  const p3 = 10.9
   partition(k, xn, p3 - 0.03, 3.0, p3 + 0.03, y)
   deskRow(k, 3.0, xn, p3, 1, y, 3, { lit: [1], tower: [0] })
   // 島の南の端の袖の仕切り（机と棚の奥行きの分）
-  for (const [xa, za, zb] of [[3.25, p1 - 0.58, z1 - 0.2], [3.2, p2 - 0.58, p2 + 0.58], [3.0, p3 - 0.03, p3 + 0.58]] as const) {
+  for (const [xa, za, zb] of [[3.25, p1 - 0.58, shelfW], [3.2, p2 - 0.58, p2 + 0.58], [3.0, p3 - 0.03, p3 + 0.58]] as const) {
     partition(k, xa - 0.03, za, xa + 0.03, zb, y)
   }
 
-  // 南の壁：ほっともっとのメニューの掲示、壁張りのホワイトボード 2 枚と時計、簡易靴箱、空気清浄機
-  k.box(x1 - 0.03, y + 1.2, 15.75, x1, y + 1.95, 16.35, 0xb08a5a)
-  for (const [za, ya, c] of [[15.8, 1.55, 0xf5f0e6], [16.05, 1.25, 0xe85a3a], [16.0, 1.6, 0xffffff]] as const) {
-    k.box(x1 - 0.035, y + ya, za, x1 - 0.03, y + ya + 0.3, za + 0.22, c)
+  // 南の壁：マグネットで貼る 1 枚のホワイトボード（書き込み、ペンと消し）と時計、簡易靴箱、空気清浄機
+  const wb0 = 11.2, wb1 = 15.9, wbY0 = y + 0.9, wbY1 = y + 2.2
+  k.box(x1 - 0.012, wbY0, wb0, x1, wbY1, wb1, 0xfbfbfa)
+  k.board(x1 - 0.014, (wbY0 + wbY1) / 2, (wb0 + wb1) / 2, wb1 - wb0, wbY1 - wbY0, -Math.PI / 2, whiteboardNotes)
+  for (const [z, c] of [[15.2, 0x1e2124], [15.32, 0xd23a2a], [15.44, 0x2f5fa8]] as const) {
+    k.box(x1 - 0.035, wbY0 + 0.1, z - 0.012, x1 - 0.012, wbY0 + 0.24, z + 0.012, c)
   }
-  for (const [za, zb] of [[13.65, 14.55], [14.6, 15.5]]) {
-    k.box(x1 - 0.04, y + 0.85, za, x1, y + 2.15, zb, 0xb0b4b8)
-    k.box(x1 - 0.05, y + 0.88, za + 0.03, x1 - 0.04, y + 2.12, zb - 0.03, 0xfbfbfa)
-    k.box(x1 - 0.12, y + 0.85, za, x1 - 0.04, y + 0.88, zb, 0xb0b4b8)
-  }
-  k.box(x1 - 0.03, y + 2.7, 14.4, x1, y + 3.04, 14.74, 0x3a3e42)
-  k.box(x1 - 0.04, y + 2.72, 14.42, x1 - 0.03, y + 3.02, 14.72, 0xf7f7f5)
-  shoeRack(k, x1 - 0.35, x1 - 0.05, 12.8, 13.4, y)
-  k.box(x1 - 0.45, y, 13.85, x1 - 0.1, y + 0.6, 14.2, 0xf0f0ee)
+  k.box(x1 - 0.06, wbY0 + 0.08, 15.55, x1 - 0.012, wbY0 + 0.13, 15.72, 0x2a3a6a)
+  k.box(x1 - 0.03, y + 2.6, 13.4, x1, y + 2.94, 13.74, 0x3a3e42)
+  k.box(x1 - 0.04, y + 2.62, 13.42, x1 - 0.03, y + 2.92, 13.72, 0xf7f7f5)
+  shoeRack(k, x1 - 0.35, x1 - 0.05, 11.4, 12.0, y)
+  k.box(x1 - 0.45, y, 13.1, x1 - 0.1, y + 0.6, 13.45, 0xf0f0ee)
   // ジョイントマット（東の島の南隣）
   for (let i = 0; i < 4; i++) {
-    for (let j = 0; j < 2; j++) k.box(3.35 + i * 0.37, y + 0.01, 12.75 + j * 0.35, 3.72 + i * 0.37, y + 0.025, 13.1 + j * 0.35, (i + j) % 2 ? 0xe7dcc6 : 0x6b4a36)
+    for (let j = 0; j < 2; j++) k.box(3.3 + i * 0.37, y + 0.01, 11.5 + j * 0.35, 3.67 + i * 0.37, y + 0.025, 11.85 + j * 0.35, (i + j) % 2 ? 0xe7dcc6 : 0x6b4a36)
   }
   // 天井のプロジェクター（南の壁のホワイトボードに向ける）
-  k.box(2.4, ceil - 0.25, 14.55, 2.44, ceil, 14.59, 0x9aa0a5)
-  k.box(2.2, ceil - 0.42, 14.35, 2.65, ceil - 0.25, 14.8, 0xf2f2f0)
+  k.box(2.4, ceil - 0.25, 13.5, 2.44, ceil, 13.54, 0x9aa0a5)
+  k.box(2.2, ceil - 0.42, 13.3, 2.65, ceil - 0.25, 13.75, 0xf2f2f0)
 
   // 西の外壁の窓（K1号館の 1 階の西面の窓のうち、この部屋に入るもの）に濃いグレーのブラインド
   const bx = 2.71, bw = 0.77
   k.box(bx - bw, y + 0.95, z1 - 0.24, bx + bw, y + 3.38, z1 - 0.21, 0x3b4542)
   for (let yy = y + 1.05; yy < y + 3.35; yy += 0.12) k.box(bx - bw, yy, z1 - 0.25, bx + bw, yy + 0.02, z1 - 0.24, 0x55605c)
 
-  // 南西の角のサーバーラック：倉庫用のスチールラックの棚 4 段にタワー型の PC、天板に青いコンテナとモニター。北側は仕切りで囲う
-  const rx0 = 4.1, rx1 = 5.2, rz0 = z1 - 0.8, rz1 = z1 - 0.2
-  partition(k, 3.92, 16.75, 3.98, z1 - 0.05, y)
+  // 南西の角のサーバーラック：南の壁に背を付けて、正面は北（給湯室の通路）を向く。
+  // 倉庫用のスチールラックの棚 4 段にタワー型の PC、天板に青いコンテナとモニター
+  const rx0 = x1 - 0.65, rx1 = x1 - 0.05, rz0 = 16.25, rz1 = z1 - 0.1
   const RACK = 0xd3d7d9
   for (const x of [rx0, rx1 - 0.04]) for (const z of [rz0, rz1 - 0.04]) k.box(x, y, z, x + 0.04, y + 1.9, z + 0.04, RACK)
   const shelves = [0.1, 0.6, 1.1, 1.6]
   for (const sy of shelves) k.box(rx0, y + sy, rz0, rx1, y + sy + 0.03, rz1, RACK)
   for (const sy of shelves.slice(0, 3)) {
-    for (let x = rx0 + 0.06, i = 0; x < rx1 - 0.24; x += 0.25, i++) {
-      k.box(x, y + sy + 0.03, rz0 + 0.08, x + 0.2, y + sy + 0.45, rz1 - 0.05, i % 3 === 1 ? 0xb8bcc0 : 0x2a2d31)
-      k.box(x + 0.08, y + sy + 0.35, rz0 + 0.075, x + 0.12, y + sy + 0.38, rz0 + 0.08, i % 2 ? 0x7cf28f : 0x6fb6ff, 'light')
+    for (let z = rz0 + 0.06, i = 0; z < rz1 - 0.24; z += 0.25, i++) {
+      k.box(rx0 + 0.08, y + sy + 0.03, z, rx1 - 0.05, y + sy + 0.45, z + 0.2, i % 3 === 1 ? 0xb8bcc0 : 0x2a2d31)
+      k.box(rx0 + 0.075, y + sy + 0.35, z + 0.08, rx0 + 0.08, y + sy + 0.38, z + 0.12, i % 2 ? 0x7cf28f : 0x6fb6ff, 'light')
     }
   }
-  for (let x = rx0 + 0.05; x < rx1 - 0.35; x += 0.4) k.box(x, y + 1.63, rz0 + 0.05, x + 0.36, y + 1.85, rz1 - 0.05, 0x2f7fd8)
-  k.box(rx1 - 0.4, y + 1.63, rz0 + 0.2, rx1 - 0.05, y + 2.0, rz0 + 0.24, 0x1b1e21)
+  for (let z = rz0 + 0.05; z < rz1 - 0.35; z += 0.4) k.box(rx0 + 0.05, y + 1.63, z, rx1 - 0.05, y + 1.85, z + 0.36, 0x2f7fd8)
+  k.box(rx0 + 0.2, y + 1.63, rz1 - 0.4, rx0 + 0.24, y + 2.0, rz1 - 0.05, 0x1b1e21)
 
   // LAN ケーブル：ラックの上から天井へ、天井の下を通って各島の仕切りの上のハブへ
   const cy = ceil - 0.05
-  const rackTop: Pt = [4.65, (rz0 + rz1) / 2]
+  const rackTop: Pt = [(rx0 + rx1) / 2, (rz0 + rz1) / 2]
   drop(k, rackTop[0], rackTop[1], y + 1.85, cy)
   for (const [hx, hz] of [[1.6, p1], [1.6, p2], [1.5, p3]] as Pt[]) {
     for (const o of [0, 0.05]) {
@@ -314,21 +374,140 @@ function softwareStudio(k: Kit, x0: number, x1: number, z0: number, z1: number, 
   }
 
   // 入口側：机 1 台（椅子は南側）、北の壁の本棚、北東の角の展示用モニター、南東の角のペッパーくん、移動式のホワイトボード
-  k.box(0.65, y + 0.7, 10.5, 1.55, y + 0.74, 12.0, 0xd9b47e)
-  for (const [lx, lz] of [[0.7, 10.55], [1.5, 10.55], [0.7, 11.95], [1.5, 11.95]] as const) k.box(lx - 0.025, y, lz - 0.025, lx + 0.025, y + 0.7, lz + 0.025, 0x9a9a9a)
-  for (const z of [10.9, 11.6]) chair(k, 1.95, y, z, 0)
-  bookshelf(k, x0, x0 + 0.4, 9.7, 12.0, y)
-  k.box(0.45, y, 9.7, 1.25, y + 0.9, 9.9, 0x2a2d30)
-  k.box(0.2, y + 0.9, 9.72, 1.5, y + 1.65, 9.78, 0x1b1e21)
-  k.box(0.24, y + 0.94, 9.78, 1.46, y + 1.61, 9.785, 0x7fb6e6, 'light')
-  pepper(k, 4.6, 10.2, y)
-  movableBoard(k, 4.9, 10.9, 12.0, y)
+  k.box(0.65, y + 0.7, 8.2, 1.55, y + 0.74, 9.8, 0xd9b47e)
+  for (const [lx, lz] of [[0.7, 8.25], [1.5, 8.25], [0.7, 9.75], [1.5, 9.75]] as const) k.box(lx - 0.025, y, lz - 0.025, lx + 0.025, y + 0.7, lz + 0.025, 0x9a9a9a)
+  for (const z of [8.65, 9.35]) chairX(k, 1.95, y, z, 1)
+  bookshelf(k, x0, x0 + 0.4, 7.4, 9.9, y)
+  k.box(0.45, y, 6.95, 1.25, y + 0.9, 7.15, 0x2a2d30)
+  k.box(0.2, y + 0.9, 7.0, 1.45, y + 1.65, 7.06, 0x1b1e21)
+  k.box(0.24, y + 0.94, 7.06, 1.41, y + 1.61, 7.065, 0x7fb6e6, 'light')
+  pepper(k, 4.6, 7.6, y)
+  movableBoard(k, 4.9, 8.4, 9.8, y)
+
+  // 天板の無い机の枠：東の面の幕板にお弁当のチラシ。足元に分解された古い PC・使わないモニター・モニターの足
+  const fx0 = 3.0, fx1 = 4.4, fz0 = 9.95, fz1 = 10.65
+  for (const x of [fx0, fx1 - 0.04]) for (const z of [fz0, fz1 - 0.04]) k.box(x, y, z, x + 0.04, y + 0.72, z + 0.04, 0x9a9a9a)
+  for (const z of [fz0, fz1 - 0.04]) k.box(fx0, y + 0.68, z, fx1, y + 0.72, z + 0.04, 0x9a9a9a)
+  for (const x of [fx0, fx1 - 0.04]) k.box(x, y + 0.68, fz0, x + 0.04, y + 0.72, fz1, 0x9a9a9a)
+  k.box(fx0 + 0.04, y + 0.22, fz0, fx1 - 0.04, y + 0.68, fz0 + 0.02, 0xa9aeb2)
+  k.board(3.7, y + 0.45, fz0 - 0.004, 0.3, 0.42, Math.PI, bentoFlyer, 900)
+  // 横倒しの古いタワー PC（側板が外れて中の基板が見える）と、床に置いた基板
+  k.box(3.2, y, 10.1, 3.65, y + 0.2, 10.55, 0xb8bcc0)
+  k.box(3.24, y + 0.2, 10.14, 3.61, y + 0.205, 10.51, 0x2f6b3a)
+  k.box(3.8, y, 10.15, 4.1, y + 0.01, 10.4, 0x2f6b3a)
+  // 使わないモニター（壁に立てかけたものと、伏せたもの）
+  k.obox(2.75, y, 10.75, 0.56, 0.36, 0.04, 0, 0x1b1e21)
+  k.box(2.2, y, 10.2, 2.75, y + 0.04, 10.55, 0x1b1e21)
+  // モニターの足（台座と首）
+  for (const [sx, sz, a] of [[2.6, 9.7, 0.4], [3.9, 9.6, -0.6], [4.3, 10.75, 1.2], [2.4, 10.6, -0.2]] as const) {
+    k.obox(sx, y, sz, 0.24, 0.02, 0.18, a, 0x2a2d31)
+    k.obox(sx, y + 0.02, sz, 0.05, 0.2, 0.03, a, 0x2a2d31)
+  }
 
   // 天井の空調（カセット形）
-  for (const [ax, az] of [[1.4, 15.9], [1.4, 11.2]] as Pt[]) {
+  for (const [ax, az] of [[1.4, 15.0], [1.4, 9.0]] as Pt[]) {
     k.box(ax - 0.45, ceil - 0.06, az - 0.45, ax + 0.45, ceil, az + 0.45, 0xf2f2f0)
     k.box(ax - 0.3, ceil - 0.065, az - 0.3, ax + 0.3, ceil - 0.06, az + 0.3, 0x8a8f94)
   }
+}
+
+/** ホワイトボードの書き込み（このゲームを作っているところ） */
+const whiteboardNotes: BoardDraw = (g, w, h) => {
+  const BLACK = '#25282c', BLUE = '#1f4fbf', RED = '#d33a2c'
+  const font = (px: number) => `${px}px "Klee One", "Yomogi", "Hiragino Maru Gothic ProN", "Noto Sans JP", sans-serif`
+  const text = (t: string, x: number, yy: number, px: number, c = BLACK) => {
+    g.fillStyle = c
+    g.font = font(px)
+    g.fillText(t, x, yy)
+  }
+  g.clearRect(0, 0, w, h)
+  g.lineCap = 'round'
+  g.lineWidth = 3
+  g.textBaseline = 'alphabetic'
+  // 左：やることの一覧
+  text('スノーキャンパス 開発', 30, 52, 34)
+  g.strokeStyle = BLACK
+  g.beginPath()
+  g.moveTo(30, 62)
+  g.lineTo(380, 60)
+  g.stroke()
+  const todo: [string, boolean][] = [['雪原（削ると地面）', true], ['校舎 27 棟', true], ['マルチプレイ', true], ['K1 1F の作り込み', false], ['学園祭のデモ', false]]
+  todo.forEach(([t, done], i) => {
+    const yy = 105 + i * 42
+    g.strokeRect(34, yy - 22, 20, 20)
+    if (done) text('✓', 34, yy - 2, 26, BLUE)
+    text(t, 66, yy, 26, i === 3 ? RED : BLACK)
+  })
+  text('← いまここ', 290, 105 + 3 * 42, 22, RED)
+  // 真ん中：雪玉と校舎のラクガキ
+  g.strokeStyle = BLUE
+  g.beginPath()
+  g.arc(520, 150, 52, 0, Math.PI * 2)
+  g.stroke()
+  text('雪', 505, 160, 30, BLUE)
+  g.beginPath()
+  g.moveTo(585, 150)
+  g.lineTo(660, 150)
+  g.moveTo(645, 138)
+  g.lineTo(660, 150)
+  g.lineTo(645, 162)
+  g.stroke()
+  g.strokeRect(680, 95, 90, 110)
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) g.strokeRect(692 + c * 26, 108 + r * 30, 16, 18)
+  text('寄付すると にょきにょき', 470, 245, 24, BLUE)
+  text('削ると気持ちいい!!', 470, 285, 24, RED)
+  // 右：締切と技術メモ、ゆるいバーンダウン
+  g.strokeStyle = RED
+  g.strokeRect(840, 28, 320, 58)
+  text('学園祭まで あと 3 日!!', 856, 68, 30, RED)
+  text('three.js + Vite（HMR で見せる）', 840, 130, 22)
+  text('Colyseus のルームで協力プレイ', 840, 165, 22)
+  text('スマホ縦持ちでも 60fps', 840, 200, 22)
+  g.strokeStyle = BLACK
+  g.beginPath()
+  g.moveTo(860, 225)
+  g.lineTo(860, 315)
+  g.lineTo(1170, 315)
+  g.stroke()
+  g.strokeStyle = BLUE
+  g.beginPath()
+  g.moveTo(860, 235)
+  g.lineTo(940, 245)
+  g.lineTo(1000, 280)
+  g.lineTo(1060, 285)
+  g.lineTo(1120, 305)
+  g.stroke()
+}
+
+/** お弁当のチラシ（A3 くらい、マグネットで貼ってある） */
+const bentoFlyer: BoardDraw = (g, w, h) => {
+  g.fillStyle = '#fffdf6'
+  g.fillRect(0, 0, w, h)
+  g.fillStyle = '#d2352a'
+  g.fillRect(0, 0, w, h * 0.14)
+  g.fillStyle = '#fff'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  g.font = `bold ${h * 0.075}px "Hiragino Sans", "Noto Sans JP", sans-serif`
+  g.fillText('お弁当 メニュー', w / 2, h * 0.07)
+  const items: [string, string][] = [['唐揚げ弁当', '490円'], ['海苔弁', '390円'], ['ステーキ弁当', '890円'], ['おろし竜田弁当', '590円'], ['野菜炒め丼', '520円'], ['親子丼', '540円'], ['豚汁', '150円']]
+  g.textBaseline = 'alphabetic'
+  items.forEach(([name, price], i) => {
+    const yy = h * (0.24 + i * 0.105)
+    g.fillStyle = i % 2 ? '#f6e7c8' : '#fdf1dc'
+    g.fillRect(w * 0.05, yy - h * 0.07, w * 0.9, h * 0.09)
+    g.fillStyle = '#3a2a1a'
+    g.textAlign = 'left'
+    g.font = `bold ${h * 0.05}px "Hiragino Sans", "Noto Sans JP", sans-serif`
+    g.fillText(name, w * 0.09, yy)
+    g.fillStyle = '#d2352a'
+    g.textAlign = 'right'
+    g.fillText(price, w * 0.91, yy)
+  })
+  g.fillStyle = '#3a2a1a'
+  g.textAlign = 'center'
+  g.font = `${h * 0.035}px "Hiragino Sans", "Noto Sans JP", sans-serif`
+  g.fillText('ご注文はお電話で　お届けもできます', w / 2, h * 0.97)
 }
 
 /** 窓側の島の、仕切り（z = zp）の西の棚。上にバインダー・電気ポット・炊飯器・カップと箸立て */
