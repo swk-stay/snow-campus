@@ -133,7 +133,7 @@ function face(): THREE.Mesh {
     const x = px(sx * 0.38)
     const y = py(1.69)
     const w = 54
-    const h = 62
+    const h = 54
     // 角：目頭の上・目頭の下・目尻の下・目尻の上
     const it = { x: x - sx * w * 0.95, y: y - h * 0.2 }
     // 目頭の下は目尻の下より高くし、下の縁は目頭へ向かって上がる
