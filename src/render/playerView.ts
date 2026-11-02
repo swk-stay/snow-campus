@@ -5,6 +5,7 @@ import type { Player } from '../sim/game'
 import { DEFAULT_SKIN, skinById, type Skin } from '../skins'
 import { enableShadows } from './daylight'
 import { cureAnswerModel } from './avatars/cureAnswer'
+import { cureMistiqueModel } from './avatars/cureMistique'
 
 // プレイヤーの見た目。背中の雪玉が所持量に応じて膨らむ。
 // 足元の丸い影と回収範囲リングは SnowSurface のシェーダー側で描いている（太陽による影は daylight.ts の影）。
@@ -18,7 +19,7 @@ export class PlayerView {
 
   /** skin：見た目（マルチプレイではプレイヤーが選ぶ）。kind ごとにモデルを組み立て、背中の雪玉はどれも共通 */
   constructor(skin: Skin = skinById(DEFAULT_SKIN)) {
-    this.body.add(skin.kind === 'cureAnswer' ? cureAnswerModel() : jacketModel(skin.color))
+    this.body.add(skinModel(skin))
 
     this.pack = new THREE.Mesh(
       new THREE.SphereGeometry(1, 20, 14),
@@ -51,6 +52,18 @@ export class PlayerView {
     const s = 0.12 + 0.42 * Math.sqrt(fill)
     this.pack.scale.setScalar(s)
     this.pack.position.set(0, 0.75 + s * 0.4, -0.3 - s * 0.8)
+  }
+}
+
+/** スキンの kind ごとのモデル */
+function skinModel(skin: Skin): THREE.Group {
+  switch (skin.kind) {
+    case 'cureAnswer':
+      return cureAnswerModel()
+    case 'cureMistique':
+      return cureMistiqueModel()
+    case 'jacket':
+      return jacketModel(skin.color)
   }
 }
 
