@@ -136,7 +136,8 @@ function face(): THREE.Mesh {
     const h = 62
     // 角：目頭の上・目頭の下・目尻の下・目尻の上
     const it = { x: x - sx * w * 0.95, y: y - h * 0.2 }
-    const ib = { x: x - sx * w * 0.8, y: y + h * 0.8 }
+    // 目頭の下は目尻の下より高くし、下の縁は目頭へ向かって上がる
+    const ib = { x: x - sx * w * 0.8, y: y + h * 0.5 }
     const ob = { x: x + sx * w * 0.8, y: y + h * 0.8 }
     const ot = { x: x + sx * w, y: y - h * 0.15 }
     // 上のアーチ（目頭の上から目尻の上への 3 次ベジェ）
@@ -170,7 +171,7 @@ function face(): THREE.Mesh {
       ctx.lineTo(it.x, it.y)
       ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, ot.x, ot.y)
       ctx.quadraticCurveTo(x + sx * w * 1.02, y + h * 0.5, ob.x, ob.y)
-      ctx.quadraticCurveTo(x, y + h * 0.76, ib.x, ib.y)
+      ctx.quadraticCurveTo(x - sx * w * 0.1, y + h * 0.84, ib.x, ib.y)
     }
 
     // 白目と瞳（目の形で切り抜く）
@@ -260,12 +261,12 @@ function face(): THREE.Mesh {
     ctx.fillStyle = '#4a2630'
     ctx.lineWidth = 4
     ctx.beginPath()
-    ctx.moveTo(x - sx * w * 0.45, y + h * 0.8)
-    ctx.quadraticCurveTo(x + sx * w * 0.05, y + h * 0.76, x + sx * w * 0.62, y + h * 0.8)
+    ctx.moveTo(x - sx * w * 0.45, y + h * 0.68)
+    ctx.quadraticCurveTo(x + sx * w * 0.05, y + h * 0.83, x + sx * w * 0.62, y + h * 0.8)
     ctx.stroke()
-    for (const f of [-0.3, 0.3]) {
+    for (const [f, dy] of [[-0.25, 0.74], [0.3, 0.8]]) {
       const lx = x + sx * w * f
-      lash(lx, y + h * 0.8, lx - sx * 2, y + h * 0.95, 3)
+      lash(lx, y + h * dy, lx - sx * 2, y + h * (dy + 0.15), 3)
     }
     // 目頭の上のピンクがかった影
     ctx.fillStyle = 'rgba(200, 120, 120, 0.45)'
