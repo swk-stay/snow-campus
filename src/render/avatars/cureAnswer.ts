@@ -209,6 +209,30 @@ function twinTail(side: 1 | -1): THREE.Group {
 }
 
 /**
+ * ブローチ：金縁のピンクの宝石と、右上（side が -1 なら左上）の金の星。
+ * お団子の飾りと、ネクタイの結び目に同じ形を使う。原点が宝石の中心で、+z を向く
+ */
+function brooch(gem: THREE.Material, gold: THREE.Material, side: number): THREE.Group {
+  const b = new THREE.Group()
+  b.add(mesh(new THREE.SphereGeometry(0.03, 12, 8), gem))
+  b.add(mesh(new THREE.TorusGeometry(0.033, 0.008, 6, 16), gold))
+  b.add(mesh(new THREE.OctahedronGeometry(0.014), gold, side * 0.04, 0.03, 0))
+  return b
+}
+
+/** ネクタイの形：上が細く、下へ広がって V 字にとがる。原点が上の真ん中で、-y へ垂れる */
+function tieShape(): THREE.Shape {
+  const shape = new THREE.Shape()
+  shape.moveTo(-0.015, 0)
+  shape.lineTo(0.015, 0)
+  shape.lineTo(0.03, -0.075)
+  shape.lineTo(0, -0.1)
+  shape.lineTo(-0.03, -0.075)
+  shape.closePath()
+  return shape
+}
+
+/**
  * 天使の羽（片方）。根元が原点で +y へ伸び、+x 側に羽根の丸みが 3 つ並ぶ。薄く押し出し、
  * 根元の白から先の水色へ変える（頂点カラー）
  */
@@ -268,12 +292,6 @@ export function cureAnswerModel(): THREE.Group {
       g.add(mesh(new THREE.SphereGeometry(0.016, 10, 8), button, bx, by, z + 0.004))
     }
   }
-  // 前身ごろの上端の、金の V 字（ネクタイの先を受ける）
-  for (const sx of [-1, 1]) {
-    const bar = mesh(new THREE.BoxGeometry(0.06, 0.018, 0.012), gold, sx * 0.025, 0.79, 0.15)
-    bar.rotation.z = sx * 0.55
-    g.add(bar)
-  }
   // ケープ：肩から胸の上までを覆う短い紫のケープ。前は開いてネクタイと前身ごろを見せ、
   // 裾は丸い波形（スカラップ）で、水色の縁取りを付ける
   const capeTop = 0.92
@@ -300,18 +318,22 @@ export function cureAnswerModel(): THREE.Group {
     g.add(lobe)
   }
   g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(hem), scallops * 12, 0.007, 6, false), mat(C.trim)))
-  // ネクタイ：リボンから金の V 字まで垂れる、ピンクがかった紫のひし形
-  const tie = mesh(new THREE.OctahedronGeometry(1), mat(C.tie), 0, 0.83, 0.158)
-  tie.scale.set(0.028, 0.05, 0.01)
-  g.add(tie)
-  // 襟元のピンクのリボン：左右の輪と、真ん中のハートの宝石
+  // ネクタイ：結び目から垂れるピンクがかった紫で、V 字にとがった先の縁は金。
+  // 縁は同じ形の金の板を、ネクタイの後ろに少し下へずらして重ね、はみ出したところで見せる
+  const tieGeometry = new THREE.ExtrudeGeometry(tieShape(), { depth: 0.008, bevelEnabled: false })
+  g.add(mesh(tieGeometry, mat(C.tie), 0, 0.855, 0.154))
+  g.add(mesh(tieGeometry, gold, 0, 0.843, 0.15))
+  // 襟元のピンクのリボン：左右の輪と、結び目にお団子の飾りと同じブローチ
   for (const sx of [-1, 1]) {
     const loop = mesh(new THREE.SphereGeometry(0.04, 12, 8), pink, sx * 0.045, 0.865, 0.165)
     loop.scale.set(1.2, 0.75, 0.45)
     loop.rotation.z = -sx * 0.25
     g.add(loop)
   }
-  g.add(mesh(new THREE.SphereGeometry(0.022, 10, 8), gem, 0, 0.865, 0.18))
+  const knot = brooch(gem, gold, 1)
+  knot.position.set(0, 0.865, 0.18)
+  knot.scale.setScalar(0.8)
+  g.add(knot)
 
   // 腕と白い手袋（少し開いて下ろす）
   for (const sx of [-1, 1]) {
@@ -374,9 +396,9 @@ export function cureAnswerModel(): THREE.Group {
     badge.position.set(s * 0.27, 1.41, 0.03)
     badge.rotation.y = s * 0.65
     g.add(badge)
-    badge.add(mesh(new THREE.SphereGeometry(0.03, 12, 8), gem, 0, 0, 0.01))
-    badge.add(mesh(new THREE.TorusGeometry(0.033, 0.008, 6, 16), gold, 0, 0, 0.01))
-    badge.add(mesh(new THREE.OctahedronGeometry(0.014), gold, s * 0.04, 0.03, 0.01))
+    const gemBadge = brooch(gem, gold, s)
+    gemBadge.position.z = 0.01
+    badge.add(gemBadge)
     // 上の羽はお団子の上へまっすぐ立て、下の羽は横へ張り出す（羽根の丸みはどちらも外側・下側）
     const up = new THREE.Mesh(wingGeometry, wingMat)
     up.position.set(-s * 0.01, 0.03, -0.012)
