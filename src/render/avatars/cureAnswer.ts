@@ -40,7 +40,7 @@ const HEAD = new THREE.Vector3(0, 1.12, 0)
 const CAP_CENTER = new THREE.Vector3(0, 1.22, -0.09)
 
 // 顔の絵を貼る範囲。頭の球の前面を、水平は正面から ±FACE_PHI、縦は天頂からの角度で FACE_THETA0..FACE_THETA1
-const FACE_PHI = 0.75
+const FACE_PHI = 0.9
 const FACE_THETA0 = 1.0
 const FACE_THETA1 = 2.2
 // 絵は 1 ラジアン 256 単位の座標で描き、Canvas は FACE_SCALE 倍の解像度にする（近くで見ても線がにじまないように）
@@ -48,9 +48,9 @@ const FACE_UNIT = 256
 const FACE_SCALE = 2
 
 /**
- * 顔。Canvas に 2D で描いた眉・目・頬・口を、頭よりわずかに大きい球の前面に貼る。
- * 立ち絵（docs/cure-answer/front.png）に寄せて、目は横に広く、太い上まつげが目尻で跳ね、
- * 瞳は上が濃い青緑で下が明るい水色、中にピンクのハートのハイライトが入る。口は大きく開けて笑う。
+ * 顔。Canvas に 2D で描いた眉・目・頬・鼻・口を、頭よりわずかに大きい球の前面に貼る。
+ * デフォルメのイラスト（docs/cure-answer/img.png）に合わせて、線と塗りだけの単純な描き方にする。
+ * 立ち絵に寄せて目を細かく描き込むと、2 頭身の体には生々しすぎて不気味に見えたため。
  */
 function face(): THREE.Mesh {
   const canvas = document.createElement('canvas')
@@ -65,247 +65,75 @@ function face(): THREE.Mesh {
     ctx.beginPath()
     ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2)
   }
-  const heart = (x: number, y: number, size: number) => {
-    ctx.beginPath()
-    ctx.moveTo(x, y + size * 0.9)
-    ctx.bezierCurveTo(x - size * 1.3, y, x - size * 0.7, y - size, x, y - size * 0.35)
-    ctx.bezierCurveTo(x + size * 0.7, y - size, x + size * 1.3, y, x, y + size * 0.9)
-  }
+  const ink = '#4b2e2a' // 線と目の焦げ茶
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
 
-  // 根元が太く先が細い線（まつげ）
-  const lash = (x0: number, y0: number, x1: number, y1: number, width: number) => {
-    const nx = -(y1 - y0)
-    const ny = x1 - x0
-    const len = Math.hypot(nx, ny) || 1
-    const ox = (nx / len) * width * 0.5
-    const oy = (ny / len) * width * 0.5
-    ctx.beginPath()
-    ctx.moveTo(x0 + ox, y0 + oy)
-    ctx.lineTo(x1, y1)
-    ctx.lineTo(x0 - ox, y0 - oy)
+  // 頬：目の外寄りの下に、ピンクのぼかし
+  for (const sx of [-1, 1]) {
+    const x = px(sx * 0.62)
+    const y = py(1.9)
+    const blush = ctx.createRadialGradient(x, y, 0, x, y, 34)
+    blush.addColorStop(0, 'rgba(250, 140, 160, 0.7)')
+    blush.addColorStop(1, 'rgba(250, 140, 160, 0)')
+    ctx.fillStyle = blush
+    ellipse(x, y, 40, 26)
     ctx.fill()
   }
 
-  // 頬：ふんわりした赤みと、白い光の点・斜めの短い線
+  // 眉：細い線のゆるい弧。目から離して高めに置く
+  ctx.strokeStyle = ink
+  ctx.lineWidth = 4
+  for (const sx of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(px(sx * 0.32), py(1.27))
+    ctx.quadraticCurveTo(px(sx * 0.46), py(1.17), px(sx * 0.62), py(1.27))
+    ctx.stroke()
+  }
+
+  // 目：焦げ茶で塗りつぶした縦長の楕円。左右はかなり離し、目尻の上にまつげを 1 本はねる
   for (const sx of [-1, 1]) {
     const x = px(sx * 0.5)
-    const y = py(1.92)
-    const blush = ctx.createRadialGradient(x, y, 0, x, y, 40)
-    blush.addColorStop(0, 'rgba(255, 125, 155, 0.6)')
-    blush.addColorStop(1, 'rgba(255, 125, 155, 0)')
-    ctx.fillStyle = blush
-    ellipse(x, y, 44, 26)
+    const y = py(1.66)
+    const rx = 30
+    const ry = 50
+    ctx.fillStyle = ink
+    ellipse(x, y, rx, ry)
     ctx.fill()
-    ctx.strokeStyle = 'rgba(232, 96, 126, 0.6)'
-    ctx.lineWidth = 2
-    for (const dx of [-10, 0, 10]) {
-      ctx.beginPath()
-      ctx.moveTo(x + dx + 3, y - 5)
-      ctx.lineTo(x + dx - 3, y + 5)
-      ctx.stroke()
-    }
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
-    ellipse(x + sx * 16, y - 10, 4, 4)
-    ctx.fill()
-  }
-
-  // 眉：薄紫の太めの帯を濃い紫で縁取る。左右の眉の間を広くあけ、目頭側を高く太くして、目尻側へ下がりながら細くなる困り眉（docs/cure-answer/face_04.png）
-  ctx.fillStyle = '#c497de'
-  ctx.strokeStyle = '#6e4189'
-  ctx.lineWidth = 2.5
-  for (const sx of [-1, 1]) {
-    ctx.beginPath()
-    ctx.moveTo(px(sx * 0.24), py(1.22))
-    ctx.quadraticCurveTo(px(sx * 0.43), py(1.25), px(sx * 0.65), py(1.395))
-    ctx.quadraticCurveTo(px(sx * 0.44), py(1.31), px(sx * 0.25), py(1.285))
-    // 目頭側の端は丸める
-    ctx.quadraticCurveTo(px(sx * 0.21), py(1.25), px(sx * 0.24), py(1.22))
-    ctx.fill()
-    ctx.stroke()
-  }
-
-  // 目：上が丸く下が平らなアーチ形（docs/cure-answer/face_03.png・face_04.png）。
-  // 上は太いまつげの塊のアーチ、目頭側は輪郭線のないまっすぐな辺、下は瞳を平らに切る短い下まぶたの線だけで、上下はつながらない。
-  // sx は +1 が Canvas の右（キャラクターの左目）で、目尻は sx の向き
-  for (const sx of [-1, 1]) {
-    const x = px(sx * 0.38)
-    const y = py(1.69)
-    const w = 54
-    const h = 54
-    // 角：目頭の上・目頭の下・目尻の下・目尻の上
-    const it = { x: x - sx * w * 0.95, y: y - h * 0.2 }
-    // 目頭の下は目尻の下より高くし、下の縁は目頭へ向かって上がる
-    const ib = { x: x - sx * w * 0.8, y: y + h * 0.5 }
-    const ob = { x: x + sx * w * 0.8, y: y + h * 0.8 }
-    const ot = { x: x + sx * w, y: y - h * 0.15 }
-    // 上のアーチ（目頭の上から目尻の上への 3 次ベジェ）
-    const c1 = { x: x - sx * w * 0.9, y: y - h * 1.22 }
-    const c2 = { x: x + sx * w * 0.85, y: y - h * 1.28 }
-    const arch = (t: number) => {
-      const u = 1 - t
-      const a = u * u * u
-      const b = 3 * u * u * t
-      const c = 3 * u * t * t
-      const d = t * t * t
-      return { x: a * it.x + b * c1.x + c * c2.x + d * ot.x, y: a * it.y + b * c1.y + c * c2.y + d * ot.y }
-    }
-    // アーチの t の位置から外（上）へ len 伸ばした点
-    const outward = (t: number, len: number) => {
-      const p0 = arch(t)
-      const p1 = arch(Math.min(1, t + 0.01))
-      const p2 = arch(Math.max(0, t - 0.01))
-      let nx = p1.y - p2.y
-      let ny = -(p1.x - p2.x)
-      if (ny > 0) {
-        nx = -nx
-        ny = -ny
-      }
-      const n = Math.hypot(nx, ny) || 1
-      return { x: p0.x + (nx / n) * len, y: p0.y + (ny / n) * len }
-    }
-    const eyeShape = () => {
-      ctx.beginPath()
-      ctx.moveTo(ib.x, ib.y)
-      ctx.lineTo(it.x, it.y)
-      ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, ot.x, ot.y)
-      ctx.quadraticCurveTo(x + sx * w * 1.02, y + h * 0.5, ob.x, ob.y)
-      ctx.quadraticCurveTo(x - sx * w * 0.1, y + h * 0.84, ib.x, ib.y)
-    }
-
-    // 白目と瞳（目の形で切り抜く）
-    ctx.save()
-    eyeShape()
-    ctx.fillStyle = '#ffffff'
-    ctx.fill()
-    ctx.clip()
-    // 白目の上側の青みがかった影
-    const sclera = ctx.createLinearGradient(0, y - h, 0, y + h * 0.2)
-    sclera.addColorStop(0, 'rgba(120, 140, 190, 0.55)')
-    sclera.addColorStop(1, 'rgba(120, 140, 190, 0)')
-    ctx.fillStyle = sclera
-    ctx.fillRect(x - w * 1.1, y - h * 1.3, w * 2.2, h * 1.5)
-    // 瞳：縦長の楕円。上はまぶたに隠れ、下は下まぶたの線で平らに切れる。目頭側に寄せて、白目は目尻側に見せる
-    const ix = x - sx * w * 0.12
-    const iy = y + h * 0.08
-    const iris = ctx.createLinearGradient(0, iy - h * 0.9, 0, iy + h * 0.8)
-    iris.addColorStop(0, '#174f66')
-    iris.addColorStop(0.4, '#3a9fb2')
-    iris.addColorStop(0.75, '#78d3cf')
-    iris.addColorStop(1, '#c4f2e6')
-    ctx.fillStyle = iris
-    ellipse(ix, iy, w * 0.64, h * 0.98)
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(20, 70, 90, 0.8)'
-    ctx.lineWidth = 3.5
-    ctx.stroke()
-    // 目尻側にほんのりピンク
-    const tint = ctx.createRadialGradient(ix + sx * w * 0.4, iy, 0, ix + sx * w * 0.4, iy, w * 0.4)
-    tint.addColorStop(0, 'rgba(255, 150, 190, 0.5)')
-    tint.addColorStop(1, 'rgba(255, 150, 190, 0)')
-    ctx.fillStyle = tint
-    ellipse(ix, iy, w * 0.64, h * 0.98)
-    ctx.fill()
-    // 瞳孔（縦長）
-    ctx.fillStyle = '#123f50'
-    ellipse(ix - sx * 2, iy + h * 0.1, w * 0.19, h * 0.26)
-    ctx.fill()
-    // 下の淡い黄色の照り返し
-    ctx.fillStyle = 'rgba(250, 245, 170, 0.8)'
-    ellipse(ix - sx * w * 0.05, iy + h * 0.62, w * 0.18, h * 0.1)
-    ctx.fill()
-    // ハイライト：上にまぶたへかかる白い大きな光、小さな光、目尻側にピンクのハート
-    ctx.fillStyle = '#ffffff'
-    ellipse(ix + sx * w * 0.05, iy - h * 0.5, w * 0.4, h * 0.2, sx * 0.1)
-    ctx.fill()
-    ellipse(ix - sx * w * 0.3, iy + h * 0.3, 4, 6, -sx * 0.4)
-    ctx.fill()
-    ctx.fillStyle = '#ff7fb4'
-    heart(ix + sx * w * 0.36, iy + h * 0.3, 8)
-    ctx.fill()
-    ctx.restore()
-
-    // 上まぶた：焦げ茶の太いアーチ。目尻側は太くして、外側の縁を少し下まで回り込ませる
-    ctx.strokeStyle = '#4a2630'
-    ctx.fillStyle = '#4a2630'
-    ctx.lineWidth = 12
-    ctx.beginPath()
-    ctx.moveTo(it.x, it.y)
-    ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, ot.x, ot.y)
-    ctx.stroke()
-    ctx.lineWidth = 6
-    ctx.beginPath()
-    ctx.moveTo(ot.x, ot.y)
-    ctx.quadraticCurveTo(x + sx * w * 1.03, y + h * 0.15, x + sx * w * 0.98, y + h * 0.38)
-    ctx.stroke()
-    // まつげ：上へ短く何本も立ち、目尻側は長く外へ跳ねる
-    for (const [t, len, width] of [[0.2, 10, 5], [0.35, 13, 5], [0.5, 14, 6], [0.65, 14, 6], [0.8, 18, 7], [0.93, 22, 8]]) {
-      const p0 = arch(t)
-      const p1 = outward(t, len)
-      lash(p0.x, p0.y, p1.x + sx * len * 0.35, p1.y, width)
-    }
-    for (const [dy, len] of [[0.05, 16], [0.3, 12]]) {
-      const p0 = { x: x + sx * w, y: y + h * dy }
-      lash(p0.x, p0.y, p0.x + sx * len, p0.y + len * 0.35, 5)
-    }
-    // まつげの上の紫の小さな光
-    ctx.fillStyle = 'rgba(205, 160, 255, 0.95)'
-    for (const t of [0.42, 0.58]) {
-      const p = arch(t)
-      ellipse(p.x, p.y, 3, 2.2, 0.4)
-      ctx.fill()
-    }
-    // 下まぶた：瞳の下の短い平らな線と、小さな下まつげ
-    ctx.strokeStyle = '#4a2630'
-    ctx.fillStyle = '#4a2630'
     ctx.lineWidth = 4
     ctx.beginPath()
-    ctx.moveTo(x - sx * w * 0.45, y + h * 0.68)
-    ctx.quadraticCurveTo(x + sx * w * 0.05, y + h * 0.83, x + sx * w * 0.62, y + h * 0.8)
+    ctx.moveTo(x + sx * rx * 0.6, y - ry * 0.8)
+    ctx.quadraticCurveTo(x + sx * rx * 1.0, y - ry * 0.95, x + sx * rx * 1.25, y - ry * 1.15)
     ctx.stroke()
-    for (const [f, dy] of [[-0.25, 0.74], [0.3, 0.8]]) {
-      const lx = x + sx * w * f
-      lash(lx, y + h * dy, lx - sx * 2, y + h * (dy + 0.15), 3)
-    }
-    // 目頭の上のピンクがかった影
-    ctx.fillStyle = 'rgba(200, 120, 120, 0.45)'
-    ellipse(it.x + sx * 4, it.y - h * 0.35, 8, 5, sx * 0.4)
-    ctx.fill()
   }
 
-  // 鼻：小さな影だけ
-  ctx.strokeStyle = 'rgba(205, 130, 120, 0.8)'
-  ctx.lineWidth = 2.5
-  ctx.beginPath()
-  ctx.moveTo(px(0.02), py(1.84))
-  ctx.lineTo(px(-0.01), py(1.87))
-  ctx.stroke()
+  // 鼻：小さなピンクの点
+  ctx.fillStyle = 'rgba(235, 150, 160, 0.9)'
+  ellipse(px(0), py(1.82), 6, 5)
+  ctx.fill()
 
-  // 口：大きく開けて笑う（上は平ら、下は丸い）。上の歯と舌が見える
+  // 口：大きく開けて笑う。上の縁はゆるい曲線、下は丸く、焦げ茶の縁取りの中はピンクで下側（舌）が明るい
   const mx = px(0)
-  const my = py(1.98)
+  const my = py(1.93)
+  const mw = 64
   const mouth = () => {
     ctx.beginPath()
-    ctx.moveTo(mx - 30, my - 6)
-    ctx.quadraticCurveTo(mx, my - 2, mx + 30, my - 6)
-    ctx.bezierCurveTo(mx + 24, my + 34, mx - 24, my + 34, mx - 30, my - 6)
+    ctx.moveTo(mx - mw, my)
+    ctx.quadraticCurveTo(mx, my - 14, mx + mw, my)
+    ctx.bezierCurveTo(mx + mw * 0.9, my + 80, mx - mw * 0.9, my + 80, mx - mw, my)
   }
   ctx.save()
   mouth()
-  ctx.fillStyle = '#a3304d'
+  ctx.fillStyle = '#e46f7e'
   ctx.fill()
   ctx.clip()
-  ctx.fillStyle = '#ffffff'
-  ellipse(mx, my - 4, 24, 7)
-  ctx.fill()
-  ctx.fillStyle = '#f08aa0'
-  ellipse(mx, my + 27, 20, 12)
+  ctx.fillStyle = '#f59aa6'
+  ellipse(mx, my + 60, mw * 0.7, 24)
   ctx.fill()
   ctx.restore()
   mouth()
-  ctx.strokeStyle = '#5a1a2c'
-  ctx.lineWidth = 2.5
+  ctx.strokeStyle = ink
+  ctx.lineWidth = 5
   ctx.stroke()
 
   const texture = new THREE.CanvasTexture(canvas)
