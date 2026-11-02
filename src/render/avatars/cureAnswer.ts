@@ -16,6 +16,8 @@ const C = {
   frill: 0xf6e7a0,
   ribbon: 0xf2d35c,
   pink: 0xee5fa0,
+  tie: 0xd25cc0,
+  trim: 0x8fd8d8,
   gem: 0xd6248a,
   wing: 0xa9e4f2,
   gold: 0xe8c25a,
@@ -240,6 +242,7 @@ export function cureAnswerModel(): THREE.Group {
   const white = mat(C.white)
   const pink = mat(C.pink)
   const gem = new THREE.MeshStandardMaterial({ color: C.gem, roughness: 0.25, metalness: 0.3 })
+  const gold = new THREE.MeshStandardMaterial({ color: C.gold, roughness: 0.35, metalness: 0.6 })
 
   // 脚：白いニーハイと紫のブーツ（つま先を前に）
   for (const sx of [-0.09, 0.09]) {
@@ -254,16 +257,61 @@ export function cureAnswerModel(): THREE.Group {
   g.add(mesh(new THREE.CylinderGeometry(0.17, 0.33, 0.2, 20), mat(C.skirt), 0, 0.53, 0))
   const coat = mat(C.coat)
   g.add(mesh(new THREE.CylinderGeometry(0.16, 0.29, 0.14, 8), coat, 0, 0.6, 0))
-  // 胴（上着）
-  g.add(mesh(new THREE.CapsuleGeometry(0.15, 0.14, 4, 12), coat, 0, 0.75, 0))
-  // 裾の宝石と、胸のピンクのリボンと宝石
+  // 裾の宝石
   g.add(mesh(new THREE.OctahedronGeometry(0.035), gem, 0, 0.6, 0.23))
-  for (const sx of [-1, 1]) {
-    const bow = mesh(new THREE.ConeGeometry(0.05, 0.09, 8), pink, sx * 0.05, 0.86, 0.14)
-    bow.rotation.z = (sx * Math.PI) / 2
-    g.add(bow)
+  // 胴：白い前身ごろに、黄色いボタンを 2 列 × 2 段
+  g.add(mesh(new THREE.CapsuleGeometry(0.15, 0.14, 4, 12), white, 0, 0.75, 0))
+  const button = mat(C.ribbon)
+  for (const bx of [-0.05, 0.05]) {
+    for (const by of [0.7, 0.745]) {
+      const z = Math.sqrt(0.15 * 0.15 - bx * bx)
+      g.add(mesh(new THREE.SphereGeometry(0.016, 10, 8), button, bx, by, z + 0.004))
+    }
   }
-  g.add(mesh(new THREE.SphereGeometry(0.025, 8, 6), gem, 0, 0.86, 0.16))
+  // 前身ごろの上端の、金の V 字（ネクタイの先を受ける）
+  for (const sx of [-1, 1]) {
+    const bar = mesh(new THREE.BoxGeometry(0.06, 0.018, 0.012), gold, sx * 0.025, 0.79, 0.15)
+    bar.rotation.z = sx * 0.55
+    g.add(bar)
+  }
+  // ケープ：肩から胸の上までを覆う短い紫のケープ。前は開いてネクタイと前身ごろを見せ、
+  // 裾は丸い波形（スカラップ）で、水色の縁取りを付ける
+  const capeTop = 0.92
+  const capeBottom = 0.78
+  const capeR = 0.25
+  const gap = 0.55 // 前の開き（正面から左右へのラジアン）
+  const capeMat = new THREE.MeshStandardMaterial({ color: C.coat, roughness: 0.75, side: THREE.DoubleSide })
+  // CylinderGeometry の theta は 0 が +z（正面）
+  g.add(mesh(new THREE.CylinderGeometry(0.13, capeR, capeTop - capeBottom, 28, 1, true, gap, Math.PI * 2 - gap * 2), capeMat, 0, (capeTop + capeBottom) / 2, 0))
+  const hem: THREE.Vector3[] = []
+  const scallops = 9
+  for (let i = 0; i <= scallops * 6; i++) {
+    const t = i / (scallops * 6)
+    const a = gap + t * (Math.PI * 2 - gap * 2)
+    // 波の山ごとに少し下へふくらませる
+    const dip = Math.abs(Math.sin(t * scallops * Math.PI)) * 0.025
+    hem.push(new THREE.Vector3(Math.sin(a) * (capeR + 0.004), capeBottom - dip, Math.cos(a) * (capeR + 0.004)))
+  }
+  for (let i = 0; i < scallops; i++) {
+    const a = gap + ((i + 0.5) / scallops) * (Math.PI * 2 - gap * 2)
+    const lobe = mesh(new THREE.SphereGeometry(0.04, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), capeMat, Math.sin(a) * capeR, capeBottom, Math.cos(a) * capeR)
+    lobe.rotation.y = a
+    lobe.scale.set(1, 0.6, 0.3)
+    g.add(lobe)
+  }
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(hem), scallops * 12, 0.007, 6, false), mat(C.trim)))
+  // ネクタイ：リボンから金の V 字まで垂れる、ピンクがかった紫のひし形
+  const tie = mesh(new THREE.OctahedronGeometry(1), mat(C.tie), 0, 0.83, 0.158)
+  tie.scale.set(0.028, 0.05, 0.01)
+  g.add(tie)
+  // 襟元のピンクのリボン：左右の輪と、真ん中のハートの宝石
+  for (const sx of [-1, 1]) {
+    const loop = mesh(new THREE.SphereGeometry(0.04, 12, 8), pink, sx * 0.045, 0.865, 0.165)
+    loop.scale.set(1.2, 0.75, 0.45)
+    loop.rotation.z = -sx * 0.25
+    g.add(loop)
+  }
+  g.add(mesh(new THREE.SphereGeometry(0.022, 10, 8), gem, 0, 0.865, 0.18))
 
   // 腕と白い手袋（少し開いて下ろす）
   for (const sx of [-1, 1]) {
@@ -314,7 +362,6 @@ export function cureAnswerModel(): THREE.Group {
   g.add(new THREE.Mesh(hairStrand(ahoge, 0.03, 0.012), hairMat))
 
   // お団子と飾り：金縁のピンクの宝石を真ん中に、上へ水色の羽・下へ白い羽。その下にピンクの花びらの飾りと黄色の透けたベール
-  const gold = new THREE.MeshStandardMaterial({ color: C.gold, roughness: 0.35, metalness: 0.6 })
   const wingMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 })
   const swirlMat = new THREE.MeshStandardMaterial({ color: C.white, roughness: 0.6 })
   const petal = new THREE.MeshStandardMaterial({ color: C.pink, roughness: 0.7, side: THREE.DoubleSide })
