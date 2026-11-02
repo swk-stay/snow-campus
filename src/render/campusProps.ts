@@ -76,8 +76,8 @@ export function createCampusProps(): THREE.Group {
   p.flush('旧第三食堂')
 
   // 旧第三食堂の西のコンクリートの塀。向きと長さは分からないので、食堂の西面に平行に、食堂の幅ほどにした
-  p.box('concrete', 3.3, 0, -67.35, 13.3, 2.2, -67.05)
-  p.box('snow', 3.3, 2.2, -67.4, 13.3, 2.32, -67.0)
+  p.box('concrete', 3.3, 0, -67.35, 13.3, 4.4, -67.05)
+  p.box('snow', 3.3, 4.4, -67.4, 13.3, 4.52, -67.0)
   p.flush('コンクリートの壁')
 
   statue(p, -37.0, -1.3)
@@ -86,13 +86,19 @@ export function createCampusProps(): THREE.Group {
   appleTree(p, -20.9, -31.4)
   p.flush('ニュートンのりんごの木')
 
-  // 附属図書館の南の壁ぎわのベンチとテーブル
-  picnicTable(p, -63.4, -4.2, 0)
-  picnicTable(p, -63.4, 1.8, 0)
+  // 附属図書館の南の壁ぎわのベンチとテーブル。入口（z -15）をはさんで東西に 2 組ずつ
+  for (const z of [-4.2, 1.8, -25.8, -31.8]) picnicTable(p, -63.4, z, 0)
   p.flush('ベンチとテーブル')
 
-  // 中庭の東の芝生の北の縁（芝生のほうを向く）
-  bench(p, 9.8, 5.8, Math.PI / 2)
+  // 中庭を南北に通る園路（x 3 前後）の両側の芝生の縁に 3 つずつ。芝生に背を向けて園路のほうを向く
+  for (const z of [2.8, 5.8, 8.8]) {
+    bench(p, 9.8, z, -Math.PI / 2)
+    bench(p, -2.8, z, Math.PI / 2)
+  }
+  for (const z of [-20.5, -23.5, -26.5]) {
+    bench(p, 10.9, z, -Math.PI / 2)
+    bench(p, -2.0, z, Math.PI / 2)
+  }
   // K3号館の入口の前（写真：ピロティの西、北面の柱の前に 3 つ並ぶ）
   for (const z of [22.5, 25.5, 28.5]) bench(p, 60.4, z, -Math.PI / 2)
   p.flush('ベンチ')
@@ -265,12 +271,22 @@ function machineShed(p: Props, x0: number, z0: number, x1: number, z1: number, f
   }
 }
 
-/** BBQ 場：コンクリートの炉（上に黒い網）と、テーブル・ベンチ */
+/**
+ * BBQ 場：幾徳会館（西）とクラブハウス（東）のあいだの南北に細長い空き地。
+ * 西の列にコンクリートの炉（上に黒い網）、その東にテーブルとベンチが 2 列、北の端に流し台
+ */
 function bbq(p: Props, x: number, z: number) {
-  for (const dx of [-4, 0, 4]) {
-    const cx = x + dx
+  for (let i = 0; i < 5; i++) {
+    const cx = x - 8 + i * 4
     p.box('concrete', cx - 0.9, 0, z - 0.45, cx + 0.9, 0.8, z + 0.45)
     p.box('dark', cx - 0.75, 0.8, z - 0.35, cx + 0.75, 0.84, z + 0.35)
   }
-  for (const dx of [-2, 2]) picnicTable(p, x + dx, z - 2.6, 0)
+  for (let i = 0; i < 4; i++) {
+    for (const dz of [-2.8, -5.4]) picnicTable(p, x - 6 + i * 4, z + dz, 0)
+  }
+  // 流し台：コンクリートの台に蛇口が 3 つ
+  const sx = x - 12.5
+  p.box('concrete', sx - 0.4, 0, z - 4.5, sx + 0.4, 0.85, z - 1.5)
+  p.box('steel', sx - 0.3, 0.75, z - 4.4, sx + 0.3, 0.86, z - 1.6)
+  for (const dz of [-3.9, -3.0, -2.1]) p.box('steel', sx - 0.35, 0.86, z + dz - 0.03, sx - 0.3, 1.1, z + dz + 0.03)
 }

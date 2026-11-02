@@ -409,6 +409,8 @@ export type InteriorSpec = {
   /** 階ごとの家具。null なら床と照明だけ */
   furnish?: (k: Kit, floor: number, y: number, h: number, r: () => number) => void
   seed?: number
+  /** false で内部の柱を立てない（間取りを furnish で作る階で、柱が廊下や部屋の真ん中に立たないように） */
+  columns?: boolean
 }
 
 /** 各階の床スラブ・天井の照明パネル・内部の柱と、指定があれば家具を作る */
@@ -440,7 +442,7 @@ export function interior(k: Kit, s: InteriorSpec) {
       }
     }
     // 内部の柱（7.2m グリッド）
-    for (let x = x0 + 7.2; x < x1 - 3; x += 7.2) {
+    for (let x = x0 + 7.2; s.columns !== false && x < x1 - 3; x += 7.2) {
       for (let z = z0 + 7.2; z < z1 - 3; z += 7.2) k.box(x - 0.35, y, z - 0.35, x + 0.35, y + h - 0.35, z + 0.35, 0xe6e4de)
     }
     s.furnish?.(k, fl, top, h, r)
