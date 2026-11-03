@@ -385,6 +385,7 @@ function lookAt(n: Note) {
   const p = new THREE.Vector3(n.x, n.y, n.z)
   const dist = Math.min(60, camera.position.distanceTo(p))
   camera.position.copy(p).addScaledVector(fly.getDirection(new THREE.Vector3()), -dist)
+  fly.trace.log(`editor: リクエスト ${n.id} の場所へ移動`)
   select(n.id)
 }
 
