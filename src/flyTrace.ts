@@ -39,13 +39,17 @@ export class FlyTrace {
     Object.assign(window, { flyTrace: this })
   }
 
+  /** false にすると記録を止める（記録そのものがカクつきの原因か切り分けるため。飛んだかどうかの検出は続ける） */
+  recording = true
+
   log(text: string, t = performance.now()) {
-    this.entries.push({ t, text })
+    if (this.recording) this.entries.push({ t, text })
   }
 
   /** フレームの頭で呼ぶ。前のフレームからの変化を見て、飛んでいたら記録を始める */
   /** inside：カメラが建物の中か（当たり判定が無ければ null） */
-  frame(dt: number, yaw: number, pitch: number, locked: boolean, inside: boolean | null) {
+  /** input：前のフレームからのマウスの入力のまとめ（無ければ空文字） */
+  frame(dt: number, yaw: number, pitch: number, locked: boolean, inside: boolean | null, input: string) {
     const now = performance.now()
     const cam = this.camera
     const rawDt = this.prevFrameAt < 0 ? 0 : now - this.prevFrameAt
@@ -56,7 +60,7 @@ export class FlyTrace {
       turned = THREE.MathUtils.radToDeg(cam.quaternion.angleTo(this.prevQuat))
     }
     this.log(
-      `frame 間隔=${f(rawDt)}ms dt=${f(dt * 1000)}ms pos=${vec(cam.position)} yaw=${deg(yaw)}° pitch=${deg(pitch)}° 回転=${f(turned)}° 移動=${f(moved, 2)}m${locked ? ' ロック中' : ''}${inside ? ' 建物内' : ''}`,
+      `frame 間隔=${f(rawDt)}ms dt=${f(dt * 1000)}ms pos=${vec(cam.position)} yaw=${deg(yaw)}° pitch=${deg(pitch)}° 回転=${f(turned)}° 移動=${f(moved, 2)}m${locked ? ' ロック中' : ''}${inside ? ' 建物内' : ''}${input}`,
       now,
     )
 

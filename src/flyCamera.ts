@@ -36,12 +36,16 @@ const MAX_PITCH = THREE.MathUtils.degToRad(89)
 const STORAGE_KEY = 'snow-campus-fly'
 const AXES = ['x', 'z', 'y'] as const
 /**
- * ロック中の mousemove で、1 回の移動量が OUTLIER_PX を超え、しかも直近 OUTLIER_WINDOW_MS に採用した移動量の最大の
- * OUTLIER_RATIO 倍を超えていたら捨てる。Windows の Chrome はロック中に数百 px の値をときどき返し、同じ値が続けて届くこともある
+ * Windows の Chrome はロック中の mousemove に、前後とかけ離れた大きな値をときどき 1 回だけ混ぜる（次の値は元の大きさに戻る）。
+ * 直近 OUTLIER_WINDOW_MS の最大の OUTLIER_RATIO 倍を超えた値（OUTLIER_PX 以上）は 1 回保留し、次の値も同じくらい大きければ
+ * 本物の速い振りとして使い、小さく戻っていれば捨てる。次の値が OUTLIER_HOLD_MS のあいだ来なければ捨てる
  */
-const OUTLIER_PX = 200
+const OUTLIER_PX = 100
 const OUTLIER_RATIO = 4
 const OUTLIER_WINDOW_MS = 50
+const OUTLIER_HOLD_MS = 30
+/** 外れ値は同じ値が続けて届くことがあるので、保留中の値と同じ値がこの間に届いたら一緒に扱う */
+const OUTLIER_REPEAT_MS = 5
 
 const forward = new THREE.Vector3()
 const right = new THREE.Vector3()
@@ -91,8 +95,17 @@ export class FlyCamera {
   private pinch = 0
   /** Ctrl を単独で押しているあいだ true（Ctrl+Enter などのショートカットでは切り替えない） */
   private ctrlAlone = false
-  /** 採用したロック中の移動量（捨てた値は入れない。入れると、続けて届いた 2 つ目の外れ値が通ってしまう） */
+  /** 使ったロック中の移動量（直近 OUTLIER_WINDOW_MS 分） */
   private recentMoves: { t: number; size: number }[] = []
+  /** 外れ値かどうか、次の値を見るまで保留している移動量。count は同じ値が続けて届いた回数 */
+  private held: { dx: number; dy: number; t: number; count: number } | null = null
+  /**
+   * 切り分け用。コンソールの flyCamera.debug で切り替える（unadjusted は次にロックしたときから効く）。
+   * unadjusted を true にすると Windows の Chrome では移動量が数フレームぶん溜まってから届き、見回しがカクつく
+   */
+  debug = { unadjusted: false, rejectOutliers: true }
+  /** 前のフレームからのロック中の mousemove（件数・採用した移動量の合計・捨てた件数） */
+  private input = { events: 0, dx: 0, dy: 0, dropped: 0 }
 
   constructor(camera: THREE.PerspectiveCamera, dom: HTMLElement, options: FlyOptions) {
     this.camera = camera
@@ -102,7 +115,12 @@ export class FlyCamera {
     this.settings.speed = THREE.MathUtils.clamp(Math.round(this.settings.speed), 0, SPEEDS.length - 1)
     camera.rotation.order = 'YXZ'
     this.applyFov()
-    this.trace = new FlyTrace(camera, () => `設定: 感度=${this.settings.sensitivity} 視野角=${this.settings.fov} 速度=${this.speedLabel} 建物=${this.collision} ロック=${this.locked}`)
+    this.trace = new FlyTrace(
+      camera,
+      () =>
+        `設定: 感度=${this.settings.sensitivity} 視野角=${this.settings.fov} 速度=${this.speedLabel} 建物=${this.collision} ロック=${this.locked} unadjusted=${this.debug.unadjusted} 外れ値を捨てる=${this.debug.rejectOutliers}`,
+    )
+    Object.assign(window, { flyCamera: this })
 
     this.crosshair = document.createElement('div')
     this.crosshair.className = 'fly-crosshair'
@@ -178,6 +196,12 @@ export class FlyCamera {
     if (this.locked) return
     // Pointer Lock が使えない環境（スマホなど）では何もしない。ドラッグで見回せる
     if (!this.dom.requestPointerLock) return
+    if (!this.debug.unadjusted) {
+      this.trace.log('lock 普通にロック（unadjusted=false）')
+      const plain = this.dom.requestPointerLock() as Promise<void> | undefined
+      plain?.catch?.(() => {})
+      return
+    }
     // OS のマウス加速を通さない移動量を使う。対応していないブラウザでは断られるので、普通にロックし直す
     const result = this.dom.requestPointerLock({ unadjustedMovement: true }) as Promise<void> | undefined
     result?.then?.(
@@ -230,7 +254,14 @@ export class FlyCamera {
   }
 
   update(dt: number) {
-    this.trace.frame(dt, this.yaw, this.pitch, this.locked, this.options.blocked ? this.options.blocked(this.camera.position) : null)
+    if (this.held && performance.now() - this.held.t > OUTLIER_HOLD_MS) {
+      this.dropHeld(this.held, '続きが来なかった')
+      this.held = null
+    }
+    const input = this.input
+    const inputText = input.events > 0 ? ` マウス=${input.events}件 計(${input.dx}, ${input.dy})${input.dropped > 0 ? ` 捨てた=${input.dropped}件` : ''}` : ''
+    this.input = { events: 0, dx: 0, dy: 0, dropped: 0 }
+    this.trace.frame(dt, this.yaw, this.pitch, this.locked, this.options.blocked ? this.options.blocked(this.camera.position) : null, inputText)
     let x = 0
     let z = 0
     let y = 0
@@ -337,6 +368,8 @@ export class FlyCamera {
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
       this.keys.add(e.code)
       if (!e.repeat && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')) this.cycleSpeed()
+      // ロック中はコンソールを触れないので、カクついたと感じたらその場で P を押して記録を出す
+      if (!e.repeat && e.code === 'KeyP') this.trace.dump()
     })
     addEventListener('keyup', (e) => {
       this.keys.delete(e.code)
@@ -361,12 +394,7 @@ export class FlyCamera {
   private bindPointer() {
     const dom = this.dom
     dom.addEventListener('mousemove', (e) => {
-      if (!this.locked) return
-      if (this.isOutlier(e.movementX, e.movementY, e.timeStamp)) {
-        this.trace.log(`look 外れ値を捨てた d=(${e.movementX}, ${e.movementY})`)
-        return
-      }
-      this.look(e.movementX, e.movementY, 'ロック中のマウス')
+      if (this.locked) this.onLockedMove(e.movementX, e.movementY, e.timeStamp)
     })
     dom.addEventListener('pointerdown', (e) => {
       if (this.locked || (e.pointerType === 'mouse' && e.button !== 0)) return
@@ -411,13 +439,49 @@ export class FlyCamera {
     )
   }
 
-  private isOutlier(dx: number, dy: number, t: number): boolean {
-    this.recentMoves = this.recentMoves.filter((m) => t - m.t <= OUTLIER_WINDOW_MS)
+  private onLockedMove(dx: number, dy: number, t: number) {
+    this.input.events++
+    if (!this.debug.rejectOutliers) {
+      this.applyMove(dx, dy, t, 'ロック中のマウス')
+      return
+    }
+    const held = this.held
+    if (held) {
+      if (dx === held.dx && dy === held.dy && t - held.t <= OUTLIER_REPEAT_MS) {
+        held.count++
+        return
+      }
+      this.held = null
+      const heldSize = Math.hypot(held.dx, held.dy)
+      if (heldSize > OUTLIER_RATIO * Math.max(this.recentMax(held.t), Math.hypot(dx, dy))) this.dropHeld(held, `次が (${dx}, ${dy}) に戻った`)
+      else for (let i = 0; i < held.count; i++) this.applyMove(held.dx, held.dy, held.t, '保留していた分')
+    }
     const size = Math.hypot(dx, dy)
-    const recentMax = this.recentMoves.reduce((max, m) => Math.max(max, m.size), 0)
-    if (size > OUTLIER_PX && size > recentMax * OUTLIER_RATIO) return true
-    this.recentMoves.push({ t, size })
-    return false
+    const recentMax = this.recentMax(t)
+    // 止まっていたところからの最初の動きは比べる相手がいないので通す（外れ値は動いている途中にしか見ていない）
+    if (recentMax > 0 && size > OUTLIER_PX && size > recentMax * OUTLIER_RATIO) {
+      this.held = { dx, dy, t, count: 1 }
+      this.trace.log(`look 保留 d=(${dx}, ${dy}) 直近の最大=${recentMax.toFixed(0)}`)
+      return
+    }
+    this.applyMove(dx, dy, t, 'ロック中のマウス')
+  }
+
+  private recentMax(t: number): number {
+    return this.recentMoves.reduce((max, m) => (t - m.t <= OUTLIER_WINDOW_MS && m.t <= t ? Math.max(max, m.size) : max), 0)
+  }
+
+  private applyMove(dx: number, dy: number, t: number, source: string) {
+    this.recentMoves = this.recentMoves.filter((m) => t - m.t <= OUTLIER_WINDOW_MS)
+    this.recentMoves.push({ t, size: Math.hypot(dx, dy) })
+    this.input.dx += dx
+    this.input.dy += dy
+    this.look(dx, dy, source)
+  }
+
+  private dropHeld(held: { dx: number; dy: number; count: number }, reason: string) {
+    this.input.dropped += held.count
+    this.trace.log(`look 外れ値を捨てた d=(${held.dx}, ${held.dy}) ×${held.count}（${reason}）`)
   }
 
   private pinchDistance(): number {
