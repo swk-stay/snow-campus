@@ -759,7 +759,9 @@ renderer.setAnimationLoop((now: number) => {
       skillBar?.shake(e.id)
     } else if (e.type === 'rarePickup') {
       sparkles.burst(tmp.set(e.x, 1, e.z), 24, 0x7fe9ff, 4)
-      if (!other) hud.toast('レア雪ゲット！', 900)
+      if (!other) hud.toast(e.recast ? 'レア雪ゲット！ スキルリキャスト！' : 'レア雪ゲット！', e.recast ? 1300 : 900)
+    } else if (e.type === 'rareExpire') {
+      sparkles.burst(tmp.set(e.x, 0.8, e.z), 8, 0x7fe9ff, 1.5)
     } else if (e.type === 'complete') {
       // 完成演出自体は雪玉の着弾と表示の追従を待ってから（下のループ）
       save()
