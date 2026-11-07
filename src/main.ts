@@ -51,6 +51,7 @@ import { clearStorage, hasSave, loadFromStorage, saveToStorage, useSaveSlot } fr
 import { playBlizzard, playCharge, playCoin, playFanfare, unlockAudio } from './audio'
 import { joinFromParams, type MultiSession } from './net/session'
 import type { TaggedEvent } from './net/protocol'
+import { loadPlayerSkin } from './title/prefs'
 import { Title } from './title/title'
 
 // ?view=god で展示用の神視点（マウスで見回し・WASD で移動・自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード、
@@ -143,6 +144,8 @@ const scenery = createScenery()
 applySubjectCut(scenery)
 scene.add(scenery)
 
+// ソロもタイトル画面で選んだスキンを使う（マルチプレイはサーバーが決めた skin が session で入っている）
+if (!isMulti) state.player.skin = loadPlayerSkin()
 const playerView = new PlayerView(skinById(state.player.skin))
 const scoop = new Scoop()
 const sparkles = new Sparkles()
@@ -807,7 +810,9 @@ renderer.setAnimationLoop((now: number) => {
       skillBar?.shake(e.id)
     } else if (e.type === 'rarePickup') {
       sparkles.burst(tmp.set(e.x, 1, e.z), 24, 0x7fe9ff, 4)
-      if (!other) hud.toast('レア雪ゲット！', 900)
+      if (!other) hud.toast(e.recast ? 'レア雪ゲット！ スキルリキャスト！' : 'レア雪ゲット！', e.recast ? 1300 : 900)
+    } else if (e.type === 'rareExpire') {
+      sparkles.burst(tmp.set(e.x, 0.8, e.z), 8, 0x7fe9ff, 1.5)
     } else if (e.type === 'complete') {
       // 完成演出自体は雪玉の着弾と表示の追従を待ってから（下のループ）
       save()

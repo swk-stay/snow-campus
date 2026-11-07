@@ -34,7 +34,7 @@ export type Player = {
   /** ソロでは 'local'、マルチプレイではサーバーの sessionId */
   id: string
   name: string
-  /** 見た目（マルチプレイでプレイヤーが選ぶ。ソロは DEFAULT_SKIN） */
+  /** 見た目（タイトル画面でプレイヤーが選ぶ。選ぶ前は DEFAULT_SKIN） */
   skin: SkinId
   x: number
   z: number
@@ -68,7 +68,8 @@ export type Plow = {
 
 export type SnowMachine = { id: number; x: number; z: number }
 
-export type RareCrystal = { id: number; x: number; z: number }
+/** life：消えるまでの残り秒数 */
+export type RareCrystal = { id: number; x: number; z: number; life: number }
 
 /** ブリザードの竜巻。構えた向きへまっすぐ進み、通った跡の雪を削っては建物へ投げ込む */
 export type Tornado = {
@@ -156,7 +157,9 @@ export type GameEvent =
   | { type: 'blizzardEnd'; owner: string; amount: number }
   | { type: 'skillFail'; id: SkillId; reason: string }
   | { type: 'rareSpawn'; id: number }
-  | { type: 'rarePickup'; id: number; x: number; z: number }
+  /** recast：クールダウンが戻ったスキルがあったか */
+  | { type: 'rarePickup'; id: number; x: number; z: number; recast: boolean }
+  | { type: 'rareExpire'; id: number; x: number; z: number }
 
 export type ThrowSource = { plowId: number } | { tornado: number; x: number; z: number }
 
@@ -615,18 +618,42 @@ export function stepWorld(s: World, dt: number): GameEvent[] {
   return events
 }
 
-/** レア雪：解禁後（先進技術研究所の完成後）は一定間隔で雪の多い場所に湧き、回収半径に入ると拾う */
+/** レア雪：解禁後（先進技術研究所の完成後）は一定間隔で雪の多い場所に湧き、回収半径に入ると拾う（スキルのリキャストつき）。拾われないまま時間がたつと消える */
 function pickRares(s: World, p: Player, st: Stats, events: GameEvent[]) {
   for (let i = s.rares.length - 1; i >= 0; i--) {
     const r = s.rares[i]
     if (Math.hypot(r.x - p.x, r.z - p.z) > st.collectRadius + 0.5) continue
     s.rares.splice(i, 1)
     p.rare++
-    events.push({ type: 'rarePickup', id: r.id, x: r.x, z: r.z })
+    events.push({ type: 'rarePickup', id: r.id, x: r.x, z: r.z, recast: recastSkills(s, p) })
+  }
+}
+
+/** レア雪を拾ったときのリキャスト：覚えているスキルの残りクールダウンを RARE.recast（必殺技は recastUltimate）の割合だけ戻す */
+function recastSkills(s: World, p: Player): boolean {
+  let any = false
+  for (const id of SKILL_IDS) {
+    if (!skillOwned(s, id) || p.cooldowns[id] <= 0) continue
+    p.cooldowns[id] *= 1 - Math.min(1, Math.max(0, SKILLS[id].ultimate ? RARE.recastUltimate : RARE.recast))
+    if (p.cooldowns[id] < 0.05) p.cooldowns[id] = 0
+    any = true
+  }
+  return any
+}
+
+/** 湧いてから RARE.lifetime 秒たったレア雪は溶けて消える */
+function expireRares(s: World, dt: number, events: GameEvent[]) {
+  for (let i = s.rares.length - 1; i >= 0; i--) {
+    const r = s.rares[i]
+    r.life -= dt
+    if (r.life > 0) continue
+    s.rares.splice(i, 1)
+    events.push({ type: 'rareExpire', id: r.id, x: r.x, z: r.z })
   }
 }
 
 function spawnRares(s: World, dt: number, events: GameEvent[]) {
+  expireRares(s, dt, events)
   if (!rareUnlocked(s)) return
   s.rareTimer -= dt
   if (s.rareTimer > 0 || s.rares.length >= RARE.maxOnField) return
@@ -636,7 +663,7 @@ function spawnRares(s: World, dt: number, events: GameEvent[]) {
     // 雪がしっかり積もっていて、プレイヤーから少し離れた場所
     if (s.field.amountAt(x, z) < 0.4 || s.players.some((p) => Math.hypot(x - p.x, z - p.z) < 8)) continue
     const id = unitSeq++
-    s.rares.push({ id, x, z })
+    s.rares.push({ id, x, z, life: RARE.lifetime })
     events.push({ type: 'rareSpawn', id })
     return
   }
