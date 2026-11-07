@@ -205,7 +205,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   dash: { label: 'ダッシュ', description: '向いている方向へ素早く飛び出す', key: 'Space', keyLabel: 'Space', cooldown: 3, ultimate: false },
   boost: { label: 'ブースト', description: 'しばらく移動速度アップ', key: 'KeyQ', keyLabel: 'Q', cooldown: 25, ultimate: false },
   longThrow: { label: '遠投', description: '持っている雪をどこからでも建物へ投げ込む', key: 'KeyR', keyLabel: 'R', cooldown: 30, ultimate: false },
-  blizzard: { label: 'ブリザード', description: '周囲の雪を根こそぎ建物へ送り込む', key: 'KeyF', keyLabel: 'F', cooldown: 120, ultimate: true },
+  blizzard: { label: 'ブリザード', description: '竜巻を走らせ、通った跡の雪を根こそぎ建物へ送り込む（押して構え、もう一度押して放つ）', key: 'KeyF', keyLabel: 'F', cooldown: 120, ultimate: true },
 }
 
 export const SKILL_EFFECT = {
@@ -213,9 +213,18 @@ export const SKILL_EFFECT = {
   dashTime: 0.22,
   boostSpeedMult: 1.5,
   boostTime: 6,
-  /** 遠投・ブリザードで飛ばす雪玉の最大個数（演出用に分割する数） */
+  /** 遠投で飛ばす雪玉の最大個数（演出用に分割する数） */
   volleyCount: 12,
-  blizzardRadius: 14,
+  /**
+   * ブリザード：構えた向きへ竜巻がまっすぐ進み、通った跡（幅 2×blizzardHalfWidth）の雪を削って建物へ投げ続ける。
+   * 削れる面積（2rL＋πr²）は、以前の「半径 14m の円」（約 615m²）と同じくらいにしてある
+   */
+  blizzardLength: 55,
+  blizzardHalfWidth: 5,
+  /** 竜巻の進む速さ (m/s) */
+  blizzardSpeed: 11,
+  /** 竜巻が削った雪を建物へ投げる間隔 (s) */
+  blizzardThrowInterval: 0.3,
 }
 
 /**

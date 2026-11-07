@@ -38,7 +38,8 @@ export function normalizeRoomName(name: string): string {
 /** 自分の位置。端末が動かした結果をそのまま送る（協力プレイなので、サーバーは建物からの押し出しだけ確かめる） */
 export type PosMessage = { x: number; z: number; facing: number }
 export type BuyMessage = { kind: 'upgrade'; id: UpgradeId } | { kind: 'item'; id: ItemId }
-export type SkillMessage = { id: SkillId }
+/** aim：ブリザードを放つ向き（ラジアン）。サーバーが持っている向きは最大 POS_INTERVAL 遅れているので、構えた向きを一緒に送る */
+export type SkillMessage = { id: SkillId; aim?: number }
 // 'start'（ペイロードなし）：待っている間に、参加者がそろったのでスタートする
 
 // ---- サーバー → 端末 ----

@@ -70,6 +70,30 @@ export type SnowMachine = { id: number; x: number; z: number }
 
 export type RareCrystal = { id: number; x: number; z: number }
 
+/** ブリザードの竜巻。構えた向きへまっすぐ進み、通った跡の雪を削っては建物へ投げ込む */
+export type Tornado = {
+  id: number
+  /** 放ったプレイヤーの id */
+  owner: string
+  x0: number
+  z0: number
+  dirX: number
+  dirZ: number
+  /** 進む距離（建物や雪原の端の手前で止まる） */
+  length: number
+  traveled: number
+  /** 次に削る地点（スタートからの距離） */
+  nextScrape: number
+  /** 削ったが、まだ投げていない量 */
+  load: number
+  throwTimer: number
+  /** 建物へ送った量の合計 */
+  sent: number
+}
+
+/** 竜巻の通り道。スキルのイベントで端末にも配り、端末はこれをもとに竜巻を描く */
+export type TornadoPath = { x: number; z: number; dirX: number; dirZ: number; length: number }
+
 export type Stats = {
   /** 移動速度（完成した建物のごほうび込み。ブーストは含まない） */
   moveSpeed: number
@@ -102,6 +126,8 @@ export type World = {
   machines: SnowMachine[]
   rares: RareCrystal[]
   rareTimer: number
+  /** 進んでいるブリザードの竜巻（保存も同期もしない。端末はスキルのイベントから描く） */
+  tornadoes: Tornado[]
 }
 
 /** 端末側の状態。player は自分（players にも入っている） */
@@ -113,16 +139,21 @@ export type MoveInput = { x: number; z: number }
 /** 描画・演出側へ通知するイベント。オンライン化後はサーバーから配信する単位にもなる */
 export type GameEvent =
   | { type: 'collect'; amount: number }
-  /** from が無ければプレイヤーから、あれば除雪機から投げた。rare はレア雪 */
-  | { type: 'throw'; buildingId: string; amount: number; from?: { plowId: number }; rare?: boolean }
+  /** from が無ければプレイヤーから、plowId なら除雪機から、tornado ならブリザードの竜巻（x, z はその時の位置）から投げた。rare はレア雪 */
+  | { type: 'throw'; buildingId: string; amount: number; from?: ThrowSource; rare?: boolean }
   | { type: 'gold'; amount: number }
   | { type: 'complete'; buildingId: string }
   | { type: 'upgrade'; id: UpgradeId; level: number }
   | { type: 'item'; id: ItemId }
-  | { type: 'skill'; id: SkillId; amount?: number }
+  /** tornado：ブリザードの竜巻の通り道 */
+  | { type: 'skill'; id: SkillId; amount?: number; tornado?: TornadoPath }
+  /** ブリザードの竜巻が止まった。amount は建物へ送った量の合計 */
+  | { type: 'blizzardEnd'; owner: string; amount: number }
   | { type: 'skillFail'; id: SkillId; reason: string }
   | { type: 'rareSpawn'; id: number }
   | { type: 'rarePickup'; id: number; x: number; z: number }
+
+export type ThrowSource = { plowId: number } | { tornado: number; x: number; z: number }
 
 const UPGRADE_IDS = Object.keys(UPGRADES) as UpgradeId[]
 const ITEM_IDS = Object.keys(ITEMS) as ItemId[]
@@ -179,6 +210,7 @@ export function createWorld(): World {
     machines: [],
     rares: [],
     rareTimer: 2,
+    tornadoes: [],
   }
   refillField(s)
   return s
@@ -336,8 +368,14 @@ export function skillOwned(s: World, id: SkillId): boolean {
   return s.items[id]
 }
 
-/** スキルを使う。使えなかった場合は skillFail イベントを返す（クールダウンは消費しない） */
-export function useSkill(s: World, p: Player, id: SkillId): GameEvent[] {
+/** ブリザードの竜巻がこれより手前で止まるなら、放てない（向きを変えてもらう） */
+export const BLIZZARD_MIN_LENGTH = 4
+
+/**
+ * スキルを使う。使えなかった場合は skillFail イベントを返す（クールダウンは消費しない）。
+ * aim：ブリザードを放つ向き（ラジアン）。無ければプレイヤーの向き
+ */
+export function useSkill(s: World, p: Player, id: SkillId, aim?: number): GameEvent[] {
   if (!skillOwned(s, id) || p.cooldowns[id] > 0) return []
   const events: GameEvent[] = []
   const b = currentBuilding(s)
@@ -355,13 +393,11 @@ export function useSkill(s: World, p: Player, id: SkillId): GameEvent[] {
     throwRares(s, p, b, events)
   } else if (id === 'blizzard') {
     if (!b) return [{ type: 'skillFail', id, reason: '建てる建物がない' }]
-    // 周囲の雪をほぼ全部削って、所持上限を無視してそのまま建物へ
-    const amount = s.field.collect(p.x, p.z, SKILL_EFFECT.blizzardRadius, 50, 1, Infinity)
-    s.totalCollected += amount
-    const leftover = volley(s, b, amount, events)
-    events.unshift({ type: 'skill', id, amount: amount - leftover })
-    // 建物が完成して余った分は持てるだけ持つ
-    p.carried = Math.min(p.capacity, p.carried + leftover)
+    // 竜巻を放つ。削るのと投げ込むのは stepWorld で竜巻が進みながら行う
+    const path = blizzardPath(s, p.x, p.z, aim !== undefined && Number.isFinite(aim) ? aim : p.facing)
+    if (path.length < BLIZZARD_MIN_LENGTH) return [{ type: 'skillFail', id, reason: '前がふさがっている。向きを変えて' }]
+    s.tornadoes.push({ id: unitSeq++, owner: p.id, x0: path.x, z0: path.z, dirX: path.dirX, dirZ: path.dirZ, length: path.length, traveled: 0, nextScrape: 0, load: 0, throwTimer: SKILL_EFFECT.blizzardThrowInterval, sent: 0 })
+    events.unshift({ type: 'skill', id, tornado: path })
   }
 
   if (!events.some((e) => e.type === 'skill')) events.unshift({ type: 'skill', id })
@@ -376,6 +412,71 @@ function volley(s: World, b: Building, amount: number, events: GameEvent[]): num
   const n = Math.max(1, Math.min(SKILL_EFFECT.volleyCount, Math.ceil(send / 10)))
   for (let i = 0; i < n; i++) deposit(s, b, send / n, events)
   return amount - send
+}
+
+/**
+ * (x, z) から facing の向きへ竜巻を放ったときの通り道。建物（未完成でも敷地）・景色の建物・雪原の端の手前で止まる。
+ * 構えている間の通り道の表示にも使う
+ */
+export function blizzardPath(s: World, x: number, z: number, facing: number): TornadoPath {
+  const dirX = Math.sin(facing)
+  const dirZ = Math.cos(facing)
+  const margin = PLAYER.bodyRadius
+  const inside = (px: number, pz: number, x0: number, z0: number, x1: number, z1: number) =>
+    px > x0 - margin && px < x1 + margin && pz > z0 - margin && pz < z1 + margin
+  let length = 0
+  for (let d = 0.5; d <= SKILL_EFFECT.blizzardLength; d += 0.5) {
+    const q = { x: x + dirX * d, z: z + dirZ * d }
+    const { x: px, z: pz } = q
+    s.field.clamp(q, 1)
+    if (q.x !== px || q.z !== pz) break
+    if (s.buildings.some((b) => inside(px, pz, b.x - b.width / 2, b.z - b.depth / 2, b.x + b.width / 2, b.z + b.depth / 2))) break
+    if (OBSTACLES.some((o) => inside(px, pz, o.x0, o.z0, o.x1, o.z1))) break
+    length = d
+  }
+  return { x, z, dirX, dirZ, length }
+}
+
+/** 竜巻を進める。通った跡の雪をほぼ全部削り、一定間隔で建物へ投げる。止まったら残りを投げ切って消える */
+function stepTornado(s: World, t: Tornado, dt: number, events: GameEvent[]): boolean {
+  const { blizzardHalfWidth: r, blizzardSpeed, blizzardThrowInterval } = SKILL_EFFECT
+  t.traveled = Math.min(t.length, t.traveled + blizzardSpeed * dt)
+  const done = t.traveled >= t.length
+  // 1m ごとに円で削る（半幅より十分細かいので、帯状に削れる）。止まった所でもう 1 回
+  const scrape = (d: number) => {
+    const got = s.field.collect(t.x0 + t.dirX * d, t.z0 + t.dirZ * d, r, 50, 1, Infinity)
+    t.load += got
+    s.totalCollected += got
+  }
+  while (t.nextScrape <= t.traveled) {
+    scrape(t.nextScrape)
+    t.nextScrape += 1
+  }
+  if (done) scrape(t.length)
+
+  t.throwTimer -= dt
+  if (t.load >= 1 && (t.throwTimer <= 0 || done)) {
+    t.throwTimer = blizzardThrowInterval
+    tornadoThrow(s, t, events)
+  }
+  if (!done) return true
+  // 投げている間に建物が完成したら、次の建物へ投げ切る
+  for (let n = 0; n < 4 && t.load >= 1e-6 && currentBuilding(s); n++) tornadoThrow(s, t, events)
+  // 全部完成していて投げる先が無ければ、持てるだけ持つ
+  const owner = s.players.find((p) => p.id === t.owner)
+  if (owner && t.load > 0) owner.carried = Math.min(owner.capacity, owner.carried + t.load)
+  events.push({ type: 'blizzardEnd', owner: t.owner, amount: t.sent })
+  return false
+}
+
+function tornadoThrow(s: World, t: Tornado, events: GameEvent[]) {
+  const b = currentBuilding(s)
+  if (!b) return
+  const send = Math.min(t.load, b.required - b.deposited)
+  if (send <= 0) return
+  t.load -= send
+  t.sent += send
+  deposit(s, b, send, events, { tornado: t.id, x: t.x0 + t.dirX * t.traveled, z: t.z0 + t.dirZ * t.traveled })
 }
 
 function throwRares(s: World, p: Player, b: Building, events: GameEvent[]) {
@@ -488,6 +589,7 @@ export function stepWorld(s: World, dt: number): GameEvent[] {
   syncRequired(s, events)
   spawnRares(s, dt, events)
   for (const plow of s.plows) stepPlow(s, plow, dt, events)
+  s.tornadoes = s.tornadoes.filter((t) => stepTornado(s, t, dt, events))
   for (const m of s.machines) s.field.add(m.x, m.z, SNOW_MACHINE.radius, SNOW_MACHINE.rate, dt)
   return events
 }
@@ -519,7 +621,7 @@ function spawnRares(s: World, dt: number, events: GameEvent[]) {
   }
 }
 
-function deposit(s: World, b: Building, amount: number, events: GameEvent[], from?: { plowId: number }, rare?: boolean) {
+function deposit(s: World, b: Building, amount: number, events: GameEvent[], from?: ThrowSource, rare?: boolean) {
   b.deposited += amount
   const gold = amount * ECONOMY.goldPerSnow
   s.gold += gold

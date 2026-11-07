@@ -2,17 +2,21 @@ import './style.css'
 import * as THREE from 'three'
 import { FX, ITEMS, MULTI_MILESTONE, PLAYER, SKILL_EFFECT, SKILLS, TIME_ATTACK, UPGRADES, WORLD, useCourtyardCourse, useMultiOrder, type ItemId, type UpgradeId } from './config'
 import {
+  BLIZZARD_MIN_LENGTH,
+  blizzardPath,
   buyItem,
   buyUpgrade,
   createGame,
   currentBuilding,
   distanceToBuilding,
   movePlayer,
+  skillOwned,
   stats,
   stepGame,
   useSkill,
   type Building,
   type GameEvent,
+  type TornadoPath,
 } from './sim/game'
 import { SnowSurface } from './render/snowSurface'
 import { CYCLE_SECONDS, Daylight, lighting } from './render/daylight'
@@ -23,6 +27,7 @@ import { applySubjectCut, subjectCut } from './render/subjectCut'
 import { PlayerView } from './render/playerView'
 import { skinById } from './skins'
 import { Projectiles, Scoop, Sparkles } from './render/effects'
+import { BlizzardFx, TORNADO_THROW_Y } from './render/blizzard'
 import { UnitsView } from './render/units'
 import { BuildingLabels } from './render/buildingLabels'
 import { RareView } from './render/rareView'
@@ -43,7 +48,7 @@ import { createDebugGui } from './debugGui'
 import { BalanceDashboard } from './balanceDashboard'
 import { loadTuning } from './tuning'
 import { clearStorage, hasSave, loadFromStorage, saveToStorage, useSaveSlot } from './save'
-import { playCoin, playFanfare, unlockAudio } from './audio'
+import { playBlizzard, playCharge, playCoin, playFanfare, unlockAudio } from './audio'
 import { joinFromParams, type MultiSession } from './net/session'
 import type { TaggedEvent } from './net/protocol'
 import { Title } from './title/title'
@@ -138,6 +143,11 @@ const rareView = new RareView()
 const remotePlayers = new RemotePlayers()
 playerView.group.visible = !isSpectator
 scene.add(playerView.group, scoop.mesh, sparkles.mesh, projectiles.mesh, units.group, rareView.group, remotePlayers.group)
+const blizzardFx = new BlizzardFx(sparkles)
+scene.add(blizzardFx.group)
+const frost = document.createElement('div')
+frost.id = 'blizzard-frost'
+document.body.appendChild(frost)
 
 type BuildingView = {
   monolith: Monolith
@@ -267,13 +277,49 @@ const shop = isGodView
     )
 /** 演出中・全体マップ中・タイムアタックのカウントダウン中・ルームのスタート前・一区切りのカードを出している間・タイトル画面では操作できない */
 const inputLocked = () => rig.inputLocked || !!timeAttack?.locked || !!raceStart?.locked || !!milestone?.open || !!title?.active
+/** ブリザードを構えているか。必殺技なので、1 回目で構えて（通り道を見せて）、もう一度押すと放つ */
+let blizzardArmed = false
+function setBlizzardArmed(armed: boolean) {
+  blizzardArmed = armed
+  skillBar?.setArmed('blizzard', armed)
+}
+const isTouch = matchMedia('(pointer: coarse)').matches
 const skillBar = isGodView
   ? null
-  : new SkillBar(document.body, (id) => {
-      if (inputLocked()) return
-      if (session) session.skill(id)
-      else pendingEvents.push(...useSkill(state, state.player, id))
-    })
+  : new SkillBar(
+      document.body,
+      (id) => {
+        if (inputLocked()) return
+        let aim: number | undefined
+        if (id === 'blizzard') {
+          const p = state.player
+          if (!blizzardArmed) {
+            // CD 中などで使えないときは構えない。建てる建物が無いときは構える前に知らせる
+            if (!skillOwned(state, id) || p.cooldowns[id] > 0) return
+            if (!currentBuilding(state)) {
+              hud.toast(`${SKILLS[id].label}：建てる建物がない`, 1200)
+              skillBar!.shake(id)
+              return
+            }
+            setBlizzardArmed(true)
+            playCharge()
+            hud.toast(`向きを決めて\nもう一度${isTouch ? 'タップ' : ' F '}で放つ！`, 1800)
+            return
+          }
+          // 通り道がふさがっているときは、構えたまま向きを変えてもらう
+          if (blizzardPath(state, p.x, p.z, p.facing).length < BLIZZARD_MIN_LENGTH) {
+            hud.toast(`${SKILLS[id].label}：前がふさがっている。向きを変えて`, 1200)
+            skillBar!.shake(id)
+            return
+          }
+          setBlizzardArmed(false)
+          aim = p.facing
+        }
+        if (session) session.skill(id, aim)
+        else pendingEvents.push(...useSkill(state, state.player, id, aim))
+      },
+      () => setBlizzardArmed(false),
+    )
 const minimap = new Minimap(document.body, () => toggleOverview())
 const playerList = session ? new PlayerList(document.body) : null
 unlockAudio()
@@ -443,7 +489,7 @@ addEventListener('resize', resize)
 resize()
 
 /** スキル発動時の演出（sim 側の効果とは別。見た目と音だけ） */
-function playSkillEffect(id: keyof typeof SKILLS, amount?: number) {
+function playSkillEffect(id: keyof typeof SKILLS, amount?: number, tornado?: TornadoPath) {
   const pos = playerView.group.position
   if (id === 'dash') {
     sparkles.burst(tmp.copy(pos).setY(0.5), 20, 0xdff4ff, 5)
@@ -453,16 +499,13 @@ function playSkillEffect(id: keyof typeof SKILLS, amount?: number) {
   } else if (id === 'longThrow') {
     hud.toast(`遠投！ +${Math.floor(amount ?? 0)}`, 1200)
   } else if (id === 'blizzard') {
-    // 半径いっぱいから雪を巻き上げる
-    const r = SKILL_EFFECT.blizzardRadius
-    for (let n = 0; n < 60; n++) {
-      const a = (n / 60) * Math.PI * 2
-      tmp.set(pos.x + Math.cos(a) * r * Math.sqrt(Math.random()), 0.5, pos.z + Math.sin(a) * r * Math.sqrt(Math.random()))
-      sparkles.burst(tmp, 3, 0xffffff, 6)
-      scoop.spawn(tmp, packPos, Math.random() * 0.4)
+    // 竜巻そのものは BlizzardFx（スキルのイベントの tornado から出す）。ここでは足元の吹き上がりと音
+    for (let n = 0; n < 40; n++) {
+      const a = (n / 40) * Math.PI * 2
+      sparkles.burst(tmp.set(pos.x + Math.cos(a) * 1.5, 0.4, pos.z + Math.sin(a) * 1.5), 2, 0xdff4ff, 7)
     }
-    playFanfare()
-    hud.toast(`ブリザード！！ +${Math.floor(amount ?? 0)}`, 2000)
+    playBlizzard(tornado ? tornado.length / SKILL_EFFECT.blizzardSpeed : 3)
+    hud.toast('ブリザード！！', 1600)
   }
 }
 
@@ -737,12 +780,17 @@ renderer.setAnimationLoop((now: number) => {
       playCoin()
       save()
     } else if (e.type === 'skill') {
-      if (!other) playSkillEffect(e.id, e.amount)
+      if (e.tornado) blizzardFx.spawn(e.tornado)
+      if (!other) playSkillEffect(e.id, e.amount, e.tornado)
       else {
         const at = remotePlayers.position(pid!)
         if (at) sparkles.burst(tmp.copy(at).setY(1), 30, 0xffd36e, 4)
-        if (e.id === 'blizzard') hud.toast(`${other}のブリザード！！ +${Math.floor(e.amount ?? 0)}`, 2000)
+        if (e.id === 'blizzard') hud.toast(`${other}のブリザード！！`, 1600)
       }
+    } else if (e.type === 'blizzardEnd') {
+      const by = whoElse(e.owner)
+      if (e.amount > 0) hud.toast(`${by ? `${by}の` : ''}ブリザード +${Math.floor(e.amount)}`, 2000)
+      if (!by) playFanfare()
     } else if (e.type === 'skillFail') {
       if (other) continue
       hud.toast(`${SKILLS[e.id].label}：${e.reason}`, 1200)
@@ -762,10 +810,18 @@ renderer.setAnimationLoop((now: number) => {
         Math.max(0.3, view.monolith.topY) + 0.2,
         b.z + (Math.random() - 0.5) * b.depth * 0.8,
       )
-      const from = e.from ? units.plowPosition(e.from.plowId, tmp) : other ? remotePlayers.packPosition(pid!, tmp) : packPos
+      // ブリザードの竜巻からは、渦の上の方から飛び出す
+      const from = e.from
+        ? 'plowId' in e.from
+          ? units.plowPosition(e.from.plowId, tmp)
+          : tmp.set(e.from.x, TORNADO_THROW_Y, e.from.z)
+        : other
+          ? remotePlayers.packPosition(pid!, tmp)
+          : packPos
       if (!from) continue
       view.inFlight += e.amount
-      const ball = `雪玉 ${b.id} 量=${e.amount.toFixed(1)}${e.from ? ' 除雪機から' : other ? ' 他のプレイヤーから' : ''}`
+      const source = e.from ? ('plowId' in e.from ? ' 除雪機から' : ' 竜巻から') : other ? ' 他のプレイヤーから' : ''
+      const ball = `雪玉 ${b.id} 量=${e.amount.toFixed(1)}${source}`
       god?.fly.trace.log(`${ball} 投げた (${from.x.toFixed(1)}, ${from.y.toFixed(1)}, ${from.z.toFixed(1)}) → (${to.x.toFixed(1)}, ${to.y.toFixed(1)}, ${to.z.toFixed(1)})`)
       projectiles.launch(from, to, () => {
         god?.fly.trace.log(`${ball} 着いた`)
@@ -877,6 +933,14 @@ renderer.setAnimationLoop((now: number) => {
   hud.update(dt, p.carried, p.capacity, shown.label, buildingViews.get(shown.id)!.display, state.gold, p.rare)
   shop?.update(state)
   skillBar?.update(state)
+  // 構えたまま操作できなくなった（演出・全体マップ・ショップ）り、使えなくなったりしたら構えを解く
+  if (blizzardArmed && (inputLocked() || rig.overview || document.body.classList.contains('shop-open') || p.cooldowns.blizzard > 0 || !skillOwned(state, 'blizzard'))) {
+    setBlizzardArmed(false)
+  }
+  const aimPath = blizzardArmed ? blizzardPath(state, p.x, p.z, p.facing) : null
+  blizzardFx.setAim(aimPath, !aimPath || aimPath.length >= BLIZZARD_MIN_LENGTH)
+  blizzardFx.update(dt, time, isGodView ? camera.position : playerView.group.position, renderer.domElement.height, camera)
+  frost.style.opacity = (blizzardFx.intensity * 0.85).toFixed(3)
   rareView.update(time, state.rares, state.field)
   // ブースト中・ダッシュ中は足元から雪煙
   if ((p.boostTime > 0 && moving > 0.1) || p.dashTime > 0) sparkles.burst(tmp.copy(playerView.group.position).setY(0.3), p.dashTime > 0 ? 4 : 1, 0xdff4ff, 2)
