@@ -1,9 +1,10 @@
 import * as THREE from 'three'
-import { WORLD } from '../config'
+import { RARE, WORLD } from '../config'
 import type { SnowField } from '../sim/field'
 import type { RareCrystal } from '../sim/game'
 
 // レア雪の結晶。雪面の上でくるくる回って光る。sim の配列と id で突き合わせて増減に追従する。
+// 消える前（残り RARE.blinkTime 秒）は点滅し、残りが少ないほど速く点滅して小さくなる。
 
 const geo = new THREE.OctahedronGeometry(0.45, 0)
 const mat = new THREE.MeshStandardMaterial({ color: 0x9ff0ff, emissive: 0x36c8ff, emissiveIntensity: 1.2, roughness: 0.2, metalness: 0.1 })
@@ -32,6 +33,19 @@ export class RareView {
       const ground = field.amountAt(r.x, r.z) * WORLD.snowMaxHeight
       g.position.set(r.x, ground + 0.7 + Math.sin(time * 2 + r.id) * 0.15, r.z)
       g.children[0].rotation.y = time * 2
+      const fading = rareFading(r)
+      g.scale.setScalar(0.6 + 0.4 * fading)
+      g.visible = fading >= 1 || blinkOn(time, fading)
     }
   }
+}
+
+/** 点滅の表示中か。fading（1 → 0）が小さいほど速く点滅する */
+export function blinkOn(time: number, fading: number): boolean {
+  return Math.sin(time * (6 + (1 - fading) * 18)) > -0.3
+}
+
+/** 消えるまでの残りを 1（まだ点滅しない）→ 0（消える）で。life を送ってこない古いサーバーでは 1 */
+export function rareFading(r: RareCrystal): number {
+  return r.life < RARE.blinkTime ? Math.max(0, r.life / RARE.blinkTime) : 1
 }

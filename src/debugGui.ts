@@ -76,6 +76,10 @@ export function createDebugGui(s: GameState, daylight: Daylight, hooks: DebugHoo
   sk.add(SKILL_EFFECT, 'blizzardRadius', 3, 40, 1).name('ブリザード半径')
   sk.add(RARE, 'value', 1, 500, 1).name('レア雪の価値')
   sk.add(RARE, 'spawnInterval', 1, 60, 1).name('レア雪の湧き間隔 (s)')
+  sk.add(RARE, 'maxOnField', 1, 30, 1).name('レア雪の同時最大数')
+  sk.add(RARE, 'lifetime', 5, 300, 1).name('レア雪が消えるまで (s)')
+  sk.add(RARE, 'recast', 0, 1, 0.05).name('レア雪のリキャスト: 通常')
+  sk.add(RARE, 'recastUltimate', 0, 1, 0.05).name('レア雪のリキャスト: 必殺技')
   sk.add(s, 'totalCollected').name('累計回収量').listen().disable()
 
   const fx = gui.addFolder('演出').close()
