@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { brooch, cureBody, gemMaterial, goldMaterial, hairCap, hairStrands, mat, mesh, onHead, WHITE, wingShape, type CureColors } from './cure'
+import { hairCap, hairStrands, mat, mesh, onHead } from './chibi'
+import { brooch, cureBody, gemMaterial, goldMaterial, WHITE, wingShape, type CureColors } from './cure'
 
 // キュアアンサー（「名探偵プリキュア！」、issue #105）をデフォルメしたモデル。顔と服は cure.ts の共通部分。
 // 参考：https://www.toei-anim.co.jp/tv/precure/character/answer.php （前・横・後ろの立ち絵は docs/cure-answer/）
