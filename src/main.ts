@@ -46,6 +46,7 @@ import { clearStorage, hasSave, loadFromStorage, saveToStorage, useSaveSlot } fr
 import { playCoin, playFanfare, unlockAudio } from './audio'
 import { joinFromParams, type MultiSession } from './net/session'
 import type { TaggedEvent } from './net/protocol'
+import { loadPlayerSkin } from './title/prefs'
 import { Title } from './title/title'
 
 // ?view=god で展示用の神視点（マウスで見回し・WASD で移動・自動周回）カメラ、?debug で lil-gui の調整パネル、?balance でバランス調整ダッシュボード、
@@ -138,6 +139,8 @@ const scenery = createScenery()
 applySubjectCut(scenery)
 scene.add(scenery)
 
+// ソロもタイトル画面で選んだスキンを使う（マルチプレイはサーバーが決めた skin が session で入っている）
+if (!isMulti) state.player.skin = loadPlayerSkin()
 const playerView = new PlayerView(skinById(state.player.skin))
 const scoop = new Scoop()
 const sparkles = new Sparkles()

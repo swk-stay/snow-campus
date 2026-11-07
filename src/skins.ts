@@ -5,7 +5,7 @@
  * color：ミニマップの点やプレイヤー一覧に出す代表色（jacket では上着の色）
  * swatch：タイトル画面の見本の CSS の background（省略すると color の単色）
  */
-export type Skin = { id: string; label: string; kind: 'jacket' | 'cureAnswer' | 'cureMistique'; color: number; swatch?: string }
+export type Skin = { id: string; label: string; kind: 'jacket' | 'cureAnswer' | 'cureMistique' | 'tomoriNao'; color: number; swatch?: string }
 
 export const SKINS = [
   { id: 'red', label: '赤', kind: 'jacket', color: 0xd9443a },
@@ -21,6 +21,8 @@ export const SKINS = [
   { id: 'cure-answer', label: 'キュアアンサー', kind: 'cureAnswer', color: 0xc58be8, swatch: 'linear-gradient(160deg, #dba6f2 45%, #f28fb8)' },
   // 同じくキュアミスティック。見本は髪の色（ピンクから毛先の薄紫）
   { id: 'cure-mistique', label: 'キュアミスティック', kind: 'cureMistique', color: 0xf47fb4, swatch: 'linear-gradient(160deg, #f47fb4 45%, #d7a2f0)' },
+  // 「Charlotte」の友利奈緒。見本は銀髪と赤いブレザー。代表色は雪の上で見える焦げ茶のスカート（銀髪は白に溶け、赤は上着の赤とかぶる）
+  { id: 'tomori-nao', label: '友利奈緒', kind: 'tomoriNao', color: 0x5a3028, swatch: 'linear-gradient(160deg, #dcd6cc 55%, #c8323c)' },
 ] as const satisfies readonly Skin[]
 
 export type SkinId = (typeof SKINS)[number]['id']
