@@ -85,11 +85,18 @@ export const TUNABLES: Tunable[] = [
   prop('スキル', SKILL_EFFECT, 'SKILL_EFFECT', 'dashTime', 'ダッシュ: 秒数', 0.02),
   prop('スキル', SKILL_EFFECT, 'SKILL_EFFECT', 'boostSpeedMult', 'ブースト: 倍率', 0.1),
   prop('スキル', SKILL_EFFECT, 'SKILL_EFFECT', 'boostTime', 'ブースト: 秒数', 0.5),
-  prop('スキル', SKILL_EFFECT, 'SKILL_EFFECT', 'blizzardRadius', 'ブリザード: 半径', 1),
+  prop('スキル', SKILL_EFFECT, 'SKILL_EFFECT', 'blizzardLength', 'ブリザード: 距離', 1),
+  prop('スキル', SKILL_EFFECT, 'SKILL_EFFECT', 'blizzardHalfWidth', 'ブリザード: 半幅', 0.5),
+  prop('スキル', SKILL_EFFECT, 'SKILL_EFFECT', 'blizzardSpeed', 'ブリザード: 速さ', 1),
+  prop('スキル', SKILL_EFFECT, 'SKILL_EFFECT', 'blizzardSnowRadius', 'ブリザード: 吹雪の半径', 1),
+  prop('スキル', SKILL_EFFECT, 'SKILL_EFFECT', 'blizzardSnowRate', 'ブリザード: 吹雪の積もる速さ', 0.005),
 
   prop('レア雪', RARE, 'RARE', 'value', '1個の価値', 5),
   prop('レア雪', RARE, 'RARE', 'spawnInterval', '湧く間隔 (s)', 1),
   prop('レア雪', RARE, 'RARE', 'maxOnField', '同時に湧く最大数', 1),
+  prop('レア雪', RARE, 'RARE', 'lifetime', '消えるまで (s)', 1),
+  prop('レア雪', RARE, 'RARE', 'recast', 'リキャスト: 通常スキル', 0.05),
+  prop('レア雪', RARE, 'RARE', 'recastUltimate', 'リキャスト: 必殺技', 0.05),
 ]
 
 export const TUNABLE = new Map(TUNABLES.map((t) => [t.path, t]))

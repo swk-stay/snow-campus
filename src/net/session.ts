@@ -153,8 +153,8 @@ export class MultiSession {
     this.buy({ kind: 'item', id })
   }
 
-  skill(id: SkillId) {
-    this.room.send('skill', { id })
+  skill(id: SkillId, aim?: number) {
+    this.room.send('skill', aim === undefined ? { id } : { id, aim })
   }
 
   /** 参加者がそろったので、ルームのタイムアタックを始める（待っている間だけサーバーが受け付ける） */

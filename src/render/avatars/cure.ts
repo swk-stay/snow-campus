@@ -41,8 +41,14 @@ export function goldMaterial() {
  * 顔の絵：眉・目・頬・鼻・口。
  * 公式のデフォルメのイラストに合わせて、線と塗りだけの単純な描き方にする。
  * 立ち絵に寄せて目を細かく描き込むと、2 頭身の体には生々しすぎて不気味に見えたため。
+ * eye：目の塗りの色（省略すると線と同じ焦げ茶）。smile：false なら口を閉じて小さくする
  */
-const drawCureFace: FaceDraw = (ctx, px, py) => {
+export function face({ eye, smile = true }: { eye?: string; smile?: boolean } = {}): THREE.Mesh {
+  const draw: FaceDraw = (ctx, px, py) => drawCureFace(ctx, px, py, eye, smile)
+  return faceMesh(draw)
+}
+
+function drawCureFace(ctx: CanvasRenderingContext2D, px: (phi: number) => number, py: (theta: number) => number, eye: string | undefined, smile: boolean) {
   const ellipse = (x: number, y: number, rx: number, ry: number, rot = 0) => ellipsePath(ctx, x, y, rx, ry, rot)
   const ink = '#4b2e2a' // 線と目の焦げ茶
 
@@ -74,9 +80,15 @@ const drawCureFace: FaceDraw = (ctx, px, py) => {
     const y = py(1.66)
     const rx = 30
     const ry = 50
-    ctx.fillStyle = ink
+    ctx.fillStyle = eye ?? ink
     ellipse(x, y, rx, ry)
     ctx.fill()
+    if (eye) {
+      // 色付きの目には瞳を入れる（塗り一色だと平坦に見える）
+      ctx.fillStyle = ink
+      ellipse(x, y + ry * 0.1, rx * 0.5, ry * 0.55)
+      ctx.fill()
+    }
     ctx.lineWidth = 4
     ctx.beginPath()
     ctx.moveTo(x + sx * rx * 0.6, y - ry * 0.8)
@@ -93,25 +105,36 @@ const drawCureFace: FaceDraw = (ctx, px, py) => {
   const mx = px(0)
   const my = py(1.93)
   const mw = 64
+  if (!smile) {
+    // 閉じた口：短い下向きの弧
+    ctx.strokeStyle = ink
+    ctx.lineWidth = 5
+    ctx.beginPath()
+    ctx.moveTo(mx - 16, my + 4)
+    ctx.quadraticCurveTo(mx, my + 14, mx + 16, my + 4)
+    ctx.stroke()
+  }
   const mouth = () => {
     ctx.beginPath()
     ctx.moveTo(mx - mw, my)
     ctx.quadraticCurveTo(mx, my - 14, mx + mw, my)
     ctx.bezierCurveTo(mx + mw * 0.9, my + 80, mx - mw * 0.9, my + 80, mx - mw, my)
   }
-  ctx.save()
-  mouth()
-  ctx.fillStyle = '#e46f7e'
-  ctx.fill()
-  ctx.clip()
-  ctx.fillStyle = '#f59aa6'
-  ellipse(mx, my + 60, mw * 0.7, 24)
-  ctx.fill()
-  ctx.restore()
-  mouth()
-  ctx.strokeStyle = ink
-  ctx.lineWidth = 5
-  ctx.stroke()
+  if (smile) {
+    ctx.save()
+    mouth()
+    ctx.fillStyle = '#e46f7e'
+    ctx.fill()
+    ctx.clip()
+    ctx.fillStyle = '#f59aa6'
+    ellipse(mx, my + 60, mw * 0.7, 24)
+    ctx.fill()
+    ctx.restore()
+    mouth()
+    ctx.strokeStyle = ink
+    ctx.lineWidth = 5
+    ctx.stroke()
+  }
 }
 
 /**
@@ -260,6 +283,6 @@ export function cureBody(c: CureColors, knot: THREE.Object3D): THREE.Group {
 
   // 頭と顔
   g.add(mesh(new THREE.SphereGeometry(0.3, 20, 16), skin, HEAD.x, HEAD.y, HEAD.z))
-  g.add(faceMesh(drawCureFace))
+  g.add(face())
   return g
 }

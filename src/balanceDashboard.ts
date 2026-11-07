@@ -84,7 +84,7 @@ export class BalanceDashboard {
     for (const e of events) {
       if (e.type === 'gold') b.gold += e.amount
       else if (e.type === 'throw') {
-        if (e.from) b.plow += e.amount
+        if (e.from && 'plowId' in e.from) b.plow += e.amount
         else if (e.rare) b.rare += e.amount
         else b.player += e.amount
       } else if (e.type === 'complete') this.completedAt.set(e.buildingId, this.elapsed)

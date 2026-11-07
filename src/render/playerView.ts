@@ -7,6 +7,7 @@ import { enableShadows } from './daylight'
 import { cureAnswerModel } from './avatars/cureAnswer'
 import { cureMistiqueModel } from './avatars/cureMistique'
 import { shinozawaHiroModel } from './avatars/shinozawaHiro'
+import { tomoriNaoModel } from './avatars/tomoriNao'
 
 // プレイヤーの見た目。背中の雪玉が所持量に応じて膨らむ。
 // 足元の丸い影と回収範囲リングは SnowSurface のシェーダー側で描いている（太陽による影は daylight.ts の影）。
@@ -63,6 +64,8 @@ function skinModel(skin: Skin): THREE.Group {
       return cureAnswerModel()
     case 'cureMistique':
       return cureMistiqueModel()
+    case 'tomoriNao':
+      return tomoriNaoModel()
     case 'shinozawaHiro':
       return shinozawaHiroModel()
     case 'jacket':

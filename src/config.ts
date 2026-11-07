@@ -205,7 +205,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   dash: { label: 'ダッシュ', description: '向いている方向へ素早く飛び出す', key: 'Space', keyLabel: 'Space', cooldown: 3, ultimate: false },
   boost: { label: 'ブースト', description: 'しばらく移動速度アップ', key: 'KeyQ', keyLabel: 'Q', cooldown: 25, ultimate: false },
   longThrow: { label: '遠投', description: '持っている雪をどこからでも建物へ投げ込む', key: 'KeyR', keyLabel: 'R', cooldown: 30, ultimate: false },
-  blizzard: { label: 'ブリザード', description: '周囲の雪を根こそぎ建物へ送り込む', key: 'KeyF', keyLabel: 'F', cooldown: 120, ultimate: true },
+  blizzard: { label: 'ブリザード', description: '竜巻を走らせ、通った跡の雪を根こそぎ建物へ送り込む（押して構え、もう一度押して放つ）', key: 'KeyF', keyLabel: 'F', cooldown: 120, ultimate: true },
 }
 
 export const SKILL_EFFECT = {
@@ -213,9 +213,25 @@ export const SKILL_EFFECT = {
   dashTime: 0.22,
   boostSpeedMult: 1.5,
   boostTime: 6,
-  /** 遠投・ブリザードで飛ばす雪玉の最大個数（演出用に分割する数） */
+  /** 遠投で飛ばす雪玉の最大個数（演出用に分割する数） */
   volleyCount: 12,
-  blizzardRadius: 14,
+  /**
+   * ブリザード：構えた向きへ竜巻がまっすぐ進み、通った跡（幅 2×blizzardHalfWidth）の雪を削って建物へ投げ続ける。
+   * 削れる面積（2rL＋πr²）は、以前の「半径 14m の円」（約 615m²）と同じくらいにしてある
+   */
+  blizzardLength: 55,
+  blizzardHalfWidth: 5,
+  /** 竜巻の進む速さ (m/s) */
+  blizzardSpeed: 11,
+  /** 竜巻が削った雪を建物へ投げる間隔 (s) */
+  blizzardThrowInterval: 0.3,
+  /**
+   * ブリザードの吹雪：放った人のまわり（半径 blizzardSnowRadius、人について動く）に、竜巻が進んでいる間と
+   * 止まってから blizzardSnowLinger 秒、雪を積もらせる。rate は中心での 1 秒あたりの増え方（セル量 0..1）
+   */
+  blizzardSnowRadius: 18,
+  blizzardSnowRate: 0.065,
+  blizzardSnowLinger: 3,
 }
 
 /**
@@ -234,12 +250,21 @@ export const SNOW_MACHINE = {
 
 // ---- レア雪 ----
 // 先進技術研究所（reward.rare の建物）が完成すると雪原に現れる。普通の雪とは別枠で持てて（所持上限なし）、建物への貢献が大きい。
+// 拾うとスキルのクールダウンが戻る（リキャスト）。湧いてから lifetime 秒たつと溶けて消える。
 
 export const RARE = {
   /** 1個あたりの建物への貢献（普通の雪の量に換算） */
   value: 60,
-  spawnInterval: 12,
-  maxOnField: 4,
+  spawnInterval: 6,
+  maxOnField: 8,
+  /** 湧いてから消えるまでの秒数 */
+  lifetime: 45,
+  /** 消える前に点滅しはじめる残り秒数（演出だけ） */
+  blinkTime: 8,
+  /** 拾ったとき、通常スキルの残りクールダウンを戻す割合（1 で即リキャスト） */
+  recast: 1,
+  /** 必殺技の残りクールダウンを戻す割合 */
+  recastUltimate: 0.25,
 }
 
 // ---- アイテム ----

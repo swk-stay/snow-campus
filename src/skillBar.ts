@@ -7,9 +7,12 @@ import { skillOwned, stats, type GameState } from './sim/game'
 const IDS = Object.keys(SKILLS) as SkillId[]
 
 export class SkillBar {
-  private readonly buttons = new Map<SkillId, { el: HTMLButtonElement; cd: HTMLSpanElement; wasReady: boolean }>()
+  private readonly buttons = new Map<SkillId, { el: HTMLButtonElement; cd: HTMLSpanElement; name: HTMLSpanElement; wasReady: boolean }>()
+  /** 構えをやめるボタン（タッチでは Esc が無いので、構えているスキルの上に出す） */
+  private readonly cancel: HTMLButtonElement
 
-  constructor(root: HTMLElement, onUse: (id: SkillId) => void) {
+  /** onCancel：構えているスキル（ブリザード）をやめる */
+  constructor(root: HTMLElement, onUse: (id: SkillId) => void, onCancel: () => void) {
     const bar = document.createElement('div')
     bar.id = 'skill-bar'
     for (const id of IDS) {
@@ -24,12 +27,25 @@ export class SkillBar {
         onUse(id)
       })
       bar.appendChild(el)
-      this.buttons.set(id, { el, cd: el.querySelector('.skill-cd')!, wasReady: true })
+      this.buttons.set(id, { el, cd: el.querySelector('.skill-cd')!, name: el.querySelector('.skill-name')!, wasReady: true })
     }
+    this.cancel = document.createElement('button')
+    this.cancel.className = 'skill-cancel'
+    this.cancel.hidden = true
+    this.cancel.innerHTML = `やめる<kbd>Esc</kbd>`
+    this.cancel.addEventListener('pointerdown', (e) => {
+      e.preventDefault()
+      onCancel()
+    })
+    bar.appendChild(this.cancel)
     root.appendChild(bar)
 
     addEventListener('keydown', (e) => {
       if (e.repeat) return
+      if (e.code === 'Escape' && !this.cancel.hidden) {
+        onCancel()
+        return
+      }
       const id = IDS.find((i) => SKILLS[i].key === e.code)
       if (id) {
         e.preventDefault()
@@ -63,6 +79,15 @@ export class SkillBar {
       }
       b.wasReady = ready
     }
+  }
+
+  /** 構えている間は、ボタンを「放つ」に変えて脈打たせる */
+  setArmed(id: SkillId, armed: boolean) {
+    const b = this.buttons.get(id)!
+    if (b.el.classList.contains('armed') === armed) return
+    b.el.classList.toggle('armed', armed)
+    b.name.textContent = armed ? '放つ！' : SKILLS[id].label
+    this.cancel.hidden = !armed
   }
 
   /** 使えなかったときにボタンを揺らす */

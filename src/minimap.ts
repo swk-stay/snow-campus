@@ -1,3 +1,4 @@
+import { blinkOn, rareFading } from './render/rareView'
 import type { GameState } from './sim/game'
 import { skinById } from './skins'
 
@@ -97,7 +98,11 @@ export class Minimap {
     g.setLineDash([])
 
     // レア雪は点滅する水色の点
-    for (const r of s.rares) dot(g, toPxX(r.x), toPxZ(r.z), (3 + Math.sin(time * 8) * 1.2) * dpr, '#5fe3ff')
+    for (const r of s.rares) {
+      const fading = rareFading(r)
+      if (fading < 1 && !blinkOn(time, fading)) continue
+      dot(g, toPxX(r.x), toPxZ(r.z), (3 + Math.sin(time * 8) * 1.2) * dpr * (0.6 + 0.4 * fading), '#5fe3ff')
+    }
 
     // いま建てている建物が範囲の外なら、縁にその方向の矢印
     const target = s.buildings.find((o) => !o.completed)
