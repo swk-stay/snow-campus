@@ -230,7 +230,7 @@ export const SKILL_EFFECT = {
    * 止まってから blizzardSnowLinger 秒、雪を積もらせる。rate は中心での 1 秒あたりの増え方（セル量 0..1）
    */
   blizzardSnowRadius: 18,
-  blizzardSnowRate: 0.025,
+  blizzardSnowRate: 0.065,
   blizzardSnowLinger: 3,
 }
 
