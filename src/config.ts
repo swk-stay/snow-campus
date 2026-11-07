@@ -239,16 +239,16 @@ export const SNOW_MACHINE = {
 export const RARE = {
   /** 1個あたりの建物への貢献（普通の雪の量に換算） */
   value: 60,
-  spawnInterval: 6,
-  maxOnField: 8,
+  spawnInterval: 3,
+  maxOnField: 16,
   /** 湧いてから消えるまでの秒数 */
   lifetime: 45,
   /** 消える前に点滅しはじめる残り秒数（演出だけ） */
   blinkTime: 8,
   /** 拾ったとき、通常スキルの残りクールダウンを戻す割合（1 で即リキャスト） */
   recast: 1,
-  /** 必殺技の残りクールダウンを戻す割合 */
-  recastUltimate: 0.25,
+  /** 必殺技の残りクールダウンを戻す割合（1 で即リキャスト） */
+  recastUltimate: 1,
 }
 
 // ---- アイテム ----
