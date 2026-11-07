@@ -1,7 +1,8 @@
 import * as THREE from 'three'
-import { face, HEAD, hairCap, hairStrands, mat, mesh, onHead, skinMaterial, WHITE } from './cure'
+import { HEAD, hairCap, hairStrands, mat, mesh, onHead, skinMaterial } from './chibi'
+import { face, WHITE } from './cure'
 
-// 友利奈緒（「Charlotte」）をデフォルメしたモデル。顔の描き方と髪の束は cure.ts の部品を使い、体は制服なので自前で組む。
+// 友利奈緒（「Charlotte」）をデフォルメしたモデル。顔の描き方は cure.ts、髪の束は chibi.ts の部品を使い、体は制服なので自前で組む。
 // 参考：https://charlotte-anime.jp/character/ の立ち絵（前と、顔の正面・横）
 // 特徴：腰まである銀髪のゆるく波打つロングヘア・左の頭の上で結んだサイドテール・青い目・
 // 白いセーラー襟と黄色いリボンの赤いブレザー・焦げ茶のプリーツスカート・黒いニーソックスと茶色のブーツ・右手にビデオカメラ。

@@ -6,6 +6,7 @@ import { DEFAULT_SKIN, skinById, type Skin } from '../skins'
 import { enableShadows } from './daylight'
 import { cureAnswerModel } from './avatars/cureAnswer'
 import { cureMistiqueModel } from './avatars/cureMistique'
+import { shinozawaHiroModel } from './avatars/shinozawaHiro'
 import { tomoriNaoModel } from './avatars/tomoriNao'
 
 // プレイヤーの見た目。背中の雪玉が所持量に応じて膨らむ。
@@ -65,6 +66,8 @@ function skinModel(skin: Skin): THREE.Group {
       return cureMistiqueModel()
     case 'tomoriNao':
       return tomoriNaoModel()
+    case 'shinozawaHiro':
+      return shinozawaHiroModel()
     case 'jacket':
       return jacketModel(skin.color)
   }

@@ -1,9 +1,9 @@
 import * as THREE from 'three'
+import { ellipsePath, faceMesh, HEAD, mat, mesh, skinMaterial, type FaceDraw } from './chibi'
 
 // 「名探偵プリキュア！」のプリキュアをデフォルメしたモデルの共通部分（issue #105）。
 // 顔と服の形はどのキャラクターも同じで、服は色だけ違う（CureColors）。髪型と髪の飾りはキャラクターごとのファイルで作る。
-// 2 頭身にして、遠目でも分かる特徴だけを残す。顔は +z を向く（PlayerView の向きに合わせる）。
-// 背中の雪玉（-z）と重ならないよう、長い髪は横に広げて垂らす。
+// 2 頭身にして、遠目でも分かる特徴だけを残す。頭・顔の貼り方・髪の束など、作品によらない部品は chibi.ts。
 
 /** 服の色。形はどのキャラクターも同じ */
 export type CureColors = {
@@ -27,17 +27,7 @@ export type CureColors = {
 }
 
 export const WHITE = 0xfbf8ff
-const SKIN = 0xffe2cf
 const GOLD = 0xe8c25a
-
-export function mat(color: number) {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.75 })
-}
-
-/** 肌。陰で灰色にくすまないよう、少し自発光させる */
-export function skinMaterial() {
-  return new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.9, emissive: 0x6e5040 })
-}
 
 export function gemMaterial(color: number) {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.25, metalness: 0.3 })
@@ -47,50 +37,20 @@ export function goldMaterial() {
   return new THREE.MeshStandardMaterial({ color: GOLD, roughness: 0.35, metalness: 0.6 })
 }
 
-export function mesh(geometry: THREE.BufferGeometry, material: THREE.Material, x = 0, y = 0, z = 0) {
-  const m = new THREE.Mesh(geometry, material)
-  m.position.set(x, y, z)
-  return m
-}
-
-/** 頭（肌の球、半径 0.3）の中心 */
-export const HEAD = new THREE.Vector3(0, 1.12, 0)
-
-/** 頭の中心から、横の角度 phi（正面が 0、+ が左）・天頂からの角度 theta・距離 r の点 */
-export function onHead(phi: number, theta: number, r: number): THREE.Vector3 {
-  return new THREE.Vector3(Math.sin(theta) * Math.sin(phi), Math.cos(theta), Math.sin(theta) * Math.cos(phi)).multiplyScalar(r).add(HEAD)
-}
-
-// 顔の絵を貼る範囲。頭の球の前面を、水平は正面から ±FACE_PHI、縦は天頂からの角度で FACE_THETA0..FACE_THETA1
-const FACE_PHI = 0.9
-const FACE_THETA0 = 1.0
-const FACE_THETA1 = 2.2
-// 絵は 1 ラジアン 256 単位の座標で描き、Canvas は FACE_SCALE 倍の解像度にする（近くで見ても線がにじまないように）
-const FACE_UNIT = 256
-const FACE_SCALE = 2
-
 /**
- * 顔。Canvas に 2D で描いた眉・目・頬・鼻・口を、頭よりわずかに大きい球の前面に貼る。
+ * 顔の絵：眉・目・頬・鼻・口。
  * 公式のデフォルメのイラストに合わせて、線と塗りだけの単純な描き方にする。
  * 立ち絵に寄せて目を細かく描き込むと、2 頭身の体には生々しすぎて不気味に見えたため。
  * eye：目の塗りの色（省略すると線と同じ焦げ茶）。smile：false なら口を閉じて小さくする
  */
 export function face({ eye, smile = true }: { eye?: string; smile?: boolean } = {}): THREE.Mesh {
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.round(FACE_PHI * 2 * FACE_UNIT * FACE_SCALE)
-  canvas.height = Math.round((FACE_THETA1 - FACE_THETA0) * FACE_UNIT * FACE_SCALE)
-  const ctx = canvas.getContext('2d')!
-  ctx.scale(FACE_SCALE, FACE_SCALE)
-  // 頭の球の上の点（中心からの横の角度 phi、天頂からの角度 theta）を Canvas の座標へ
-  const px = (phi: number) => (phi + FACE_PHI) * FACE_UNIT
-  const py = (theta: number) => (theta - FACE_THETA0) * FACE_UNIT
-  const ellipse = (x: number, y: number, rx: number, ry: number, rot = 0) => {
-    ctx.beginPath()
-    ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2)
-  }
+  const draw: FaceDraw = (ctx, px, py) => drawCureFace(ctx, px, py, eye, smile)
+  return faceMesh(draw)
+}
+
+function drawCureFace(ctx: CanvasRenderingContext2D, px: (phi: number) => number, py: (theta: number) => number, eye: string | undefined, smile: boolean) {
+  const ellipse = (x: number, y: number, rx: number, ry: number, rot = 0) => ellipsePath(ctx, x, y, rx, ry, rot)
   const ink = '#4b2e2a' // 線と目の焦げ茶
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
 
   // 頬：目の外寄りの下に、ピンクのぼかし
   for (const sx of [-1, 1]) {
@@ -175,71 +135,6 @@ export function face({ eye, smile = true }: { eye?: string; smile?: boolean } = 
     ctx.lineWidth = 5
     ctx.stroke()
   }
-
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.colorSpace = THREE.SRGBColorSpace
-  texture.anisotropy = 4
-  // SphereGeometry は phi が増えると -x から +z を回って +x へ進むので、正面（+z）は phi = π/2
-  const geometry = new THREE.SphereGeometry(0.302, 24, 16, Math.PI / 2 - FACE_PHI, FACE_PHI * 2, FACE_THETA0, FACE_THETA1 - FACE_THETA0)
-  const m = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }))
-  m.position.copy(HEAD)
-  return m
-}
-
-export type HairStrand = (points: THREE.Vector3[], r0: number, r1: number, g0?: number, g1?: number, flat?: 'z' | 'head') => THREE.BufferGeometry
-
-/**
- * 髪の束を作る関数。root は根元の色、tip は毛先の色。
- * 髪の束 1 本は points を通る管で、太さは r0 から r1 へ細くし、平たくして幅のある毛束にする。
- * flat：どの向きに平たくするか。'z' は前後（垂れる髪）、'head' は頭の中心から外向き（頭に沿う前髪）
- * 色は髪全体での位置 g0..g1（0 が根元、1 が毛先）で決め、途中から毛先の色へ変える（頂点カラー）
- */
-export function hairStrands(root: number, tip: number): HairStrand {
-  const rootColor = new THREE.Color(root)
-  const tipColor = new THREE.Color(tip)
-  return (points, r0, r1, g0 = 0, g1 = 0, flat = 'z') => {
-    const curve = new THREE.CatmullRomCurve3(points)
-    const tubular = 56
-    const radial = 10
-    const geometry = new THREE.TubeGeometry(curve, tubular, 1, radial, false)
-    const pos = geometry.attributes.position
-    const colors = new Float32Array(pos.count * 3)
-    const c = new THREE.Color()
-    const center = new THREE.Vector3()
-    const v = new THREE.Vector3()
-    const axis = new THREE.Vector3(0, 0, 1)
-    for (let i = 0; i <= tubular; i++) {
-      const t = i / tubular
-      curve.getPointAt(t, center)
-      const r = r0 + (r1 - r0) * t
-      c.lerpColors(rootColor, tipColor, THREE.MathUtils.smoothstep(g0 + (g1 - g0) * t, 0.48, 0.78))
-      if (flat === 'head') axis.subVectors(center, HEAD).normalize()
-      for (let j = 0; j <= radial; j++) {
-        const k = i * (radial + 1) + j
-        // 半径 1 の管を縮め、axis の向きの厚みを半分にする
-        v.fromBufferAttribute(pos, k).sub(center).multiplyScalar(r)
-        v.addScaledVector(axis, -0.5 * v.dot(axis))
-        v.add(center)
-        pos.setXYZ(k, v.x, v.y, v.z)
-        c.toArray(colors, k * 3)
-      }
-    }
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-    geometry.computeVertexNormals()
-    return geometry
-  }
-}
-
-/** 頭を覆う髪：上と後ろにずらした球と、耳の後ろから襟足までを覆う後ろ髪の球（顔の前は出す） */
-export function hairCap(material: THREE.Material): THREE.Group {
-  const g = new THREE.Group()
-  const cap = mesh(new THREE.SphereGeometry(0.32, 24, 18), material, 0, 1.22, -0.09)
-  cap.scale.set(1.1, 1, 1)
-  g.add(cap)
-  const back = mesh(new THREE.SphereGeometry(0.31, 20, 16), material, 0, 1.1, -0.05)
-  back.scale.set(1.05, 1, 1)
-  g.add(back)
-  return g
 }
 
 /**

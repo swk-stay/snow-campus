@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { cureBody, gemMaterial, goldMaterial, hairCap, hairStrands, mat, mesh, onHead, WHITE, wingShape, type CureColors } from './cure'
+import { hairCap, hairStrands, mat, mesh, onHead } from './chibi'
+import { cureBody, gemMaterial, goldMaterial, WHITE, wingShape, type CureColors } from './cure'
 
 // キュアミスティック（「名探偵プリキュア！」）をデフォルメしたモデル。顔と服は cure.ts の共通部分。
 // 前・横・後ろの立ち絵は docs/cure-mistique/。
