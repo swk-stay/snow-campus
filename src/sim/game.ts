@@ -91,6 +91,9 @@ export type Tornado = {
   sent: number
 }
 
+/** ブリザードの吹雪。放った人のまわりに雪を積もらせる（人が見つからなければ放った場所に） */
+export type Snowfall = { owner: string; x: number; z: number; time: number }
+
 /** 竜巻の通り道。スキルのイベントで端末にも配り、端末はこれをもとに竜巻を描く */
 export type TornadoPath = { x: number; z: number; dirX: number; dirZ: number; length: number }
 
@@ -128,6 +131,8 @@ export type World = {
   rareTimer: number
   /** 進んでいるブリザードの竜巻（保存も同期もしない。端末はスキルのイベントから描く） */
   tornadoes: Tornado[]
+  /** ブリザードの吹雪（保存も同期もしない。積もった雪は雪原の差分で届く） */
+  snowfalls: Snowfall[]
 }
 
 /** 端末側の状態。player は自分（players にも入っている） */
@@ -211,6 +216,7 @@ export function createWorld(): World {
     rares: [],
     rareTimer: 2,
     tornadoes: [],
+    snowfalls: [],
   }
   refillField(s)
   return s
@@ -397,6 +403,7 @@ export function useSkill(s: World, p: Player, id: SkillId, aim?: number): GameEv
     const path = blizzardPath(s, p.x, p.z, aim !== undefined && Number.isFinite(aim) ? aim : p.facing)
     if (path.length < BLIZZARD_MIN_LENGTH) return [{ type: 'skillFail', id, reason: '前がふさがっている。向きを変えて' }]
     s.tornadoes.push({ id: unitSeq++, owner: p.id, x0: path.x, z0: path.z, dirX: path.dirX, dirZ: path.dirZ, length: path.length, traveled: 0, nextScrape: 0, load: 0, throwTimer: SKILL_EFFECT.blizzardThrowInterval, sent: 0 })
+    s.snowfalls.push({ owner: p.id, x: p.x, z: p.z, time: path.length / SKILL_EFFECT.blizzardSpeed + SKILL_EFFECT.blizzardSnowLinger })
     events.unshift({ type: 'skill', id, tornado: path })
   }
 
@@ -467,6 +474,19 @@ function stepTornado(s: World, t: Tornado, dt: number, events: GameEvent[]): boo
   if (owner && t.load > 0) owner.carried = Math.min(owner.capacity, owner.carried + t.load)
   events.push({ type: 'blizzardEnd', owner: t.owner, amount: t.sent })
   return false
+}
+
+/** 吹雪で雪を積もらせる。放った人について動く（抜けたら最後にいた場所に降らせ続ける） */
+function stepSnowfall(s: World, f: Snowfall, dt: number): boolean {
+  const owner = s.players.find((p) => p.id === f.owner)
+  if (owner) {
+    f.x = owner.x
+    f.z = owner.z
+  }
+  const step = Math.min(dt, f.time)
+  s.field.add(f.x, f.z, SKILL_EFFECT.blizzardSnowRadius, SKILL_EFFECT.blizzardSnowRate, step)
+  f.time -= dt
+  return f.time > 0
 }
 
 function tornadoThrow(s: World, t: Tornado, events: GameEvent[]) {
@@ -590,6 +610,7 @@ export function stepWorld(s: World, dt: number): GameEvent[] {
   spawnRares(s, dt, events)
   for (const plow of s.plows) stepPlow(s, plow, dt, events)
   s.tornadoes = s.tornadoes.filter((t) => stepTornado(s, t, dt, events))
+  s.snowfalls = s.snowfalls.filter((f) => stepSnowfall(s, f, dt))
   for (const m of s.machines) s.field.add(m.x, m.z, SNOW_MACHINE.radius, SNOW_MACHINE.rate, dt)
   return events
 }

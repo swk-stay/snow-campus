@@ -225,6 +225,13 @@ export const SKILL_EFFECT = {
   blizzardSpeed: 11,
   /** 竜巻が削った雪を建物へ投げる間隔 (s) */
   blizzardThrowInterval: 0.3,
+  /**
+   * ブリザードの吹雪：放った人のまわり（半径 blizzardSnowRadius、人について動く）に、竜巻が進んでいる間と
+   * 止まってから blizzardSnowLinger 秒、雪を積もらせる。rate は中心での 1 秒あたりの増え方（セル量 0..1）
+   */
+  blizzardSnowRadius: 18,
+  blizzardSnowRate: 0.025,
+  blizzardSnowLinger: 3,
 }
 
 /**

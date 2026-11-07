@@ -76,6 +76,8 @@ export function createDebugGui(s: GameState, daylight: Daylight, hooks: DebugHoo
   sk.add(SKILL_EFFECT, 'blizzardLength', 10, 150, 1).name('ブリザードの距離')
   sk.add(SKILL_EFFECT, 'blizzardHalfWidth', 1, 20, 0.5).name('ブリザードの半幅')
   sk.add(SKILL_EFFECT, 'blizzardSpeed', 2, 60, 1).name('ブリザードの速さ')
+  sk.add(SKILL_EFFECT, 'blizzardSnowRadius', 0, 50, 1).name('吹雪の半径')
+  sk.add(SKILL_EFFECT, 'blizzardSnowRate', 0, 0.3, 0.005).name('吹雪の積もる速さ')
   sk.add(RARE, 'value', 1, 500, 1).name('レア雪の価値')
   sk.add(RARE, 'spawnInterval', 1, 60, 1).name('レア雪の湧き間隔 (s)')
   sk.add(s, 'totalCollected').name('累計回収量').listen().disable()

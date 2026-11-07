@@ -24,8 +24,6 @@ const PER = SWIRL + INFLOW + CHUNKS
 
 const FADE_IN = 0.35
 const FADE_OUT = 1.2
-/** 竜巻が消えたあと、降雪が収まるまで (s) */
-const SNOW_LINGER = 3
 
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0)
 const tmpM = new THREE.Matrix4()
@@ -354,7 +352,7 @@ export class BlizzardFx {
 
     // ---- 降雪 ----
     this.calm += this.visuals.length > 0 ? 0 : dt
-    const target = this.visuals.length > 0 ? 1 : this.aiming ? 0.3 : Math.max(0, 1 - this.calm / SNOW_LINGER)
+    const target = this.visuals.length > 0 ? 1 : this.aiming ? 0.3 : Math.max(0, 1 - this.calm / SKILL_EFFECT.blizzardSnowLinger)
     this.intensity = THREE.MathUtils.damp(this.intensity, target, target > this.intensity ? 3 : 1.5, dt)
     const u = this.snow.material.uniforms
     this.snow.visible = this.intensity > 0.01
