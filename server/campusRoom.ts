@@ -70,7 +70,8 @@ export class CampusRoom extends Room<{ metadata: RoomMeta }> {
     },
     skill: (client: Client, m: SkillMessage | undefined) => {
       const p = this.player(client)
-      if (p && m && this.race.phase === 'running' && Object.hasOwn(SKILLS, m.id)) this.tag(p.id, useSkill(this.world, p, m.id))
+      if (!p || !m || this.race.phase !== 'running' || !Object.hasOwn(SKILLS, m.id)) return
+      this.tag(p.id, useSkill(this.world, p, m.id, typeof m.aim === 'number' ? m.aim : undefined))
     },
     start: (client: Client) => {
       const p = this.player(client)

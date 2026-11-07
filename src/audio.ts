@@ -63,3 +63,39 @@ export function playCoin() {
   tone(1318.5, 0, 0.08, 'square', 0.04)
   tone(1975.5, 0.07, 0.25, 'square', 0.04)
 }
+
+/** ブリザードの「ゴォォォ…」。白色雑音を帯域通過で鳴らし、通す帯域を上下させて風のうなりにする */
+export function playBlizzard(duration: number) {
+  if (!ctx) return
+  const t0 = ctx.currentTime
+  const len = Math.ceil(ctx.sampleRate * (duration + 1))
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+  const data = buf.getChannelData(0)
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1
+  const src = ctx.createBufferSource()
+  src.buffer = buf
+  const band = ctx.createBiquadFilter()
+  band.type = 'bandpass'
+  band.Q.value = 1.2
+  band.frequency.setValueAtTime(250, t0)
+  band.frequency.exponentialRampToValueAtTime(900, t0 + 0.4)
+  for (let t = 0.8; t < duration; t += 0.8) band.frequency.exponentialRampToValueAtTime(t % 1.6 < 0.8 ? 600 : 1100, t0 + t)
+  band.frequency.exponentialRampToValueAtTime(200, t0 + duration + 1)
+  const amp = ctx.createGain()
+  amp.gain.setValueAtTime(0, t0)
+  amp.gain.linearRampToValueAtTime(0.35, t0 + 0.3)
+  amp.gain.setValueAtTime(0.35, t0 + duration)
+  amp.gain.exponentialRampToValueAtTime(0.0001, t0 + duration + 1)
+  src.connect(band).connect(amp).connect(ctx.destination)
+  src.start(t0)
+  src.stop(t0 + duration + 1.05)
+  // 放った瞬間の低いうなり
+  tone(70, 0, 0.9, 'sawtooth', 0.08)
+  tone(105, 0.05, 0.7, 'triangle', 0.1)
+}
+
+/** 構えたときの「キィン」 */
+export function playCharge() {
+  tone(880, 0, 0.12, 'sine', 0.05)
+  tone(1760, 0.06, 0.3, 'sine', 0.04, 0.01)
+}

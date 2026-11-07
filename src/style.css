@@ -234,6 +234,29 @@ body.cinematic #labels { opacity: 0; transition: opacity 0.4s; }
   .skill { width: 56px; height: 56px; }
   .skill.ultimate { width: 66px; height: 66px; }
 }
+/* ブリザードを構えている間：もう一度押すと放つ。上に「やめる」を出す */
+.skill.ultimate.armed {
+  background: radial-gradient(circle at 35% 30%, #e8fbff, #4fb6e8); border-color: #fff; color: #0d3550;
+  animation: armed 0.7s ease-in-out infinite alternate;
+}
+.skill.ultimate.armed .skill-name { font-size: 15px; }
+@keyframes armed {
+  from { box-shadow: 0 0 0 0 rgba(159, 232, 255, 0.9), 0 4px 12px rgba(0, 0, 0, 0.3); transform: scale(1); }
+  to { box-shadow: 0 0 0 12px rgba(159, 232, 255, 0), 0 4px 12px rgba(0, 0, 0, 0.3); transform: scale(1.08); }
+}
+.skill-cancel {
+  position: absolute; right: 6px; bottom: calc(100% + 10px); padding: 6px 12px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.8); background: rgba(20, 30, 50, 0.7); color: #fff; font-size: 13px; font-weight: bold;
+  display: flex; gap: 6px; align-items: center; cursor: pointer; touch-action: none;
+}
+.skill-cancel kbd { font: inherit; font-size: 10px; opacity: 0.75; }
+.skill-cancel[hidden] { display: none; }
+@media (pointer: coarse) { .skill-cancel kbd { display: none; } }
+/* ブリザードの吹雪で画面の縁が白く凍る（不透明度は main.ts が強さに合わせて変える） */
+#blizzard-frost {
+  position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0) 45%, rgba(235, 245, 255, 0.55) 80%, rgba(250, 252, 255, 0.9) 100%);
+}
 body.cinematic #skill-bar, body.shop-open #skill-bar { opacity: 0; pointer-events: none; }
 .skill[hidden] { display: none; }
 #skill-bar { transition: opacity 0.2s; }
