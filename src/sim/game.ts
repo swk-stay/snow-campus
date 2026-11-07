@@ -34,7 +34,7 @@ export type Player = {
   /** ソロでは 'local'、マルチプレイではサーバーの sessionId */
   id: string
   name: string
-  /** 見た目（マルチプレイでプレイヤーが選ぶ。ソロは DEFAULT_SKIN） */
+  /** 見た目（タイトル画面でプレイヤーが選ぶ。選ぶ前は DEFAULT_SKIN） */
   skin: SkinId
   x: number
   z: number

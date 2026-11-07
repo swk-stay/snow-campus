@@ -34,6 +34,11 @@ export function mat(color: number) {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.75 })
 }
 
+/** 肌。陰で灰色にくすまないよう、少し自発光させる */
+export function skinMaterial() {
+  return new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.9, emissive: 0x6e5040 })
+}
+
 export function gemMaterial(color: number) {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.25, metalness: 0.3 })
 }
@@ -68,8 +73,9 @@ const FACE_SCALE = 2
  * 顔。Canvas に 2D で描いた眉・目・頬・鼻・口を、頭よりわずかに大きい球の前面に貼る。
  * 公式のデフォルメのイラストに合わせて、線と塗りだけの単純な描き方にする。
  * 立ち絵に寄せて目を細かく描き込むと、2 頭身の体には生々しすぎて不気味に見えたため。
+ * eye：目の塗りの色（省略すると線と同じ焦げ茶）。smile：false なら口を閉じて小さくする
  */
-function face(): THREE.Mesh {
+export function face({ eye, smile = true }: { eye?: string; smile?: boolean } = {}): THREE.Mesh {
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(FACE_PHI * 2 * FACE_UNIT * FACE_SCALE)
   canvas.height = Math.round((FACE_THETA1 - FACE_THETA0) * FACE_UNIT * FACE_SCALE)
@@ -114,9 +120,15 @@ function face(): THREE.Mesh {
     const y = py(1.66)
     const rx = 30
     const ry = 50
-    ctx.fillStyle = ink
+    ctx.fillStyle = eye ?? ink
     ellipse(x, y, rx, ry)
     ctx.fill()
+    if (eye) {
+      // 色付きの目には瞳を入れる（塗り一色だと平坦に見える）
+      ctx.fillStyle = ink
+      ellipse(x, y + ry * 0.1, rx * 0.5, ry * 0.55)
+      ctx.fill()
+    }
     ctx.lineWidth = 4
     ctx.beginPath()
     ctx.moveTo(x + sx * rx * 0.6, y - ry * 0.8)
@@ -133,25 +145,36 @@ function face(): THREE.Mesh {
   const mx = px(0)
   const my = py(1.93)
   const mw = 64
+  if (!smile) {
+    // 閉じた口：短い下向きの弧
+    ctx.strokeStyle = ink
+    ctx.lineWidth = 5
+    ctx.beginPath()
+    ctx.moveTo(mx - 16, my + 4)
+    ctx.quadraticCurveTo(mx, my + 14, mx + 16, my + 4)
+    ctx.stroke()
+  }
   const mouth = () => {
     ctx.beginPath()
     ctx.moveTo(mx - mw, my)
     ctx.quadraticCurveTo(mx, my - 14, mx + mw, my)
     ctx.bezierCurveTo(mx + mw * 0.9, my + 80, mx - mw * 0.9, my + 80, mx - mw, my)
   }
-  ctx.save()
-  mouth()
-  ctx.fillStyle = '#e46f7e'
-  ctx.fill()
-  ctx.clip()
-  ctx.fillStyle = '#f59aa6'
-  ellipse(mx, my + 60, mw * 0.7, 24)
-  ctx.fill()
-  ctx.restore()
-  mouth()
-  ctx.strokeStyle = ink
-  ctx.lineWidth = 5
-  ctx.stroke()
+  if (smile) {
+    ctx.save()
+    mouth()
+    ctx.fillStyle = '#e46f7e'
+    ctx.fill()
+    ctx.clip()
+    ctx.fillStyle = '#f59aa6'
+    ellipse(mx, my + 60, mw * 0.7, 24)
+    ctx.fill()
+    ctx.restore()
+    mouth()
+    ctx.strokeStyle = ink
+    ctx.lineWidth = 5
+    ctx.stroke()
+  }
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
@@ -275,8 +298,7 @@ function tieShape(): THREE.Shape {
  */
 export function cureBody(c: CureColors, knot: THREE.Object3D): THREE.Group {
   const g = new THREE.Group()
-  // 肌は陰で灰色にくすまないよう、少し自発光させる
-  const skin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.9, emissive: 0x6e5040 })
+  const skin = skinMaterial()
   const white = mat(WHITE)
   const gold = goldMaterial()
 
