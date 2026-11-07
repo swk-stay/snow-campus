@@ -58,7 +58,16 @@ const isBalance = params.has('balance')
 const isTimeAttack = !isGodView && !isBalance && params.get('mode') === 'timeattack'
 // ?mode=multi&server=ws://…&room=<roomId>（新しく作るときは room の代わりに create=<ルーム名>。同じ名前のルームがあればそこへ入る）でマルチプレイ。タイトル画面から入る。
 // ?view=god を付けると、そのルームを神視点で観戦する（自機は無く、操作も送らない）
-const isMulti = !isBalance && params.get('mode') === 'multi'
+// タイトル画面の「参加」は from=title を付けて来る。付いていない入室URL（配られたリンク・読み直し）は、すぐには入らず
+// タイトル画面でプレイヤー名とスキンを選んでもらう（issue #126）。from=title はアドレス欄から消して、コピーされても付いて回らないようにする
+const fromTitle = params.get('from') === 'title'
+if (fromTitle) {
+  const url = new URL(location.href)
+  url.searchParams.delete('from')
+  history.replaceState(history.state, '', url)
+}
+const isInvite = !isGodView && !isBalance && params.get('mode') === 'multi' && !fromTitle
+const isMulti = !isBalance && !isInvite && params.get('mode') === 'multi'
 const isSpectator = isGodView && isMulti
 // 調整した値はダッシュボードを開いたときだけ使う（普段のプレイには持ち込まない）。建物の必要量に効くので createGame より前に。
 // セーブも本編とは別の枠にする
@@ -353,7 +362,7 @@ document.addEventListener('visibilitychange', () => {
   if (session) awaySince ??= performance.now()
 })
 const title =
-  isGodView || isBalance || params.has('mode')
+  isGodView || isBalance || (params.has('mode') && !isInvite)
     ? null
     : new Title({
         camera,
@@ -364,6 +373,7 @@ const title =
         onPlay: () => resumed && hud.toast('続きから再開！', 1500),
         onNewGame: resetSave,
         onTimeAttack: () => switchMode(true),
+        invite: isInvite,
       })
 if (resumed && !title) hud.toast('続きから再開！', 1500)
 if (session) {

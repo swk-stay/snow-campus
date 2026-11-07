@@ -105,6 +105,18 @@ body.title-screen #shop, body.title-screen #skill-bar, body.title-screen #labels
 .tp-create { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding-top: 10px; border-top: 1px solid #e3e8f0; }
 .tp-message { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fdecec; color: #b03030; font-size: 13px; }
 .tp-message[hidden] { display: none; }
+.tp-browse { display: grid; gap: 12px; }
+.tp-browse[hidden], .tp-invite-room[hidden], .tp-invite-actions[hidden] { display: none; }
+
+/* 入室URL で開いたときの、参加するルーム */
+.tp-invite-room { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: #f3f6fb; }
+.tp-invite-label { font-size: 12px; font-weight: bold; color: #667; }
+.tp-invite-name { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-invite-room small { color: #667; font-size: 12px; font-variant-numeric: tabular-nums; }
+.tp-invite-actions { display: grid; gap: 8px; }
+.tp-invite-actions .title-button { justify-items: center; text-align: center; box-shadow: none; }
+.tp-invite-actions .title-button:disabled { opacity: 0.5; cursor: default; transform: none; }
+.tp-invite-actions .tp-small[hidden] { display: none; }
 
 /* 横に広い画面では、メニューを左に寄せて景色を空ける */
 @media (min-width: 900px) and (min-aspect-ratio: 4/3) {
